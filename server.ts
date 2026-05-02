@@ -210,6 +210,15 @@ DIRETRIZES PARA AS MENSAGENS:
       console.log("[ML OAuth Callback Local] Query Params:", req.query);
       const { code, state, error, error_description } = req.query;
 
+      console.log("ML_CALLBACK_START", {
+        hasCode: Boolean(code),
+        hasState: Boolean(state),
+        hasClientId: Boolean(process.env.ML_CLIENT_ID),
+        hasClientSecret: Boolean(process.env.ML_CLIENT_SECRET),
+        redirectUri: process.env.ML_REDIRECT_URI,
+        appBaseUrl: process.env.APP_BASE_URL
+      });
+
       if (error || error_description) {
          res.redirect(`${APP_BASE_URL}${integrationsPath}?mercadolivre=oauth_error`);
          return;
@@ -241,6 +250,12 @@ DIRETRIZES PARA AS MENSAGENS:
       const clientId = process.env.ML_CLIENT_ID || "";
       const clientSecret = process.env.ML_CLIENT_SECRET || "";
 
+      if (!clientId || !clientSecret) {
+          console.error("ML credentials not configured");
+          res.redirect(`${APP_BASE_URL}${integrationsPath}?mercadolivre=config_error`);
+          return;
+      }
+
       const tokenRes = await fetch('https://api.mercadolibre.com/oauth/token', {
           method: 'POST',
           headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Accept': 'application/json' },
@@ -254,20 +269,43 @@ DIRETRIZES PARA AS MENSAGENS:
       });
 
       if (!tokenRes.ok) {
-          console.error("Failed to exchange code. Status:", tokenRes.status, "Body:", await tokenRes.text());
+          const tokenErrorBody = await tokenRes.text();
+          console.log("ML_TOKEN_RESPONSE", {
+            status: tokenRes.status,
+            ok: tokenRes.ok,
+            body: tokenErrorBody
+          });
+          console.error("Failed to exchange code. Status:", tokenRes.status, "Body:", tokenErrorBody);
           res.redirect(`${APP_BASE_URL}${integrationsPath}?mercadolivre=token_error`);
           return;
       }
 
       const tokenData: any = await tokenRes.json();
+      console.log("ML_TOKEN_RESPONSE", {
+        status: tokenRes.status,
+        ok: tokenRes.ok,
+        body: null
+      });
 
       let mlUser = {} as any;
       try {
           const userRes = await fetch('https://api.mercadolibre.com/users/me', {
               headers: { Authorization: `Bearer ${tokenData.access_token}` }
           });
-          if (userRes.ok) mlUser = await userRes.json();
-      } catch (err) {}
+          console.log("ML_USERS_ME_RESPONSE", {
+            status: userRes.status,
+            ok: userRes.ok
+          });
+          if (userRes.ok) {
+              mlUser = await userRes.json();
+          } else {
+              res.redirect(`${APP_BASE_URL}${integrationsPath}?mercadolivre=user_error`);
+              return;
+          }
+      } catch (err) {
+          res.redirect(`${APP_BASE_URL}${integrationsPath}?mercadolivre=user_error`);
+          return;
+      }
 
       const admin = await import("firebase-admin");
       if (!admin.apps.length) {
@@ -307,6 +345,7 @@ DIRETRIZES PARA AS MENSAGENS:
           else await db.collection('ecommerce_keys').add(payload);
           
       } catch (e) {
+          console.log("ML_SAVE_ERROR", e);
           console.error("Save Error:", e);
           res.redirect(`${APP_BASE_URL}${integrationsPath}?mercadolivre=save_error`);
           return;

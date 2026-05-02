@@ -11,6 +11,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       console.log("[ML OAuth Vercel Callback] Query Params:", req.query);
       const { code, state, error, error_description } = req.query;
 
+      console.log("ML_CALLBACK_START", {
+        hasCode: Boolean(code),
+        hasState: Boolean(state),
+        hasClientId: Boolean(process.env.ML_CLIENT_ID),
+        hasClientSecret: Boolean(process.env.ML_CLIENT_SECRET),
+        redirectUri: process.env.ML_REDIRECT_URI,
+        appBaseUrl: process.env.APP_BASE_URL
+      });
+
       if (error || error_description) {
          res.redirect(302, `${APP_BASE_URL}${integrationsPath}?mercadolivre=oauth_error`);
          return;
@@ -49,7 +58,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const clientSecret = process.env.ML_CLIENT_SECRET || "";
 
       if (!clientId || !clientSecret) {
-          throw new Error("ML credentials not configured");
+          console.error("ML credentials not configured");
+          res.redirect(302, `${APP_BASE_URL}${integrationsPath}?mercadolivre=config_error`);
+          return;
       }
 
       // 1. Fetch token
@@ -66,12 +77,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       });
 
       if (!tokenRes.ok) {
-          console.error("Failed to exchange code. Status:", tokenRes.status, "Body:", await tokenRes.text());
+          const tokenErrorBody = await tokenRes.text();
+          console.log("ML_TOKEN_RESPONSE", {
+            status: tokenRes.status,
+            ok: tokenRes.ok,
+            body: tokenErrorBody
+          });
+          console.error("Failed to exchange code. Status:", tokenRes.status, "Body:", tokenErrorBody);
           res.redirect(302, `${APP_BASE_URL}${integrationsPath}?mercadolivre=token_error`);
           return;
       }
 
       const tokenData: any = await tokenRes.json();
+      
+      console.log("ML_TOKEN_RESPONSE", {
+        status: tokenRes.status,
+        ok: tokenRes.ok,
+        body: null
+      });
 
       // 2. Fetch user
       let mlUser = {} as any;
@@ -79,11 +102,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           const userRes = await fetch('https://api.mercadolibre.com/users/me', {
               headers: { Authorization: `Bearer ${tokenData.access_token}` }
           });
+          
+          console.log("ML_USERS_ME_RESPONSE", {
+            status: userRes.status,
+            ok: userRes.ok
+          });
+          
           if (userRes.ok) {
               mlUser = await userRes.json();
+          } else {
+              res.redirect(302, `${APP_BASE_URL}${integrationsPath}?mercadolivre=user_error`);
+              return;
           }
       } catch (err) {
           console.warn("[ML OAuth] Error fetching user:", err);
+          res.redirect(302, `${APP_BASE_URL}${integrationsPath}?mercadolivre=user_error`);
+          return;
       }
 
       // 3. Save integration
@@ -133,6 +167,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               await db.collection('ecommerce_keys').add(payload);
           }
       } catch (saveErr) {
+          console.log("ML_SAVE_ERROR", saveErr);
           console.error("Save Error:", saveErr);
           res.redirect(302, `${APP_BASE_URL}${integrationsPath}?mercadolivre=save_error`);
           return;
