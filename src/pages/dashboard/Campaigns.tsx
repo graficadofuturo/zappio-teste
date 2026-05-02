@@ -128,7 +128,7 @@ export default function Campaigns() {
     });
 
     // Load products
-    getDocs(query(collection(db, 'products'), where('user_id', '==', user.uid)))
+    getDocs(query(collection(db, 'affiliate_products'), where('user_id', '==', user.uid)))
       .then(res => {
         setProducts(res.docs.map(d => ({ id: d.id, ...d.data() })));
       })
@@ -350,16 +350,28 @@ export default function Campaigns() {
          }
          if (matchedProduct) {
              const prod = matchedProduct;
-             messageText = messageText.replace(/{product_title}/g, prod.product_title || '');
-             messageText = messageText.replace(/{product_price}/g, prod.product_price ? `R$ ${Number(prod.product_price).toFixed(2).replace('.', ',')}` : '');
-             messageText = messageText.replace(/{product_old_price}/g, prod.product_old_price ? `~R$ ${Number(prod.product_old_price).toFixed(2).replace('.', ',')}~` : '');
-             messageText = messageText.replace(/{product_discount}/g, prod.product_discount || '');
-             messageText = messageText.replace(/{product_link}/g, prod.product_link || '');
-             messageText = messageText.replace(/{product_affiliate_link}/g, prod.product_affiliate_link || prod.product_link || '');
-             messageText = messageText.replace(/{product_image}/g, prod.product_image || '');
+             
+             const replaceOrRemoveLine = (text: string, placeholder: string, value: string) => {
+                 if (!value) {
+                     return text.split('\n').filter(line => !line.includes(placeholder)).join('\n');
+                 }
+                 return text.replace(new RegExp(placeholder, 'g'), value);
+             };
+
+             messageText = replaceOrRemoveLine(messageText, '{product_title}', prod.product_title || '');
+             messageText = replaceOrRemoveLine(messageText, '{product_price}', prod.product_price ? `R$ ${Number(prod.product_price).toFixed(2).replace('.', ',')}` : '');
+             messageText = replaceOrRemoveLine(messageText, '{product_old_price}', prod.product_old_price ? `~R$ ${Number(prod.product_old_price).toFixed(2).replace('.', ',')}~` : '');
+             messageText = replaceOrRemoveLine(messageText, '{product_discount}', prod.product_discount || '');
+             
+             const linkToUse = prod.product_affiliate_link || prod.product_link || '';
+             messageText = replaceOrRemoveLine(messageText, '{product_affiliate_link}', linkToUse);
+             messageText = replaceOrRemoveLine(messageText, '{product_link}', linkToUse);
+             
+             messageText = replaceOrRemoveLine(messageText, '{product_image}', prod.product_image || '');
             
+             // Clean up any remaining empty variables
              const lines = messageText.split('\n');
-             messageText = lines.map((l: string) => l.replace(/{[^{}]+}/g, '').trim()).filter((l: string) => l !== '').join('\n');
+             messageText = lines.filter((l: string) => !/{[a-zA-Z0-9_]+}/.test(l)).join('\n');
              
              if (finalImageUrl.includes('{product_image}')) {
                  finalImageUrl = finalImageUrl.replace(/{product_image}/g, prod.product_image || '');

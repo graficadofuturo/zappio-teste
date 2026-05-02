@@ -286,11 +286,11 @@ DIRETRIZES PARA AS MENSAGENS:
         updated_at: doc.updated_at
       });
     } catch (error: any) {
-      console.error("ML_STATUS_ERROR", error);
       if (error?.code === 5 || (error?.message && error.message.includes('NOT_FOUND'))) {
         res.status(200).json({ connected: false });
         return;
       }
+      console.error("ML_STATUS_ERROR", error);
       res.status(500).json({ connected: false, error: error.message });
     }
   });
@@ -704,28 +704,27 @@ DIRETRIZES PARA AS MENSAGENS:
                       const item = itemWrapper.body;
                       const productId = item.id;
                       
+                      const priceNum = Number(item.price);
+                      const oldPriceNum = item.original_price ? Number(item.original_price) : null;
+                      const discountStr = oldPriceNum && oldPriceNum > priceNum ? Math.round((1 - priceNum / oldPriceNum) * 100) + '%' : null;
+                      
                       const productData = removeUndefinedDeep({
-                          id: item.id,
-                          title: item.title,
-                          price: item.price,
-                          original_price: item.original_price || null,
-                          currency_id: item.currency_id,
-                          available_quantity: item.available_quantity,
-                          sold_quantity: item.sold_quantity,
-                          condition: item.condition,
-                          permalink: item.permalink,
-                          thumbnail: item.thumbnail,
-                          pictures: item.pictures?.map((p: any) => p.url) || [],
-                          status: item.status,
-                          seller_id: integration.seller_id,
+                          product_id: item.id,
+                          product_title: item.title,
+                          product_price: priceNum,
+                          product_old_price: oldPriceNum,
+                          product_discount: discountStr,
+                          product_image: item.thumbnail ? item.thumbnail.replace('-I.jpg', '-O.jpg') : null,
+                          product_link: item.permalink,
+                          product_affiliate_link: '',
                           user_id: integration.user_id || null,
-                          category_id: item.category_id,
-                          listing_type_id: item.listing_type_id,
+                          status: item.status,
+                          available_quantity: item.available_quantity,
                           last_synced_at: new Date().toISOString(),
-                          raw: item
                       });
 
-                      await db.collection("mercadolivre_products").doc(String(productId)).set(productData, { merge: true });
+                      await db.collection("affiliate_products").doc(String(productId)).set(productData, { merge: true });
+
                       syncCount++;
                   }
               }
@@ -737,6 +736,10 @@ DIRETRIZES PARA AS MENSAGENS:
       console.log("ML_PRODUCTS_SAVE_SUCCESS", { count: syncCount });
       res.status(200).json({ ok: true, count: syncCount });
     } catch (error: any) {
+      if (error?.code === 5 || (error?.message && error.message.includes('NOT_FOUND'))) {
+          res.status(200).json({ ok: false, error: "not_connected" });
+          return;
+      }
       console.error("ML_PRODUCTS_SYNC_ERROR", error);
       res.status(500).json({ ok: false, error: error.message });
     }
@@ -789,7 +792,7 @@ DIRETRIZES PARA AS MENSAGENS:
       }
       try { db.settings({ ignoreUndefinedProperties: true }); } catch (e) {}
 
-      let query = db.collection("mercadolivre_products") as any;
+      let query = db.collection("affiliate_products") as any;
       
       if (userId) {
          query = query.where("user_id", "==", userId);
@@ -797,10 +800,18 @@ DIRETRIZES PARA AS MENSAGENS:
 
       const qs = await query.get();
       
-      const products = qs.docs.map((doc: any) => ({
-          id: doc.id,
-          ...doc.data()
-      }));
+      const products = qs.docs.map((doc: any) => {
+          const data = doc.data();
+          return {
+              id: doc.id,
+              ...data,
+              // ensure we expose the expected interface even if older data was stored
+              product_title: data.product_title || data.title,
+              product_price: data.product_price || data.price,
+              product_image: data.product_image || (data.thumbnail ? data.thumbnail.replace('-I.jpg', '-O.jpg') : null),
+              product_link: data.product_link || data.permalink,
+          };
+      });
 
       // Sort in memory to avoid needing composite index
       products.sort((a: any, b: any) => {
@@ -812,7 +823,119 @@ DIRETRIZES PARA AS MENSAGENS:
       res.status(200).json({ ok: true, products });
 
     } catch (error: any) {
+      if (error?.code === 5 || (error?.message && error.message.includes('NOT_FOUND'))) {
+        res.status(200).json({ ok: true, products: [] });
+        return;
+      }
       console.error("ML_PRODUCTS_LIST_ERROR", error);
+      res.status(500).json({ ok: false, error: error.message });
+    }
+  });
+
+  app.get("/api/mercadolivre/products/search", async (req, res) => {
+    try {
+      const q = req.query.q as string;
+      if (!q) {
+        res.status(400).json({ ok: false, error: "Missing query" });
+        return;
+      }
+      const mlRes = await fetch(`https://api.mercadolibre.com/sites/MLB/search?q=${encodeURIComponent(q)}&limit=20`);
+      if (!mlRes.ok) throw new Error("API do ML retornou erro");
+      
+      const mlData: any = await mlRes.json();
+      const items = (mlData.results || []).map((item: any) => {
+          const priceNum = Number(item.price);
+          const oldPriceNum = item.original_price ? Number(item.original_price) : null;
+          const discountStr = oldPriceNum && oldPriceNum > priceNum ? Math.round((1 - priceNum / oldPriceNum) * 100) + '%' : null;
+          return {
+              product_id: item.id,
+              product_title: item.title,
+              product_price: priceNum,
+              product_old_price: oldPriceNum,
+              product_discount: discountStr,
+              product_image: item.thumbnail ? item.thumbnail.replace('-I.jpg', '-O.jpg') : null,
+              product_link: item.permalink,
+              product_affiliate_link: '',
+              status: item.status,
+          };
+      });
+      res.status(200).json({ ok: true, products: items });
+    } catch (error: any) {
+      console.error("ML_PRODUCTS_SEARCH_ERROR", error);
+      res.status(500).json({ ok: false, error: error.message });
+    }
+  });
+
+  app.post("/api/mercadolivre/products/save", async (req, res) => {
+    try {
+      console.log("ML_PRODUCTS_SAVE_MANUAL");
+      const { userId, product } = req.body;
+      if (!userId || !product || !product.product_id) {
+        res.status(400).json({ ok: false, error: "Faltam dados obrigatórios" });
+        return;
+      }
+
+      const hasFirebaseServiceAccountKey = Boolean(process.env.FIREBASE_SERVICE_ACCOUNT_KEY);
+      const admin = await import("firebase-admin");
+
+      if (!admin.apps.length) {
+        if (!hasFirebaseServiceAccountKey) {
+          res.status(500).json({ ok: false, error: "Firebase Admin not initialized" });
+          return;
+        }
+
+        let serviceAccount: any = null;
+        try {
+          serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY as string);
+        } catch (error: any) {
+          res.status(500).json({ ok: false, error: "Invalid service account JSON" });
+          return;
+        }
+
+        try {
+          if (serviceAccount.private_key) {
+            serviceAccount.private_key = serviceAccount.private_key.replace(/\\n/g, "\n");
+          }
+          admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
+        } catch (error: any) {
+           res.status(500).json({ ok: false, error: "Failed to initialize Firebase Admin" });
+           return;
+        }
+      }
+
+      const databaseId = process.env.FIRESTORE_DATABASE_ID || "(default)";
+      const { getFirestore } = await import("firebase-admin/firestore");
+      let db;
+      try {
+          db = getFirestore(admin.app(), databaseId);
+      } catch (e) {
+          db = admin.firestore();
+          try { db.settings({ databaseId }); } catch (err) {}
+      }
+      try { db.settings({ ignoreUndefinedProperties: true }); } catch (e) {}
+
+      function removeUndefinedDeep(obj: any): any {
+        if (Array.isArray(obj)) return obj.map(removeUndefinedDeep).filter((v) => v !== undefined);
+        if (obj && typeof obj === "object") {
+          return Object.fromEntries(
+            Object.entries(obj)
+              .filter(([_, value]) => value !== undefined)
+              .map(([key, value]) => [key, removeUndefinedDeep(value)])
+          );
+        }
+        return obj;
+      }
+
+      const productData = removeUndefinedDeep({
+          ...product,
+          user_id: userId,
+          last_synced_at: new Date().toISOString()
+      });
+
+      await db.collection("affiliate_products").doc(String(product.product_id)).set(productData, { merge: true });
+      res.status(200).json({ ok: true });
+    } catch (error: any) {
+      console.error("ML_PRODUCTS_SAVE_MANUAL_ERROR", error);
       res.status(500).json({ ok: false, error: error.message });
     }
   });
