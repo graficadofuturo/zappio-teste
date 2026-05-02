@@ -30,15 +30,15 @@ export default function Integrations() {
       } else if (mlStatus === 'error' || mlStatus === 'oauth_error') {
          setMessage({ type: 'error', text: 'Não foi possível conectar ao Mercado Livre.' });
       } else if (mlStatus === 'missing_code') {
-         setMessage({ type: 'error', text: 'O Mercado Livre não retornou o código de autorização.' });
+         setMessage({ type: 'error', text: 'O Mercado Livre não retornou o código de autorização. Tente conectar novamente.' });
       } else if (mlStatus === 'invalid_state') {
-         setMessage({ type: 'error', text: 'Sessão expirada. Tente conectar novamente.' });
+         setMessage({ type: 'error', text: 'Sessão de conexão expirada. Tente conectar novamente.' });
       } else if (mlStatus === 'token_error') {
-         setMessage({ type: 'error', text: 'Erro ao conectar com Mercado Livre. Verifique as configurações.' });
+         setMessage({ type: 'error', text: 'Erro ao trocar autorização por token. Verifique as configurações do Mercado Livre.' });
       } else if (mlStatus === 'config_error') {
          setMessage({ type: 'error', text: 'As configurações do Mercado Livre estão incompletas.' });
       } else if (mlStatus === 'save_error') {
-         setMessage({ type: 'error', text: 'Falha ao salvar a integração no banco de dados.' });
+         setMessage({ type: 'error', text: 'A conexão funcionou, mas não foi possível salvar a integração.' });
       }
       // Remove param to prevent showing again on reload
       navigate('/dashboard/integrations', { replace: true });
@@ -204,12 +204,7 @@ export default function Integrations() {
                        
                        <button 
                          onClick={() => {
-                             const url = "/api/integrations/mercadolivre/connect?userId=" + auth.currentUser?.uid;
-                             if (window.self !== window.top) {
-                                 window.open(url, '_blank');
-                             } else {
-                                 window.location.href = url;
-                             }
+                             window.location.href = "/api/integrations/mercadolivre/connect?userId=" + auth.currentUser?.uid;
                          }}
                          className={`w-full bg-[#ffe600] text-[#2d3277] border border-[#ffe600] px-4 py-3 rounded-lg font-bold text-[14px] flex items-center justify-center gap-2 hover:opacity-90 disabled:opacity-50 transition-all shadow-sm ${syncing === 'ml' ? 'pointer-events-none opacity-50' : ''}`}
                        >
