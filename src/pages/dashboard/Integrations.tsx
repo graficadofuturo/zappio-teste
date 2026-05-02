@@ -35,6 +35,8 @@ export default function Integrations() {
          setMessage({ type: 'error', text: 'Erro ao trocar autorização por token. Verifique as configurações do Mercado Livre.' });
       } else if (mlStatus === 'config_error') {
          setMessage({ type: 'error', text: 'As configurações do Mercado Livre estão incompletas.' });
+      } else if (mlStatus === 'firestore_not_found') {
+         setMessage({ type: 'error', text: 'Firestore não encontrado. Verifique o FIRESTORE_DATABASE_ID ou crie o banco (default).' });
       } else if (mlStatus === 'save_error') {
          setMessage({ type: 'error', text: 'A conexão funcionou, mas não foi possível salvar a integração.' });
       } else if (mlStatus === 'error') {

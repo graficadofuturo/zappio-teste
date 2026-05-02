@@ -381,7 +381,30 @@ DIRETRIZES PARA AS MENSAGENS:
           }
       }
 
-      const db = admin.firestore();
+      const databaseId = process.env.FIRESTORE_DATABASE_ID || "(default)";
+      let parsedProjectId = "unknown";
+      try {
+          if (process.env.FIREBASE_SERVICE_ACCOUNT_KEY) {
+              const sa = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY);
+              if (sa && sa.project_id) parsedProjectId = sa.project_id;
+          }
+      } catch (e) {}
+
+      console.log("FIRESTORE_TARGET", {
+        projectId: parsedProjectId,
+        databaseId
+      });
+
+      const { getFirestore } = await import("firebase-admin/firestore");
+      let db;
+      try {
+          db = getFirestore(admin.app(), databaseId);
+      } catch (e) {
+          db = admin.firestore();
+          try {
+              db.settings({ databaseId });
+          } catch (err) {}
+      }
       try {
           let existingDoc: any = null;
           let qs = await db.collection('ecommerce_keys')
@@ -414,6 +437,12 @@ DIRETRIZES PARA AS MENSAGENS:
               code: saveErr?.code,
               stack: saveErr?.stack,
           });
+
+          if (saveErr?.code === 5 || (saveErr?.message && saveErr.message.includes('NOT_FOUND'))) {
+              res.redirect(`${APP_BASE_URL}${integrationsPath}?mercadolivre=firestore_not_found`);
+              return;
+          }
+
           res.redirect(`${APP_BASE_URL}${integrationsPath}?mercadolivre=save_error`);
           return;
       }
