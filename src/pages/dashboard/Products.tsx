@@ -87,7 +87,7 @@ export default function Products() {
       setSearching(true);
       setSearchResults([]);
       try {
-          const res = await fetch(`/api/mercadolivre/products/search?q=${encodeURIComponent(searchQuery)}`);
+          const res = await fetch(`/api/mercadolivre/affiliate-products/search?q=${encodeURIComponent(searchQuery)}`);
           const data = await res.json();
           if (res.ok && data.ok) {
               setSearchResults(data.products || []);

@@ -832,15 +832,28 @@ DIRETRIZES PARA AS MENSAGENS:
     }
   });
 
-  app.get("/api/mercadolivre/products/search", async (req, res) => {
+  app.get("/api/mercadolivre/affiliate-products/search", async (req, res) => {
     try {
       const q = req.query.q as string;
       if (!q) {
-        res.status(400).json({ ok: false, error: "Missing query" });
+        res.status(400).json({ ok: false, error: "missing_query" });
         return;
       }
-      const mlRes = await fetch(`https://api.mercadolibre.com/sites/MLB/search?q=${encodeURIComponent(q)}&limit=20`);
-      if (!mlRes.ok) throw new Error("API do ML retornou erro");
+      
+      console.log("ML_AFFILIATE_SEARCH_ROUTE_HIT", { q });
+      
+      const mlRes = await fetch(`https://api.mercadolibre.com/sites/MLB/search?q=${encodeURIComponent(q)}&limit=50`);
+      
+      if (!mlRes.ok) {
+        const details = await mlRes.text().catch(() => "could not read response text");
+        res.status(mlRes.status).json({
+          ok: false,
+          error: "mercadolivre_fetch_failed",
+          status: mlRes.status,
+          details
+        });
+        return;
+      }
       
       const mlData: any = await mlRes.json();
       const items = (mlData.results || []).map((item: any) => {
@@ -859,10 +872,19 @@ DIRETRIZES PARA AS MENSAGENS:
               status: item.status,
           };
       });
-      res.status(200).json({ ok: true, products: items });
+      res.status(200).json({
+        ok: true,
+        query: q,
+        count: items.length,
+        products: items
+      });
     } catch (error: any) {
-      console.error("ML_PRODUCTS_SEARCH_ERROR", error);
-      res.status(500).json({ ok: false, error: error.message });
+      console.error("ML_AFFILIATE_SEARCH_EXCEPTION", error);
+      res.status(500).json({
+        ok: false,
+        error: "search_exception",
+        message: error.message || String(error)
+      });
     }
   });
 
