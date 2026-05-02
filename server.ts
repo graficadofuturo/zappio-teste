@@ -198,7 +198,7 @@ DIRETRIZES PARA AS MENSAGENS:
     } catch (e: any) {
       console.error("[ML OAuth] Connect route error:", e);
       const APP_BASE_URL = process.env.APP_BASE_URL || "https://zappio-teste.vercel.app";
-      res.redirect(`${APP_BASE_URL}/dashboard/integrations?mercadolivre=error`);
+      res.redirect(`${APP_BASE_URL}/dashboard/integrations?mercadolivre=config_error`);
     }
   });
 
@@ -353,8 +353,12 @@ DIRETRIZES PARA AS MENSAGENS:
 
       res.redirect(`${APP_BASE_URL}${integrationsPath}?mercadolivre=connected`);
     } catch (e: any) {
-      console.error("[ML OAuth Callback Local] Exception:", e);
-      res.redirect(`${APP_BASE_URL}${integrationsPath}?mercadolivre=error`);
+      console.error("ML_CALLBACK_EXCEPTION", {
+        message: e?.message,
+        name: e?.name,
+        stack: e?.stack,
+      });
+      res.redirect(`${APP_BASE_URL}${integrationsPath}?mercadolivre=callback_exception`);
     }
   });
 

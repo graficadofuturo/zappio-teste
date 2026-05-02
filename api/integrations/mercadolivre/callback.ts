@@ -176,7 +176,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       console.log("[ML OAuth Vercel Callback] Success");
       res.redirect(302, `${APP_BASE_URL}${integrationsPath}?mercadolivre=connected`);
     } catch (e: any) {
-      console.error("[ML OAuth Vercel Callback] Exception:", e);
-      res.redirect(302, `${APP_BASE_URL}${integrationsPath}?mercadolivre=error`);
+      console.error("ML_CALLBACK_EXCEPTION", {
+        message: e?.message,
+        name: e?.name,
+        stack: e?.stack,
+      });
+      res.redirect(302, `${APP_BASE_URL}${integrationsPath}?mercadolivre=callback_exception`);
     }
 }

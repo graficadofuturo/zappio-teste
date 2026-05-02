@@ -27,8 +27,6 @@ export default function Integrations() {
     if (mlStatus) {
       if (mlStatus === 'connected') {
          setMessage({ type: 'success', text: 'Mercado Livre conectado com sucesso.' });
-      } else if (mlStatus === 'error' || mlStatus === 'oauth_error') {
-         setMessage({ type: 'error', text: 'Não foi possível conectar ao Mercado Livre.' });
       } else if (mlStatus === 'missing_code') {
          setMessage({ type: 'error', text: 'O Mercado Livre não retornou o código de autorização. Tente conectar novamente.' });
       } else if (mlStatus === 'invalid_state') {
@@ -39,6 +37,10 @@ export default function Integrations() {
          setMessage({ type: 'error', text: 'As configurações do Mercado Livre estão incompletas.' });
       } else if (mlStatus === 'save_error') {
          setMessage({ type: 'error', text: 'A conexão funcionou, mas não foi possível salvar a integração.' });
+      } else if (mlStatus === 'error') {
+         setMessage({ type: 'error', text: 'Não foi possível conectar ao Mercado Livre.' });
+      } else {
+         setMessage({ type: 'error', text: `Erro Mercado Livre: ${mlStatus}` });
       }
       // Remove param to prevent showing again on reload
       navigate('/dashboard/integrations', { replace: true });
