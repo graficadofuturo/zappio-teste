@@ -9,19 +9,69 @@ export default function DashboardOverview() {
   const [filter, setFilter] = useState('7d');
   const [hasIntegrations, setHasIntegrations] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [metrics, setMetrics] = useState({
+    clicks: 0,
+    buyers: 0,
+    orders: 0,
+    estimatedSales: "R$ 0,00",
+    unpaidSales: "R$ 0,00",
+    estimatedGain: "R$ 0,00",
+    products: 0,
+    activeInstances: 0,
+    messagesSent: 0,
+    successRate: "0%",
+    errorRate: "0%"
+  });
 
   useEffect(() => {
     async function checkIntegrations() {
+      const user = auth.currentUser;
+      if (!user) return;
+
       try {
-        const user = auth.currentUser;
-        if (!user) return;
-        
         const q = query(collection(db, 'ecommerce_keys'), where('user_id', '==', user.uid));
         const qs = await getDocs(q);
         setHasIntegrations(!qs.empty);
       } catch (e) {
-        handleFirestoreError(e, OperationType.GET, 'ecommerce_keys');
+        console.error("ecommerce_keys error", e);
       }
+
+      try {
+        // Fetch real metrics
+        const qProducts = query(collection(db, 'products'), where('user_id', '==', user.uid));
+        const qsProducts = await getDocs(qProducts);
+        
+        // Mock sales/performance metrics + real entity counts
+        setMetrics(prev => ({
+          ...prev,
+          clicks: 12450,
+          buyers: 312,
+          orders: 345,
+          estimatedSales: "R$ 45.230,00",
+          unpaidSales: "R$ 3.120,00",
+          estimatedGain: "R$ 4.523,00",
+          messagesSent: 45890,
+          successRate: "98.5%",
+          errorRate: "1.5%",
+          products: qsProducts.size
+        }));
+      } catch (e) {
+        console.error("products error", e);
+      }
+
+      try {
+        const qInstances = query(collection(db, 'whatsapp_instances'), where('user_id', '==', user.uid));
+        const qsInstances = await getDocs(qInstances);
+        const activeInstancesCount = qsInstances.docs.filter(d => d.data().status === 'open').length;
+
+        setMetrics(prev => ({
+          ...prev,
+          activeInstances: activeInstancesCount
+        }));
+      } catch (e) {
+        console.error("whatsapp_instances error", e);
+      }
+      
       setLoading(false);
     }
     checkIntegrations();
@@ -56,21 +106,6 @@ export default function DashboardOverview() {
       </div>
     );
   }
-
-  // Mock metrics for layout
-  const metrics = {
-    clicks: 12450,
-    buyers: 312,
-    orders: 345,
-    estimatedSales: "R$ 45.230,00",
-    unpaidSales: "R$ 3.120,00",
-    estimatedGain: "R$ 4.523,00",
-    products: 154,
-    activeInstances: 2,
-    messagesSent: 45890,
-    successRate: "98.5%",
-    errorRate: "1.5%"
-  };
 
   return (
     <div className="p-6 md:p-10 max-w-7xl mx-auto space-y-10">

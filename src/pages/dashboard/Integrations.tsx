@@ -18,6 +18,11 @@ export default function Integrations() {
   const [manualSellerId, setManualSellerId] = useState('');
   const [savingManual, setSavingManual] = useState(false);
 
+  const [shopeeAppId, setShopeeAppId] = useState('');
+  const [shopeeAppSecret, setShopeeAppSecret] = useState('');
+  const [isShopeeFormOpen, setIsShopeeFormOpen] = useState(false);
+  const [savingShopee, setSavingShopee] = useState(false);
+
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const [message, setMessage] = useState<{type: 'success' | 'error', text: string} | null>(null);
@@ -115,6 +120,38 @@ export default function Integrations() {
       setSavingManual(false);
   };
 
+  const saveShopee = async (e: React.FormEvent) => {
+      e.preventDefault();
+      setSavingShopee(true);
+      try {
+          const user = auth.currentUser;
+          if (!user) return;
+          
+          const payload: any = {
+              user_id: user.uid,
+              platform: 'shopee',
+              api_key: shopeeAppId,
+              api_secret: shopeeAppSecret,
+              status: 'connected',
+              sync_count: 0,
+              updated_at: new Date()
+          };
+          
+          await addDoc(collection(db, 'ecommerce_keys'), payload);
+          setShopeeAppId('');
+          setShopeeAppSecret('');
+          setIsShopeeFormOpen(false);
+          await loadIntegrations();
+          
+          setMessage({ type: 'success', text: "Shopee conectada com sucesso!" });
+          setTimeout(() => setMessage(null), 5000);
+
+      } catch(e) {
+          setMessage({ type: 'error', text: 'Erro ao salvar Shopee.' });
+      }
+      setSavingShopee(false);
+  };
+
   const handleDisconnect = async (id: string) => {
       if (!confirm('Deseja realmente desconectar esta integração?')) return;
       try {
@@ -128,6 +165,7 @@ export default function Integrations() {
   };
 
   const mlIntegration = integrations.find(i => i.platform === 'mercadolivre' || i.platform === 'mercado_livre');
+  const shopeeIntegration = integrations.find(i => i.platform === 'shopee');
 
   return (
     <div className="p-6 md:p-10 max-w-7xl mx-auto space-y-6">
@@ -306,13 +344,13 @@ export default function Integrations() {
         </div>
 
         {/* Shopee Card */}
-        <div className="bg-white border border-gray-200 rounded-2xl flex flex-col h-full shadow-sm relative overflow-hidden opacity-60 grayscale hover:grayscale-0 transition-all cursor-not-allowed">
+        <div className="bg-white border border-gray-200 rounded-2xl flex flex-col h-full shadow-sm relative overflow-hidden transition-all">
              <div className="absolute top-0 left-0 w-full h-1.5 bg-[#ee4d2d]"></div>
              <div className="p-6 flex flex-col h-full">
                  <div className="flex items-start justify-between mb-4">
                      <div>
                         <h3 className="text-[16px] font-bold text-gray-900 flex items-center gap-2">Shopee</h3>
-                        <p className="text-[13px] text-gray-500 mt-1 leading-relaxed pr-4">Conecte sua conta de afiliado para puxar ofertas.</p>
+                        <p className="text-[13px] text-gray-500 mt-1 leading-relaxed pr-4">Conecte sua conta de afiliado via Open API.</p>
                      </div>
                      <div className="w-12 h-12 rounded-xl bg-red-50 flex items-center justify-center flex-shrink-0">
                        <ShoppingBag className="w-6 h-6 text-red-500" />
@@ -320,12 +358,44 @@ export default function Integrations() {
                  </div>
                  
                  <div className="mt-auto pt-6">
-                    <div className="flex items-center gap-2 px-2.5 py-1 bg-gray-100 text-gray-500 text-[11px] font-bold uppercase tracking-wider rounded border border-gray-200 w-max mb-4">
-                        Em breve
-                    </div>
-                    <button disabled className="w-full bg-gray-100 text-gray-400 py-3 rounded-xl font-bold text-[14px] flex items-center justify-center gap-2 border border-gray-200">
-                      Disponível futuramente
-                    </button>
+                    {shopeeIntegration ? (
+                        <div className="space-y-4">
+                           <div className="flex items-center gap-2 px-2.5 py-1 bg-green-50 text-green-700 text-[11px] font-bold uppercase tracking-wider rounded border border-green-200 w-max">
+                              <Sparkles className="w-3.5 h-3.5" /> Conectado
+                           </div>
+                           <button 
+                             onClick={() => handleDisconnect(shopeeIntegration.id)}
+                             className="w-full text-red-600 bg-red-50 border border-red-100 py-2 rounded-lg text-[13px] font-medium transition-colors hover:bg-red-100 flex items-center justify-center gap-2"
+                           >
+                             <Trash2 className="w-4 h-4" /> Desconectar conta
+                           </button>
+                        </div>
+                    ) : (
+                        <div className="space-y-4">
+                            <button 
+                                onClick={() => setIsShopeeFormOpen(!isShopeeFormOpen)}
+                                className="w-full bg-[#ee4d2d] text-white py-3 rounded-xl font-bold text-[14px] flex items-center justify-center gap-2 hover:bg-[#d74226] transition-colors shadow-sm"
+                            >
+                                <ExternalLink className="w-4 h-4" /> Configurar Credenciais
+                            </button>
+                            
+                            {isShopeeFormOpen && (
+                                <form onSubmit={saveShopee} className="animate-in fade-in slide-in-from-top-2 duration-200 bg-gray-50 p-4 rounded-xl border border-gray-100 space-y-4">
+                                   <div>
+                                     <label className="block text-[11px] font-bold uppercase tracking-wide text-gray-600 mb-1.5">App ID</label>
+                                     <input type="text" required value={shopeeAppId} onChange={e=>setShopeeAppId(e.target.value)} className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-[13px] focus:ring-2 focus:ring-[#ee4d2d]/20 focus:border-[#ee4d2d] outline-none transition-all" />
+                                   </div>
+                                   <div>
+                                     <label className="block text-[11px] font-bold uppercase tracking-wide text-gray-600 mb-1.5">App Secret</label>
+                                     <input type="password" required value={shopeeAppSecret} onChange={e=>setShopeeAppSecret(e.target.value)} className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-[13px] focus:ring-2 focus:ring-[#ee4d2d]/20 focus:border-[#ee4d2d] outline-none transition-all" />
+                                   </div>
+                                   <button type="submit" disabled={savingShopee} className="w-full bg-[#ee4d2d] text-white py-2.5 rounded-lg text-[13px] font-bold flex items-center justify-center gap-2 hover:bg-[#d74226] transition-colors shadow-sm disabled:opacity-50">
+                                       {savingShopee ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Salvar'}
+                                   </button>
+                                </form>
+                            )}
+                        </div>
+                    )}
                  </div>
              </div>
         </div>

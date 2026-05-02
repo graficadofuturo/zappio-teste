@@ -1,6 +1,6 @@
 import fetch from 'node-fetch';
 import admin from 'firebase-admin';
-import { getFirestore } from 'firebase-admin/firestore';
+import { getAdminDb } from '../../api/firebaseAdmin.ts';
 
 export async function getMLAuthUrl(origin: string, state: string, redirectUri: string) {
     const clientId = process.env.ML_CLIENT_ID;
@@ -70,7 +70,7 @@ export async function saveMLIntegration(userId: string, data: any, mlUser: any, 
              throw new Error("Firebase Admin not initialized and FIREBASE_SERVICE_ACCOUNT_KEY not set");
         }
     }
-    const db = getFirestore();
+    const db = await getAdminDb();
     
     // Check if integration already exists
     let existingDoc: FirebaseFirestore.QueryDocumentSnapshot | null = null;
@@ -138,7 +138,7 @@ export async function syncMLProducts(integrationId: string) {
              throw new Error("Firebase Admin not initialized and FIREBASE_SERVICE_ACCOUNT_KEY not set");
         }
     }
-    const db = getFirestore();
+    const db = await getAdminDb();
     const docRef = db.collection('ecommerce_keys').doc(integrationId);
     const docSnap = await docRef.get();
     

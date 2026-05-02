@@ -20,8 +20,8 @@ export default function Campaigns() {
   const [instances, setInstances] = useState<any[]>([]);
   const [groups, setGroups] = useState<any[]>([]);
   
-  const [selectedInstance, setSelectedInstance] = useState('');
-  const [selectedGroup, setSelectedGroup] = useState('');
+  const [targets, setTargets] = useState<{instance_id: string, group_id: string}[]>([{ instance_id: '', group_id: '' }]);
+  const [syncedInstances, setSyncedInstances] = useState<Set<string>>(new Set());
   const [campaignName, setCampaignName] = useState('Promoção Relâmpago...');
 
   // Scheduling State
@@ -63,32 +63,90 @@ export default function Campaigns() {
   ];
 
   useEffect(() => {
-    if (!selectedInstance) return;
-    
-    // Auto-fetch groups for the dropdown
-    fetch(`/api/whatsapp/sync?instanceId=${selectedInstance}`)
-      .then(res => res.json())
-      .then(syncData => {
-         const transientGroups: any[] = [];
-         for (const g of (syncData.groups || [])) {
-             transientGroups.push({ id: selectedInstance + '_' + g.id, name: g.subject || g.name || 'Grupo', type: 'group' });
-         }
-         for (const c of (syncData.contacts || [])) {
-             transientGroups.push({ id: selectedInstance + '_' + c.id, name: c.name || c.notify || c.verifiedName || c.pushname || c.id?.split('@')[0] || 'Contato', type: 'contact' });
-         }
-         setGroups(prev => {
-             const map = new Map(prev.map(p => [p.id, p]));
-             transientGroups.forEach(tg => map.set(tg.id, tg));
-             return Array.from(map.values());
-         });
-      })
-      .catch(console.error);
-  }, [selectedInstance]);
+    targets.forEach(target => {
+      const instanceId = target.instance_id;
+      if (instanceId && !syncedInstances.has(instanceId)) {
+        setSyncedInstances(prev => new Set(prev).add(instanceId));
+        fetch(`/api/whatsapp/sync?instanceId=${instanceId}`)
+          .then(res => res.json())
+          .then(syncData => {
+             const transientGroups: any[] = [];
+             for (const g of (syncData.groups || [])) {
+                 transientGroups.push({ id: instanceId + '_' + g.id, name: g.subject || g.name || 'Grupo', type: 'group' });
+             }
+             for (const c of (syncData.contacts || [])) {
+                 transientGroups.push({ id: instanceId + '_' + c.id, name: c.name || c.notify || c.verifiedName || c.pushname || c.id?.split('@')[0] || 'Contato', type: 'contact' });
+             }
+             setGroups(prev => {
+                 const map = new Map(prev.map(p => [p.id, p]));
+                 transientGroups.forEach(tg => map.set(tg.id, tg));
+                 return Array.from(map.values());
+             });
+          })
+          .catch(console.error);
+      }
+    });
+  }, [targets, syncedInstances]);
 
   // AI Prompt details
   const [productUrl, setProductUrl] = useState('');
   const [aiObjective, setAiObjective] = useState('vender_produto');
-  const [aiTone, setAiTone] = useState('persuasivo');
+  const [aiTone, setAiTone] = useState('Amigável');
+  const [offerCategory, setOfferCategory] = useState('Todos');
+  const [previewProduct, setPreviewProduct] = useState<any>(null);
+  const [loadingPreview, setLoadingPreview] = useState(false);
+  const [categories, setCategories] = useState<string[]>([]);
+
+  useEffect(() => {
+    fetch('/api/campaigns/categories')
+      .then(res => res.json())
+      .then(data => setCategories(data))
+      .catch(console.error);
+  }, []);
+
+  const loadPreviewOffer = async () => {
+    setLoadingPreview(true);
+    try {
+      const res = await fetch(`/api/campaigns/dummy/preview-offer?category=${encodeURIComponent(offerCategory)}`);
+      if (!res.ok) throw new Error(await res.text());
+      const data = await res.json();
+      setPreviewProduct(data.product);
+      showSuccess("Oferta de exemplo carregada!");
+    } catch (e: any) {
+      showError(e.message || "Erro ao carregar oferta de exemplo.");
+    } finally {
+      setLoadingPreview(false);
+    }
+  };
+
+  const generateCopyWithAI = async () => {
+    if (!message) {
+      showError("Escreva a estrutura da mensagem primeiro para usar a IA.");
+      return;
+    }
+    setGenerating(true);
+    try {
+      const res = await fetch('/api/campaigns/dummy/generate-copy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          category: offerCategory,
+          tone: aiTone,
+          template: message,
+          product: previewProduct
+        })
+      });
+      if (!res.ok) throw new Error(await res.text());
+      const data = await res.json();
+      setMessage(data.copy);
+      showSuccess("Mensagem melhorada pela IA!");
+    } catch (e: any) {
+      showError(e.message || "Erro ao gerar copy com IA.");
+    } finally {
+      setGenerating(false);
+    }
+  };
+
   const [aiVariations, setAiVariations] = useState<{title: string, text: string}[] | null>(null);
 
   useEffect(() => {
@@ -140,42 +198,10 @@ export default function Campaigns() {
     };
   }, []);
 
-  const generateCopy = async () => {
-    setGenerating(true);
-    setAiVariations(null);
-    try {
-      const payload: any = {
-        productUrl,
-        aiObjective,
-        aiTone,
-        campaignName
-      };
-
-      const resp = await fetch("/api/generate-copy", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(payload),
-      });
-      const data = await resp.json().catch(() => ({ error: 'Invalid response from server' }));
-
-      if (resp.ok && data.variations) {
-        setAiVariations(data.variations);
-      } else if (resp.ok && data.text) {
-        setMessage(data.text);
-      } else {
-        throw new Error(data.error || 'Erro desconhecido');
-      }
-    } catch (error: any) {
-      console.error(error);
-      showError(error.message || 'Erro ao gerar copy. Verifique erro no console.');
-    }
-    setGenerating(false);
-  };
 
   const handleSend = async () => {
-    if (!selectedInstance || !selectedGroup || !message || !campaignName) {
+    const isValidTargets = targets.every(t => t.instance_id && t.group_id);
+    if (!isValidTargets || !message || !campaignName || targets.length === 0) {
       showError("Preencha todos os campos obrigatórios (Instância, Grupo, Nome e Mensagem)");
       return;
     }
@@ -195,12 +221,12 @@ export default function Campaigns() {
     }
 
     try {
-      // Check if instance is connected
-      const statusRes = await fetch(`/api/whatsapp/status?instanceId=${selectedInstance}`);
+      // For MVP, just check the first instance
+      const statusRes = await fetch(`/api/whatsapp/status?instanceId=${targets[0].instance_id}`);
       if (statusRes.ok) {
          const statusData = await statusRes.json();
          if (statusData.status !== 'connected') {
-             showError('A Instância de WhatsApp selecionada não está conectada. Por favor, acesse a aba "Instâncias" e conecte via QR Code antes de salvar/enviar.');
+             showError('Uma ou mais Instâncias de WhatsApp não estão conectadas. Por favor, conecte via QR Code antes de salvar.');
              return;
          }
       }
@@ -216,11 +242,14 @@ export default function Campaigns() {
     try {
         const payload: any = {
           name: campaignName,
-          instance_id: selectedInstance,
-          target_group_id: selectedGroup,
+          instance_id: targets[0].instance_id, // keep for backwards compatibility
+          target_group_id: targets[0].group_id, // keep for backwards compatibility
+          targets: targets,
           message,
+          offer_category: offerCategory,
+          ai_tone: aiTone,
           image_url: imageUrl || '',
-          use_ml_products: useAllProducts || selectedProductIds.length > 0,
+          use_ml_products: useAllProducts || selectedProductIds.length > 0 || offerCategory !== 'Todos',
           ml_product_ids: useAllProducts ? 'ALL' : selectedProductIds,
           updated_at: serverTimestamp(),
           trigger_type: autoSendNow ? 'auto' : triggerType,
@@ -284,7 +313,8 @@ export default function Campaigns() {
 
   const handleTogglePause = async (id: string, currentStatus: string) => {
     try {
-      const newStatus = currentStatus === 'paused' ? 'scheduled' : 'paused';
+      const isStarting = ['paused', 'draft', 'failed', 'sent'].includes(currentStatus);
+      const newStatus = isStarting ? 'scheduled' : 'paused';
       await updateDoc(doc(db, 'campaigns', id), {
         status: newStatus,
         updated_at: serverTimestamp()
@@ -297,8 +327,14 @@ export default function Campaigns() {
   const handleEditCampaign = (camp: any) => {
     setEditingId(camp.id);
     setCampaignName(camp.name || '');
-    setSelectedInstance(camp.instance_id || '');
-    setSelectedGroup(camp.target_group_id || '');
+    if (camp.targets && camp.targets.length > 0) {
+      setTargets(camp.targets);
+    } else {
+      setTargets([{ instance_id: camp.instance_id || '', group_id: camp.target_group_id || '' }]);
+    }
+    setOfferCategory(camp.offer_category || 'Todos');
+    setAiTone(camp.ai_tone || 'Amigável');
+    setPreviewProduct(null); // Reset preview on edit
     setMessage(camp.message || '');
     setImageUrl(camp.image_url || '');
     setTriggerType(camp.trigger_type === 'auto' ? 'manual' : (camp.trigger_type || 'manual'));
@@ -323,12 +359,18 @@ export default function Campaigns() {
 
   const handleTriggerCampaign = async (id: string, camp: any) => {
     try {
-      // Check if instance is actually connected on the backend
-      const statusRes = await fetch(`/api/whatsapp/status?instanceId=${camp.instance_id}`);
+      // Compatibility with previous singular definition and new multiple target definition
+      const targetList = (camp.targets && camp.targets.length > 0) 
+        ? camp.targets 
+        : [{ instance_id: camp.instance_id, group_id: camp.target_group_id }];
+
+      // Check first instance connection as sanity check
+      const firstTarget = targetList[0];
+      const statusRes = await fetch(`/api/whatsapp/status?instanceId=${firstTarget.instance_id}`);
       if (statusRes.ok) {
          const statusData = await statusRes.json();
          if (statusData.status !== 'connected') {
-             showError('A Instância de WhatsApp selecionada não está conectada. Por favor, acesse a aba "Instâncias" e faça o login via QR Code antes de disparar.');
+             showError('Uma ou mais Instâncias de WhatsApp selecionadas não estão conectadas. Por favor, acesse a aba "Instâncias" e faça o login via QR Code antes de disparar.');
              return;
          }
       }
@@ -338,7 +380,6 @@ export default function Campaigns() {
         updated_at: serverTimestamp()
       });
       
-      const jid = camp.target_group_id.replace(`${camp.instance_id}_`, '');
       let messageText = camp.message || '';
       let finalImageUrl = camp.image_url || '';
 
@@ -384,24 +425,38 @@ export default function Campaigns() {
          }
       }
 
-      const res = await fetch('/api/whatsapp/send', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          instanceId: camp.instance_id,
-          to: jid,
-          message: messageText,
-          image_url: finalImageUrl
-        })
-      });
+      const errors: string[] = [];
 
-      if (!res.ok) {
-         let errorMsg = 'Erro ao enviar mensagem';
-         try {
-           const errData = await res.json();
-           errorMsg = errData.error || errorMsg;
-         } catch (e) { /* ignore parse error */ }
-         throw new Error(errorMsg);
+      for (const target of targetList) {
+          const jid = target.group_id.replace(`${target.instance_id}_`, '');
+          
+          try {
+            const res = await fetch('/api/whatsapp/send', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                instanceId: target.instance_id,
+                to: jid,
+                message: messageText,
+                image_url: finalImageUrl
+              })
+            });
+
+            if (!res.ok) {
+              let errorMsg = `Erro ao enviar para ${jid}`;
+              try {
+                const errData = await res.json();
+                errorMsg = errData.error || errorMsg;
+              } catch (e) { /* ignore */ }
+              errors.push(errorMsg);
+            }
+          } catch (e: any) {
+            errors.push(`Erro geral no envio para ${jid}: ${e.message}`);
+          }
+      }
+
+      if (errors.length > 0) {
+          throw new Error(errors.join(', '));
       }
 
       showSuccess('Campanha disparada com sucesso!');
@@ -499,24 +554,37 @@ export default function Campaigns() {
                      </div>
                   </div>
                   <div className="flex items-center gap-2 sm:gap-3">
-                     {camp.trigger_type === 'auto' && (
-                       <button
-                         onClick={() => handleTogglePause(camp.id, camp.status)}
-                         className={`p-2 rounded-xl transition-colors ${camp.status === 'paused' ? 'text-teal-600 hover:bg-teal-50 border border-transparent hover:border-teal-100' : 'text-orange-600 hover:bg-orange-50 border border-transparent hover:border-orange-100'}`}
-                         title={camp.status === 'paused' ? 'Retomar Disparos' : 'Pausar Disparos'}
-                       >
-                         {camp.status === 'paused' ? <Play className="w-5 h-5" /> : <Pause className="w-5 h-5" />}
-                       </button>
-                     )}
-                     <button 
-                       onClick={() => handleTriggerCampaign(camp.id, camp)} 
-                       disabled={camp.status === 'sending'}
-                       className="px-4 py-2 bg-white border border-gray-200 text-gray-900 rounded-xl text-[13px] font-semibold hover:bg-gray-50 transition-colors disabled:opacity-50 shadow-sm flex items-center justify-center min-w-[100px]"
-                     >
-                       {camp.status === 'sending' ? (
-                         <span className="flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin text-indigo-600" /> Enviando</span>
-                       ) : 'Disparar Agora'}
-                     </button>
+                     {camp.trigger_type === 'auto' || camp.trigger_type === 'scheduled' ? (
+                        <button
+                          onClick={() => handleTogglePause(camp.id, camp.status)}
+                          disabled={camp.status === 'sending'}
+                          className={`px-4 py-2 ${
+                            ['paused', 'draft', 'failed', 'sent'].includes(camp.status)
+                              ? 'bg-indigo-600 text-white hover:bg-indigo-700 border-transparent' 
+                              : camp.status === 'sending'
+                                ? 'bg-indigo-600/50 text-white cursor-not-allowed border-transparent'
+                                : 'bg-white text-red-600 border-gray-200 hover:bg-red-50 hover:border-red-200'
+                          } border rounded-xl text-[13px] font-semibold transition-colors shadow-sm flex items-center justify-center min-w-[120px]`}
+                        >
+                          {camp.status === 'sending' ? (
+                            <span className="flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin text-white" /> Enviando...</span>
+                          ) : (camp.status === 'scheduled' || camp.status === 'sending') ? (
+                            'Parar Disparos'
+                          ) : (
+                            'Disparar Agora'
+                          )}
+                        </button>
+                      ) : (
+                        <button 
+                          onClick={() => handleTriggerCampaign(camp.id, camp)} 
+                          disabled={camp.status === 'sending'}
+                          className="px-4 py-2 bg-indigo-600 text-white border border-transparent rounded-xl text-[13px] font-semibold hover:bg-indigo-700 transition-colors disabled:opacity-50 shadow-sm flex items-center justify-center min-w-[120px]"
+                        >
+                          {camp.status === 'sending' ? (
+                            <span className="flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin text-white" /> Enviando...</span>
+                          ) : 'Disparar Agora'}
+                        </button>
+                      )}
                      <div className="flex items-center gap-1 border-l border-gray-200 pl-2 sm:pl-3 ml-1 sm:ml-2">
                        <button onClick={() => handleEditCampaign(camp)} className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-colors">
                           <Edit2 className="w-4.5 h-4.5" />
@@ -790,35 +858,65 @@ export default function Campaigns() {
           </div>
 
           {/* Alvos */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-5">
-            <div>
-              <label className="block text-[12px] font-semibold uppercase tracking-[0.05em] text-secondary mb-2">Instância do WhatsApp</label>
-              <select 
-                value={selectedInstance}
-                onChange={(e) => setSelectedInstance(e.target.value)}
-                className="w-full p-3 border border-subtle rounded-lg text-[14px] bg-secondary focus:outline-none focus:border-accent-primary"
-              >
-                <option value="">Selecione a conexão...</option>
-                {instances.map(i => <option key={i.id} value={i.id}>{i.instance_name}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="block text-[12px] font-semibold uppercase tracking-[0.05em] text-secondary mb-2">Alvo de Envio</label>
-              <select 
-                value={selectedGroup}
-                onChange={(e) => setSelectedGroup(e.target.value)}
-                className="w-full p-3 border border-subtle rounded-lg text-[14px] bg-secondary focus:outline-none focus:border-accent-primary"
-              >
-                {selectedInstance ? (
-                  <>
-                    <option value="">Selecione o alvo...</option>
-                    {groups.filter(g => g.id.startsWith(selectedInstance + '_')).map(g => <option key={g.id} value={g.id}>{g.name} ({g.type === 'group' ? 'Grupo' : 'Contato'})</option>)}
-                  </>
-                ) : (
-                  <option value="" disabled>Selecione a instância primeiro...</option>
+          <div className="mb-5 space-y-4">
+            {targets.map((target, idx) => (
+              <div key={idx} className="relative bg-gray-50/50 p-4 rounded-xl border border-gray-100 grid grid-cols-1 md:grid-cols-2 gap-4">
+                {idx > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setTargets(targets.filter((_, i) => i !== idx))}
+                    className="absolute -top-3 -right-3 w-7 h-7 bg-white text-red-500 rounded-full border border-gray-200 shadow-sm flex items-center justify-center hover:bg-red-50 hover:text-red-600 transition-colors z-10"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
                 )}
-              </select>
-            </div>
+                <div>
+                  <label className="block text-[12px] font-semibold uppercase tracking-[0.05em] text-secondary mb-2">Instância do WhatsApp</label>
+                  <select 
+                    value={target.instance_id}
+                    onChange={(e) => {
+                      const newTargets = [...targets];
+                      newTargets[idx].instance_id = e.target.value;
+                      newTargets[idx].group_id = ''; // reset group when instance changes
+                      setTargets(newTargets);
+                    }}
+                    className="w-full p-3 border border-subtle rounded-lg text-[14px] bg-white focus:outline-none focus:border-accent-primary"
+                  >
+                    <option value="">Selecione a conexão...</option>
+                    {instances.map(i => <option key={i.id} value={i.id}>{i.instance_name}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[12px] font-semibold uppercase tracking-[0.05em] text-secondary mb-2">Alvo de Envio</label>
+                  <select 
+                    value={target.group_id}
+                    onChange={(e) => {
+                      const newTargets = [...targets];
+                      newTargets[idx].group_id = e.target.value;
+                      setTargets(newTargets);
+                    }}
+                    className="w-full p-3 border border-subtle rounded-lg text-[14px] bg-white focus:outline-none focus:border-accent-primary"
+                  >
+                    {target.instance_id ? (
+                      <>
+                        <option value="">Selecione o alvo...</option>
+                        {groups.filter(g => g.id.startsWith(target.instance_id + '_')).map(g => <option key={g.id} value={g.id}>{g.name} ({g.type === 'group' ? 'Grupo' : 'Contato'})</option>)}
+                      </>
+                    ) : (
+                      <option value="" disabled>Selecione a instância primeiro...</option>
+                    )}
+                  </select>
+                </div>
+              </div>
+            ))}
+            <button
+               type="button"
+               onClick={() => setTargets([...targets, { instance_id: '', group_id: '' }])}
+               className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-indigo-600 hover:text-indigo-700"
+            >
+              <Plus className="w-4 h-4" />
+              Adicionar outro Alvo
+            </button>
           </div>
 
           <div className="mb-5 border border-subtle rounded-xl p-4 bg-white shadow-sm transition-all duration-300">
@@ -829,7 +927,7 @@ export default function Campaigns() {
             >
               <h3 className="text-[14px] font-bold text-primary flex items-center gap-2">
                 <Sparkles className="w-4 h-4 text-accent-blue" /> 
-                Copywriting com Inteligência Artificial
+                Fonte Automática de Ofertas
               </h3>
               {isAiSectionOpen ? <ChevronUp className="w-4 h-4 text-secondary" /> : <ChevronDown className="w-4 h-4 text-secondary" />}
             </button>
@@ -838,151 +936,102 @@ export default function Campaigns() {
               <div className="mt-4 animate-in fade-in duration-300">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                   <div>
-                    <label className="block text-[12px] font-semibold uppercase tracking-[0.05em] text-secondary mb-2">Objetivo da Campanha</label>
+                    <label className="block text-[12px] font-semibold uppercase tracking-[0.05em] text-secondary mb-2">Categoria das ofertas</label>
                     <select 
-                      value={aiObjective}
-                      onChange={(e) => setAiObjective(e.target.value)}
+                      value={offerCategory}
+                      onChange={(e) => setOfferCategory(e.target.value)}
                       className="w-full p-2.5 border border-subtle rounded-lg text-[13px] bg-secondary focus:outline-none focus:border-accent-primary"
                     >
-                      <option value="vender_produto">💳 Vender produto</option>
-                      <option value="divulgar_promocao">🏷️ Divulgar promoção</option>
-                      <option value="recuperar_cliente">🔄 Recuperar cliente</option>
-                      <option value="lancamento">🚀 Lançar novo produto</option>
-                      <option value="gerar_trafego">🔗 Gerar tráfego para link</option>
-                      <option value="carrinho_abandonado">🛒 Lembrar carrinho abandonado</option>
-                      <option value="reativar_antigo">👋 Reativar cliente antigo</option>
-                      <option value="estoque_limitado">⏳ Avisar estoque limitado</option>
+                      {categories.length > 0 ? categories.map(cat => (
+                        <option key={cat} value={cat}>{cat}</option>
+                      )) : (
+                        <option value="Todos">Todos</option>
+                      )}
                     </select>
                   </div>
                   <div>
-                    <label className="block text-[12px] font-semibold uppercase tracking-[0.05em] text-secondary mb-2">Tom de Voz</label>
+                    <label className="block text-[12px] font-semibold uppercase tracking-[0.05em] text-secondary mb-2">Tom da IA</label>
                     <select 
                       value={aiTone}
                       onChange={(e) => setAiTone(e.target.value)}
                       className="w-full p-2.5 border border-subtle rounded-lg text-[13px] bg-secondary focus:outline-none focus:border-accent-primary"
                     >
-                      <option value="profissional">👔 Profissional</option>
-                      <option value="amigavel">😊 Amigável</option>
-                      <option value="urgente">🔥 Urgente</option>
-                      <option value="promocional">🎁 Promocional</option>
-                      <option value="premium">💎 Premium</option>
-                      <option value="divertido">🥳 Divertido</option>
-                      <option value="direto">🎯 Direto</option>
-                      <option value="consultivo">🤝 Consultivo</option>
+                      <option value="Oferta agressiva">🔥 Oferta agressiva</option>
+                      <option value="Urgência">⏳ Urgência</option>
+                      <option value="Amigável">😊 Amigável</option>
+                      <option value="Direto ao ponto">🎯 Direto ao ponto</option>
+                      <option value="Premium">💎 Premium</option>
+                      <option value="Engraçado">🥳 Engraçado</option>
                     </select>
                   </div>
                 </div>
 
-                <label className="block text-[12px] font-semibold uppercase tracking-[0.05em] text-secondary mb-2">Detalhes da Oferta / Contexto (Opcional)</label>
-                <textarea
-                  value={productUrl}
-                  onChange={(e) => setProductUrl(e.target.value)}
-                  placeholder="Ex: Tênis Nike Air Max, por R$ 299. Frete grátis usando o cupom NIKE10..."
-                  rows={3}
-                  className="w-full p-3 border border-subtle rounded-lg text-[14px] bg-secondary focus:outline-none focus:border-accent-primary resize-none placeholder-gray-400"
-                />
-                <div className="flex items-center justify-between mt-3">
-                   <p className="text-[12px] text-secondary/80">Dica: A IA já usa o nome da campanha que você definiu.</p>
+                <div className="flex items-center justify-between mt-3 mb-4">
+                   <p className="text-[12px] text-secondary/80">A IA buscará produtos reais nesta categoria e não deixará repetir produtos na mesma campanha.</p>
+                </div>
+
+                <div className="mb-4">
+                  <div className="flex justify-between items-center mb-2">
+                    <label className="block text-[12px] font-semibold uppercase tracking-[0.05em] text-secondary">Preview do WhatsApp Mensagem</label>
+                    <button 
+                      type="button" 
+                      onClick={loadPreviewOffer}
+                      disabled={loadingPreview}
+                      className="text-[11px] font-bold text-indigo-600 bg-indigo-50 px-3 py-1 rounded-full hover:bg-indigo-100 transition-colors disabled:opacity-50 flex items-center gap-1"
+                    >
+                      {loadingPreview ? <Loader2 className="w-3 h-3 animate-spin"/> : <Sparkles className="w-3 h-3"/>}
+                      Carregar Oferta de Exemplo
+                    </button>
+                  </div>
+                  
+                  {previewProduct ? (
+                     <div className="bg-[#e5ddd5] p-4 rounded-xl border border-gray-200 shadow-sm relative">
+                        <div className="bg-[#dcf8c6] p-3 rounded-lg rounded-tr-none text-[#303030] text-[13px] font-sans inline-block max-w-[85%] whitespace-pre-wrap leading-relaxed shadow-sm relative">
+                           {previewProduct.product_image && (
+                              <img src={previewProduct.product_image} alt="Preview" className="w-full max-h-48 object-cover rounded mb-2 border border-black/10" />
+                           )}
+                           {(() => {
+                              let msg = message || 'Escreva a estrutura da mensagem para ver o preview...';
+                              const p = previewProduct;
+                              msg = msg.replace(/{product_title}/g, p.product_title || '');
+                              msg = msg.replace(/{product_price}/g, p.product_price ? `R$ ${Number(p.product_price).toFixed(2).replace('.', ',')}` : '');
+                              msg = msg.replace(/{product_old_price}/g, p.product_old_price ? `~R$ ${Number(p.product_old_price).toFixed(2).replace('.', ',')}~` : '');
+                              msg = msg.replace(/{product_discount}/g, p.product_discount || '');
+                              msg = msg.replace(/{product_link}/g, p.product_link || '');
+                              msg = msg.replace(/{product_affiliate_link}/g, p.product_affiliate_link || p.product_link || '');
+                              msg = msg.replace(/{product_image}/g, '');
+                              msg = msg.replace(/{product_category}/g, p.product_category || '');
+                              msg = msg.replace(/{product_store}/g, p.product_store || '');
+                              msg = msg.replace(/{product_id}/g, p.external_product_id || p.id || '');
+                              msg = msg.replace(/{product_coupon}/g, p.product_coupon || '');
+                              // remove empty variables and blank lines
+                              const cleanLines = msg.split('\n').map(l => l.replace(/{[^{}]+}/g, '').trim()).filter(l => l !== '');
+                              return cleanLines.join('\n');
+                           })()}
+                           <div className="text-right text-[10px] text-black/40 mt-1 uppercase font-bold tracking-wider">
+                             Agora
+                           </div>
+                        </div>
+                     </div>
+                  ) : (
+                     <div className="p-4 bg-gray-50 border border-gray-200 rounded-xl text-center text-[12px] text-gray-500 italic">
+                        Selecione uma categoria e carregue uma oferta para visualizar o preview.
+                     </div>
+                  )}
+                </div>
+
+                <div className="flex items-center justify-end mt-3 border-t border-subtle pt-4">
                    <button 
-                     onClick={generateCopy}
-                     disabled={generating}
+                     onClick={generateCopyWithAI}
+                     disabled={generating || !previewProduct}
                      className="bg-accent-blue text-white px-5 py-2.5 rounded-lg font-semibold text-[13px] flex items-center gap-2 hover:opacity-90 transition-opacity disabled:opacity-50"
                    >
                      {generating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4"/>} 
-                     {generating ? 'Gerando Opções...' : 'Gerar 3 Opções'}
+                     {generating ? 'Melhorando...' : 'Gerar copy com IA'}
                    </button>
                 </div>
               </div>
             )}
-          </div>
-
-          {aiVariations && aiVariations.length > 0 && (
-            <div className="mb-5 animate-in fade-in slide-in-from-bottom-2 duration-300">
-               <h3 className="text-[14px] font-bold text-primary mb-3">Escolha a melhor opção:</h3>
-               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  {aiVariations.map((v, i) => (
-                    <div key={i} className="border border-subtle rounded-xl p-4 bg-white shadow-sm flex flex-col hover:border-accent-primary transition-colors cursor-pointer" onClick={() => {
-                       setMessage(v.text);
-                       window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
-                    }}>
-                       <h4 className="text-[13px] font-bold text-accent-blue mb-2 pb-2 border-b border-subtle">{v.title}</h4>
-                       <p className="text-[13px] text-primary whitespace-pre-wrap flex-1 mb-4 leading-relaxed font-sans">{v.text}</p>
-                       <button 
-                          className="w-full py-2 bg-secondary rounded-lg text-[12px] font-semibold text-primary hover:bg-gray-100 transition-colors"
-                          onClick={(e) => {
-                             e.stopPropagation();
-                             setMessage(v.text);
-                             showSuccess('Texto aplicado na campanha!');
-                          }}
-                       >
-                          Usar esta mensagem
-                       </button>
-                    </div>
-                  ))}
-               </div>
-            </div>
-          )}
-
-          <div className="mb-5">
-            <label className="block text-[12px] font-semibold uppercase tracking-[0.05em] text-secondary mb-2">Link de Afiliado (Carga Visual Opcional)</label>
-            <div className="flex items-center gap-2">
-              <div className="p-3 border border-subtle rounded-lg bg-secondary text-secondary shrink-0">
-                <ImageIcon className="w-4 h-4" />
-              </div>
-              <input
-                type="text"
-                value={imageUrl}
-                onChange={(e) => setImageUrl(e.target.value)}
-                placeholder="https://imagem-do-produto.jpg"
-                className="w-full p-3 border border-subtle rounded-lg text-[14px] bg-secondary focus:outline-none focus:border-accent-primary"
-              />
-            </div>
-          </div>
-
-          {/* Products Selector */}
-          <div className="mb-5 border border-subtle rounded-xl p-4 bg-white shadow-sm transition-all duration-300">
-             <div className="flex items-center justify-between mb-3">
-                 <div>
-                    <h3 className="text-[14px] font-bold text-primary">Produtos Mercado Livre</h3>
-                    <p className="text-[11px] text-secondary">Selecione quais produtos usar nesta campanha</p>
-                 </div>
-                 <div className="flex items-center gap-2">
-                    <label className="text-[12px] font-semibold text-secondary flex items-center gap-1.5 cursor-pointer">
-                      <input type="checkbox" checked={useAllProducts} onChange={(e) => setUseAllProducts(e.target.checked)} className="rounded text-accent-blue focus:ring-accent-blue" />
-                      Usar Todos Disponíveis
-                    </label>
-                 </div>
-             </div>
-             
-             {!useAllProducts && (
-               <div className="max-h-[150px] overflow-y-auto border border-subtle rounded-lg bg-secondary p-2 space-y-1">
-                 {products.length === 0 ? (
-                    <p className="text-[12px] text-secondary p-2">Nenhum produto importado. Sincronize em Integrações.</p>
-                 ) : (
-                    products.map(p => (
-                       <label key={p.id} className="flex items-start gap-2 p-1.5 hover:bg-white rounded cursor-pointer transition-colors shadow-sm mb-1 bg-white border border-subtle">
-                          <input 
-                            type="checkbox" 
-                            checked={selectedProductIds.includes(p.id)}
-                            onChange={(e) => {
-                               if (e.target.checked) setSelectedProductIds([...selectedProductIds, p.id]);
-                               else setSelectedProductIds(selectedProductIds.filter(id => id !== p.id));
-                            }}
-                            className="mt-1 rounded text-accent-blue"
-                          />
-                          <div className="flex-1 min-w-0">
-                             <p className="text-[12px] font-semibold text-primary truncate leading-tight">{p.product_title}</p>
-                             <div className="flex items-center gap-2 mt-0.5">
-                                 <span className="text-[11px] font-bold text-green-600">R$ {Number(p.product_price).toFixed(2).replace('.', ',')}</span>
-                                 {p.product_discount && <span className="text-[10px] bg-green-100 text-green-700 px-1 rounded">{p.product_discount} OFF</span>}
-                             </div>
-                          </div>
-                          {p.product_image && <img src={p.product_image} alt="" className="w-8 h-8 object-contain mix-blend-multiply rounded shrink-0 border border-subtle/50" />}
-                       </label>
-                    ))
-                 )}
-               </div>
-             )}
           </div>
 
           <div className="mb-2 relative">

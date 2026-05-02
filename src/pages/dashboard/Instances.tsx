@@ -21,7 +21,8 @@ export default function WhatsAppInstances() {
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   
   // Plan limits mock
-  const planLimit = 1;
+  const isVip = auth.currentUser?.email === 'gbrielcn20@hotmail.com';
+  const planLimit = isVip ? 9999 : 1;
   const isLimitReached = instances.length >= planLimit;
 
   // State for active QR Code modal

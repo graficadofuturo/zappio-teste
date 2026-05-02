@@ -6,12 +6,18 @@ import { sendMessage } from './whatsappService.ts';
 let db: any;
 
 try {
-  const config = JSON.parse(fs.readFileSync('./firebase-applet-config.json', 'utf8'));
+  let config: any = {};
+  if (fs.existsSync('./firebase-applet-config.json')) {
+    config = JSON.parse(fs.readFileSync('./firebase-applet-config.json', 'utf8'));
+  }
 
   if (!admin.apps.length) {
     if (process.env.FIREBASE_SERVICE_ACCOUNT_KEY) {
       try {
         const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY);
+        if (serviceAccount.private_key) {
+          serviceAccount.private_key = serviceAccount.private_key.replace(/\\n/g, "\n");
+        }
         admin.initializeApp({
           credential: admin.credential.cert(serviceAccount),
           projectId: config.projectId,
@@ -43,17 +49,22 @@ export function startScheduler() {
   console.log('[Scheduler] Started with Firebase Admin');
 
   
-  // Run every 30 seconds
+  // Run every 2 seconds
   setInterval(async () => {
     const now = new Date();
-    // Offset for Brazil/Sao Paulo if needed or just use UTC
-    // For now, let's assume server/user time matches or user understands server time.
+    // Offset for Brazil/Sao Paulo explicitly to avoid Vercel/VPS timezone issues
+    const brTimeStr = now.toLocaleString("en-US", { timeZone: "America/Sao_Paulo" });
+    const brDate = new Date(brTimeStr);
     
-    const currentDay = now.getDay(); // 0-6
-    const curHH = String(now.getHours()).padStart(2, '0');
-    const curMM = String(now.getMinutes()).padStart(2, '0');
+    const currentDay = brDate.getDay(); // 0-6
+    const curHH = String(brDate.getHours()).padStart(2, '0');
+    const curMM = String(brDate.getMinutes()).padStart(2, '0');
     const currentTimeStr = `${curHH}:${curMM}`;
-    const todayStr = now.toISOString().split('T')[0]; // YYYY-MM-DD
+    
+    const yyyy = brDate.getFullYear();
+    const mm = String(brDate.getMonth() + 1).padStart(2, '0');
+    const dd = String(brDate.getDate()).padStart(2, '0');
+    const todayStr = `${yyyy}-${mm}-${dd}`; // YYYY-MM-DD
 
     try {
       const campaignsRef = db.collection('campaigns');
@@ -118,20 +129,44 @@ async function triggerCampaign(campaignDoc: any, camp: any, id: string) {
           updated_at: admin.firestore.FieldValue.serverTimestamp()
         });
 
-        const jid = camp.target_group_id.replace(`${camp.instance_id}_`, '');
+        const targetList = (camp.targets && camp.targets.length > 0) 
+            ? camp.targets 
+            : [{ instance_id: camp.instance_id, group_id: camp.target_group_id }];
+
         let messageText = camp.message || '';
         let matchedProduct: any = null;
         let finalImageUrl = camp.image_url || '';
 
         // Real Product Handling
         if (camp.use_ml_products && (messageText.includes('{') || finalImageUrl.includes('{product_image}'))) {
-            let query = db.collection('products').where('user_id', '==', camp.user_id);
-            const prodsSnap = await query.get();
-            let allProds = prodsSnap.docs.map((d: any) => ({ id: d.id, ...d.data() }));
+            let allProds: any[] = [];
+            
+            if (camp.offer_category) {
+                // Fetch dynamically using category
+                const { getRandomKeyword, fetchMLProductsByKeyword } = await import('./src/api/campaignService.ts');
+                const keyword = getRandomKeyword(camp.offer_category);
+                const mlResults = await fetchMLProductsByKeyword(keyword);
+                allProds = mlResults.map((mlItem: any) => ({
+                    id: mlItem.id,
+                    external_product_id: mlItem.id,
+                    product_title: mlItem.title,
+                    product_price: mlItem.price,
+                    product_old_price: mlItem.original_price,
+                    product_discount: mlItem.original_price && mlItem.price < mlItem.original_price ? Math.round((1 - (mlItem.price / mlItem.original_price)) * 100) + '%' : null,
+                    product_link: mlItem.permalink,
+                    product_image: mlItem.thumbnail?.replace('-I.jpg', '-O.jpg').replace('-I.webp', '-O.webp') || null,
+                    product_category: camp.offer_category
+                }));
+            } else {
+                // Backward compatibility: fetch from DB
+                let query = db.collection('products').where('user_id', '==', camp.user_id);
+                const prodsSnap = await query.get();
+                allProds = prodsSnap.docs.map((d: any) => ({ id: d.id, ...d.data() }));
 
-            if (camp.ml_product_ids && camp.ml_product_ids !== 'ALL') {
-               const allowedIds = new Set(camp.ml_product_ids);
-               allProds = allProds.filter((p: any) => allowedIds.has(p.id));
+                if (camp.ml_product_ids && camp.ml_product_ids !== 'ALL') {
+                    const allowedIds = new Set(camp.ml_product_ids);
+                    allProds = allProds.filter((p: any) => allowedIds.has(p.id));
+                }
             }
 
             // Get Sent History for this campaign
@@ -195,9 +230,21 @@ async function triggerCampaign(campaignDoc: any, camp: any, id: string) {
             messageText = messageText.replace(/{{[^{}]+}}/g, '');
         }
 
-        // Only send if there is still a message body
+        let errors: string[] = [];
         if (messageText.trim().length > 0) {
-           await sendMessage(camp.instance_id, jid, messageText, finalImageUrl);
+            for (const target of targetList) {
+                const jid = target.group_id.replace(`${target.instance_id}_`, '');
+                try {
+                    await sendMessage(target.instance_id, jid, messageText, finalImageUrl);
+                } catch(e: any) {
+                    console.error(`[Scheduler] Error sending for target ${target.instance_id}/${jid}:`, e);
+                    errors.push(e.message);
+                }
+            }
+        }
+
+        if (errors.length > 0) {
+            throw new Error(`Erros (parciais): ${errors.join(', ')}`);
         }
 
         if (camp.is_recurring || camp.trigger_type === 'auto') {

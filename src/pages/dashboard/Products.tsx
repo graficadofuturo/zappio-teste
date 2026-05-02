@@ -144,6 +144,41 @@ export default function Products() {
       }
   };
 
+  const autoGenerateLink = async (product: any) => {
+      try {
+          const user = auth.currentUser;
+          if (!user) return;
+
+          setEditingLink(product.id);
+          setTempLink('Gerando link...');
+
+          const res = await fetch('/api/mercadolivre/generate-affiliate', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ userId: user.uid, productUrl: product.product_link })
+          });
+          
+          const data = await res.json();
+          if (res.ok && data.ok) {
+              setTempLink(data.affiliate_link);
+              // Save automatically
+              const { serverTimestamp } = await import('firebase/firestore');
+              await updateDoc(doc(db, 'affiliate_products', product.id), {
+                  product_affiliate_link: data.affiliate_link,
+                  updated_at: serverTimestamp()
+              });
+              await loadProducts();
+              setEditingLink(null);
+          } else {
+              alert('Erro: ' + (data.error || 'Falha ao gerar link'));
+              setTempLink(product.product_affiliate_link || '');
+          }
+      } catch (e) {
+          alert('Erro de conexão ao gerar link.');
+          setTempLink(product.product_affiliate_link || '');
+      }
+  };
+
   const renderProductCard = (p: any, isSearch: boolean = false) => {
       const added = !isSearch ? true : products.some(saved => String(saved.product_id) === String(p.product_id));
       const isLoadingAdd = addingIds[p.product_id];
@@ -218,23 +253,34 @@ export default function Products() {
                                             className="flex-1 p-2 bg-white border border-gray-200 shadow-inner rounded-lg text-[12px] focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all"
                                             placeholder="Cole aqui o link encurtado"
                                             autoFocus
+                                            disabled={tempLink === 'Gerando link...'}
                                         />
                                         <button 
                                             onClick={() => saveLink(p.id)}
-                                            className="bg-indigo-600 text-white px-4 py-2 rounded-lg text-[12px] font-bold hover:bg-indigo-700 transition-colors shadow-sm"
+                                            disabled={tempLink === 'Gerando link...'}
+                                            className="bg-indigo-600 text-white px-4 py-2 rounded-lg text-[12px] font-bold hover:bg-indigo-700 transition-colors shadow-sm disabled:opacity-50"
                                         >
                                             Salvar
                                         </button>
                                     </div>
                                 ) : (
-                                    <div 
-                                      className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-lg text-[12px] text-gray-900 truncate hover:border-indigo-300 hover:bg-indigo-50/50 cursor-pointer transition-colors font-medium shadow-sm"
-                                      onClick={() => {
-                                          setEditingLink(p.id);
-                                          setTempLink(p.product_affiliate_link || '');
-                                      }}
-                                    >
-                                        {p.product_affiliate_link || <span className="text-gray-400 italic font-normal">Nenhum link configurado (clique para editar)</span>}
+                                    <div className="flex gap-2">
+                                        <div 
+                                          className="flex-1 p-2.5 bg-gray-50 border border-gray-200 rounded-lg text-[12px] text-gray-900 truncate hover:border-indigo-300 hover:bg-indigo-50/50 cursor-pointer transition-colors font-medium shadow-sm"
+                                          onClick={() => {
+                                              setEditingLink(p.id);
+                                              setTempLink(p.product_affiliate_link || '');
+                                          }}
+                                        >
+                                            {p.product_affiliate_link || <span className="text-gray-400 italic font-normal">Nenhum link configurado</span>}
+                                        </div>
+                                        <button
+                                            onClick={() => autoGenerateLink(p)}
+                                            className="bg-indigo-50 text-indigo-700 px-3 rounded-lg flex flex-col items-center justify-center hover:bg-indigo-100 transition-colors border border-indigo-200 shadow-sm"
+                                            title="Gerar automaticamente via Cookie Refresh"
+                                        >
+                                            <Wand2 className="w-4 h-4" />
+                                        </button>
                                     </div>
                                 )}
                             </div>
@@ -385,4 +431,3 @@ export default function Products() {
     </div>
   );
 }
-

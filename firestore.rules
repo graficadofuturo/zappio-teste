@@ -107,6 +107,12 @@ service cloud.firestore {
         && data.platform is string && data.platform.size() <= 50;
     }
 
+    match /products/{productId} {
+      allow get: if isSignedIn() && existing().user_id == request.auth.uid;
+      allow list: if isSignedIn() && resource.data.user_id == request.auth.uid;
+      allow create, update, delete: if false; // Added via backend for now
+    }
+
     match /ecommerce_keys/{keyId} {
       allow get: if isSignedIn() && existing().user_id == request.auth.uid;
       allow list: if isSignedIn() && resource.data.user_id == request.auth.uid;
