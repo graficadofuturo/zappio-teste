@@ -406,31 +406,62 @@ DIRETRIZES PARA AS MENSAGENS:
           } catch (err) {}
       }
       try {
-          let existingDoc: any = null;
-          let qs = await db.collection('ecommerce_keys')
-              .where('user_id', '==', userId || 'unknown')
-              .where('platform', '==', 'mercadolivre')
-              .limit(1)
-              .get();
-          if (!qs.empty) existingDoc = qs.docs[0];
+          try {
+              db.settings({ ignoreUndefinedProperties: true });
+          } catch (e) {}
 
-          const token_expires_at = tokenData.expires_in ? new Date(Date.now() + (tokenData.expires_in * 1000)) : admin.firestore.FieldValue.serverTimestamp();
-          const payload = {
-              user_id: userId || 'unknown',
-              platform: 'mercadolivre',
-              access_token: tokenData.access_token,
-              refresh_token: tokenData.refresh_token,
-              seller_id: mlUser.id?.toString() || tokenData.user_id?.toString() || tokenData.seller_id,
-              account_name: mlUser.nickname || '',
-              expires_in: tokenData.expires_in,
-              token_expires_at: token_expires_at,
-              status: 'connected',
-              connected_at: admin.firestore.FieldValue.serverTimestamp(),
-          };
+          const sellerId = mlUser.id?.toString() || tokenData.user_id?.toString() || tokenData.seller_id;
+          const accountName = mlUser.first_name ? `${mlUser.first_name} ${mlUser.last_name || ''}`.trim() : mlUser.nickname;
+          const nickname = mlUser.nickname;
+          const siteId = mlUser.site_id;
+          const accessToken = tokenData.access_token;
+          const refreshToken = tokenData.refresh_token;
+          const expiresIn = tokenData.expires_in;
 
-          if (existingDoc) await existingDoc.ref.update(payload);
-          else await db.collection('ecommerce_keys').add(payload);
-          
+          function removeUndefinedDeep(obj: any): any {
+            if (Array.isArray(obj)) {
+              return obj.map(removeUndefinedDeep).filter((v) => v !== undefined);
+            }
+            if (obj && typeof obj === "object") {
+              return Object.fromEntries(
+                Object.entries(obj)
+                  .filter(([_, value]) => value !== undefined)
+                  .map(([key, value]) => [key, removeUndefinedDeep(value)])
+              );
+            }
+            return obj;
+          }
+
+          const integrationData = removeUndefinedDeep({
+            user_id: userId || 'unknown',
+            platform: "mercadolivre",
+            seller_id: String(sellerId),
+            account_name: accountName || null,
+            nickname: nickname || null,
+            site_id: siteId || null,
+            access_token: accessToken || null,
+            refresh_token: refreshToken || null,
+            expires_in: expiresIn || null,
+            token_expires_at: expiresIn
+              ? new Date(Date.now() + expiresIn * 1000).toISOString()
+              : null,
+            status: "connected",
+            connected_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          });
+
+          console.log("ML_SAVE_DATA_VALIDATION", {
+            hasSellerId: Boolean(sellerId),
+            hasAccessToken: Boolean(accessToken),
+            hasRefreshToken: Boolean(refreshToken),
+            keys: Object.keys(integrationData),
+          });
+
+          await db
+            .collection("marketplace_integrations")
+            .doc(String(sellerId))
+            .set(integrationData, { merge: true });
+            
       } catch (saveErr: any) {
           console.error("ML_FIRESTORE_SAVE_ERROR", {
               message: saveErr?.message,
