@@ -212,6 +212,89 @@ DIRETRIZES PARA AS MENSAGENS:
     });
   });
 
+  app.get("/api/integrations/mercadolivre/status", async (req, res) => {
+    try {
+      console.log("ML_STATUS_CHECK");
+
+      const hasFirebaseServiceAccountKey = Boolean(process.env.FIREBASE_SERVICE_ACCOUNT_KEY);
+
+      const admin = await import("firebase-admin");
+
+      if (!admin.apps.length) {
+        if (!hasFirebaseServiceAccountKey) {
+          res.status(500).json({ connected: false, error: "Firebase Admin not initialized" });
+          return;
+        }
+
+        let serviceAccount: any = null;
+        try {
+          serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY as string);
+        } catch (error: any) {
+          res.status(500).json({ connected: false, error: "Invalid service account JSON" });
+          return;
+        }
+
+        try {
+          if (serviceAccount.private_key) {
+            serviceAccount.private_key = serviceAccount.private_key.replace(/\\n/g, "\n");
+          }
+          admin.initializeApp({
+            credential: admin.credential.cert(serviceAccount)
+          });
+        } catch (error: any) {
+           res.status(500).json({ connected: false, error: "Failed to initialize Firebase Admin" });
+           return;
+        }
+      }
+
+      const databaseId = process.env.FIRESTORE_DATABASE_ID || "(default)";
+
+      const { getFirestore } = await import("firebase-admin/firestore");
+      let db;
+      try {
+          db = getFirestore(admin.app(), databaseId);
+      } catch (e) {
+          db = admin.firestore();
+          try {
+              db.settings({ databaseId });
+          } catch (err) {}
+      }
+
+      const qs = await db.collection("marketplace_integrations")
+        .where("platform", "==", "mercadolivre")
+        .where("status", "==", "connected")
+        .limit(1)
+        .get();
+
+      if (qs.empty) {
+        console.log("ML_STATUS_NOT_FOUND");
+        res.status(200).json({ connected: false });
+        return;
+      }
+
+      console.log("ML_STATUS_FOUND");
+      const doc = qs.docs[0].data();
+
+      res.status(200).json({
+        connected: true,
+        platform: "mercadolivre",
+        seller_id: doc.seller_id,
+        account_name: doc.account_name,
+        nickname: doc.nickname,
+        site_id: doc.site_id,
+        connected_at: doc.connected_at,
+        updated_at: doc.updated_at
+      });
+    } catch (error: any) {
+      console.error("ML_STATUS_ERROR", error);
+      if (error?.code === 5 || (error?.message && error.message.includes('NOT_FOUND'))) {
+        res.status(200).json({ connected: false });
+        return;
+      }
+      res.status(500).json({ connected: false, error: error.message });
+    }
+  });
+
   app.get("/api/integrations/mercadolivre/ping", (req, res) => {
     res.send("Mercado Livre API OK");
   });
@@ -488,6 +571,249 @@ DIRETRIZES PARA AS MENSAGENS:
         stack: e?.stack,
       });
       res.redirect(`${APP_BASE_URL}${integrationsPath}?mercadolivre=callback_exception`);
+    }
+  });
+
+  app.post("/api/mercadolivre/products/sync", async (req, res) => {
+    try {
+      console.log("ML_PRODUCTS_SYNC_START");
+
+      const userId = req.body?.userId;
+
+      const hasFirebaseServiceAccountKey = Boolean(process.env.FIREBASE_SERVICE_ACCOUNT_KEY);
+
+      const admin = await import("firebase-admin");
+
+      if (!admin.apps.length) {
+        if (!hasFirebaseServiceAccountKey) {
+          res.status(500).json({ ok: false, error: "Firebase Admin not initialized" });
+          return;
+        }
+
+        let serviceAccount: any = null;
+        try {
+          serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY as string);
+        } catch (error: any) {
+          res.status(500).json({ ok: false, error: "Invalid service account JSON" });
+          return;
+        }
+
+        try {
+          if (serviceAccount.private_key) {
+            serviceAccount.private_key = serviceAccount.private_key.replace(/\\n/g, "\n");
+          }
+          admin.initializeApp({
+            credential: admin.credential.cert(serviceAccount)
+          });
+        } catch (error: any) {
+           res.status(500).json({ ok: false, error: "Failed to initialize Firebase Admin" });
+           return;
+        }
+      }
+
+      const databaseId = process.env.FIRESTORE_DATABASE_ID || "(default)";
+
+      const { getFirestore } = await import("firebase-admin/firestore");
+      let db;
+      try {
+          db = getFirestore(admin.app(), databaseId);
+      } catch (e) {
+          db = admin.firestore();
+          try {
+              db.settings({ databaseId });
+          } catch (err) {}
+      }
+      try { db.settings({ ignoreUndefinedProperties: true }); } catch (e) {}
+
+      let query = db.collection("marketplace_integrations")
+        .where("platform", "==", "mercadolivre")
+        .where("status", "==", "connected");
+        
+      if (userId) {
+         query = query.where("user_id", "==", userId);
+      }
+
+      const qs = await query.limit(1).get();
+
+      if (qs.empty) {
+        res.status(200).json({ ok: false, error: "not_connected" });
+        return;
+      }
+
+      const integration = qs.docs[0].data();
+      const { seller_id, access_token } = integration;
+
+      if (!seller_id || !access_token) {
+          res.status(200).json({ ok: false, error: "not_connected" });
+          return;
+      }
+
+      const searchRes = await fetch(`https://api.mercadolibre.com/users/${seller_id}/items/search`, {
+          headers: { Authorization: `Bearer ${access_token}` }
+      });
+
+      if (searchRes.status === 401) {
+          res.status(401).json({ ok: false, error: "Token expirado. Reconecte o Mercado Livre." });
+          return;
+      }
+
+      if (!searchRes.ok) {
+          const errText = await searchRes.text();
+          console.error("ML_PRODUCTS_SYNC_ERROR", searchRes.status, errText);
+          res.status(500).json({ ok: false, error: "Erro ao buscar produtos do Mercado Livre" });
+          return;
+      }
+
+      const searchData: any = await searchRes.json();
+      const itemIds: string[] = searchData.results || [];
+
+      console.log("ML_PRODUCTS_ITEM_IDS_FOUND", { count: itemIds.length });
+
+      if (itemIds.length === 0) {
+          res.status(200).json({ ok: true, count: 0 });
+          return;
+      }
+
+      function removeUndefinedDeep(obj: any): any {
+        if (Array.isArray(obj)) {
+          return obj.map(removeUndefinedDeep).filter((v) => v !== undefined);
+        }
+        if (obj && typeof obj === "object") {
+          return Object.fromEntries(
+            Object.entries(obj)
+              .filter(([_, value]) => value !== undefined)
+              .map(([key, value]) => [key, removeUndefinedDeep(value)])
+          );
+        }
+        return obj;
+      }
+
+      let syncCount = 0;
+      
+      for (let i = 0; i < itemIds.length; i += 20) {
+          const batchIds = itemIds.slice(i, i + 20);
+          const detailsRes = await fetch(`https://api.mercadolibre.com/items?ids=${batchIds.join(',')}`, {
+              headers: { Authorization: `Bearer ${access_token}` }
+          });
+
+          if (detailsRes.ok) {
+              const detailsData: any = await detailsRes.json();
+              
+              for (const itemWrapper of detailsData) {
+                  if (itemWrapper.code === 200 && itemWrapper.body) {
+                      const item = itemWrapper.body;
+                      const productId = item.id;
+                      
+                      const productData = removeUndefinedDeep({
+                          id: item.id,
+                          title: item.title,
+                          price: item.price,
+                          original_price: item.original_price || null,
+                          currency_id: item.currency_id,
+                          available_quantity: item.available_quantity,
+                          sold_quantity: item.sold_quantity,
+                          condition: item.condition,
+                          permalink: item.permalink,
+                          thumbnail: item.thumbnail,
+                          pictures: item.pictures?.map((p: any) => p.url) || [],
+                          status: item.status,
+                          seller_id: integration.seller_id,
+                          user_id: integration.user_id || null,
+                          category_id: item.category_id,
+                          listing_type_id: item.listing_type_id,
+                          last_synced_at: new Date().toISOString(),
+                          raw: item
+                      });
+
+                      await db.collection("mercadolivre_products").doc(String(productId)).set(productData, { merge: true });
+                      syncCount++;
+                  }
+              }
+          } else {
+               console.error("ML_PRODUCTS_SYNC_ERROR batch fetch failed", batchIds);
+          }
+      }
+
+      console.log("ML_PRODUCTS_SAVE_SUCCESS", { count: syncCount });
+      res.status(200).json({ ok: true, count: syncCount });
+    } catch (error: any) {
+      console.error("ML_PRODUCTS_SYNC_ERROR", error);
+      res.status(500).json({ ok: false, error: error.message });
+    }
+  });
+
+  app.get("/api/mercadolivre/products", async (req, res) => {
+    try {
+      const userId = req.query.userId;
+      const hasFirebaseServiceAccountKey = Boolean(process.env.FIREBASE_SERVICE_ACCOUNT_KEY);
+      const admin = await import("firebase-admin");
+
+      if (!admin.apps.length) {
+        if (!hasFirebaseServiceAccountKey) {
+          res.status(500).json({ ok: false, error: "Firebase Admin not initialized" });
+          return;
+        }
+
+        let serviceAccount: any = null;
+        try {
+          serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY as string);
+        } catch (error: any) {
+          res.status(500).json({ ok: false, error: "Invalid service account JSON" });
+          return;
+        }
+
+        try {
+          if (serviceAccount.private_key) {
+            serviceAccount.private_key = serviceAccount.private_key.replace(/\\n/g, "\n");
+          }
+          admin.initializeApp({
+            credential: admin.credential.cert(serviceAccount)
+          });
+        } catch (error: any) {
+           res.status(500).json({ ok: false, error: "Failed to initialize Firebase Admin" });
+           return;
+        }
+      }
+
+      const databaseId = process.env.FIRESTORE_DATABASE_ID || "(default)";
+
+      const { getFirestore } = await import("firebase-admin/firestore");
+      let db;
+      try {
+          db = getFirestore(admin.app(), databaseId);
+      } catch (e) {
+          db = admin.firestore();
+          try {
+              db.settings({ databaseId });
+          } catch (err) {}
+      }
+      try { db.settings({ ignoreUndefinedProperties: true }); } catch (e) {}
+
+      let query = db.collection("mercadolivre_products") as any;
+      
+      if (userId) {
+         query = query.where("user_id", "==", userId);
+      }
+
+      const qs = await query.get();
+      
+      const products = qs.docs.map((doc: any) => ({
+          id: doc.id,
+          ...doc.data()
+      }));
+
+      // Sort in memory to avoid needing composite index
+      products.sort((a: any, b: any) => {
+         const timeA = new Date(a.last_synced_at || 0).getTime();
+         const timeB = new Date(b.last_synced_at || 0).getTime();
+         return timeB - timeA;
+      });
+
+      res.status(200).json({ ok: true, products });
+
+    } catch (error: any) {
+      console.error("ML_PRODUCTS_LIST_ERROR", error);
+      res.status(500).json({ ok: false, error: error.message });
     }
   });
 

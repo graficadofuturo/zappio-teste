@@ -9,6 +9,8 @@ export default function Integrations() {
   const [integrations, setIntegrations] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState<string | null>(null);
+  const [mlApiStatus, setMlApiStatus] = useState<any>(null);
+  const [checkingApiStatus, setCheckingApiStatus] = useState(false);
 
   const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
   const [manualClientId, setManualClientId] = useState('');
@@ -22,11 +24,13 @@ export default function Integrations() {
 
   useEffect(() => {
     loadIntegrations();
+    checkMlApiStatus();
     
     const mlStatus = searchParams.get('mercadolivre');
     if (mlStatus) {
       if (mlStatus === 'connected') {
          setMessage({ type: 'success', text: 'Mercado Livre conectado com sucesso.' });
+         checkMlApiStatus();
       } else if (mlStatus === 'missing_code') {
          setMessage({ type: 'error', text: 'O Mercado Livre não retornou o código de autorização. Tente conectar novamente.' });
       } else if (mlStatus === 'invalid_state') {
@@ -62,6 +66,19 @@ export default function Integrations() {
       handleFirestoreError(e, OperationType.LIST, 'ecommerce_keys');
     }
     setLoading(false);
+  };
+
+  const checkMlApiStatus = async () => {
+    setCheckingApiStatus(true);
+    try {
+      const res = await fetch('/api/integrations/mercadolivre/status');
+      const data = await res.json();
+      setMlApiStatus(data);
+    } catch (e) {
+      console.error("Error checking ML status:", e);
+    } finally {
+      setCheckingApiStatus(false);
+    }
   };
 
   const saveManualML = async (e: React.FormEvent) => {
@@ -165,50 +182,61 @@ export default function Integrations() {
             </div>
 
             <div className="mt-auto pt-4 border-t border-subtle/50">
-               {mlIntegration ? (
+               {mlApiStatus?.connected ? (
                    <div className="space-y-4">
                        <div className="flex items-center gap-2 px-3 py-1.5 bg-green-50 text-green-700 text-[11px] font-bold uppercase rounded-md border border-green-200 w-max">
                           <Sparkles className="w-3.5 h-3.5" /> Conectado
                        </div>
                        
                        <div className="text-[12px] text-secondary space-y-1 my-3 bg-secondary/30 p-3 rounded-lg border border-subtle/50">
-                          <p><strong>Loja / Seller ID:</strong> {mlIntegration.ml_user_id || 'Não identificado'}</p>
-                          <p><strong>Produtos Importados:</strong> {mlIntegration.sync_count || 0}</p>
-                          <p><strong>Última Sincronização:</strong> {mlIntegration.last_synced_at ? new Date(mlIntegration.last_synced_at?.seconds * 1000).toLocaleString() : 'Nunca'}</p>
+                          <p><strong>Status:</strong> CONECTADO</p>
+                          <p><strong>Conta conectada:</strong> {mlApiStatus.account_name || mlApiStatus.nickname || mlApiStatus.seller_id}</p>
+                          <p><strong>Conectado em:</strong> {mlApiStatus.connected_at ? new Date(mlApiStatus.connected_at).toLocaleString() : ''}</p>
                        </div>
                        
                        <div className="flex gap-2">
                            <button 
-                             onClick={() => handleSyncML(mlIntegration.id)}
-                             disabled={syncing === mlIntegration.id}
-                             className="flex-1 bg-accent-blue text-white px-4 py-2 rounded-lg font-semibold text-[13px] flex items-center justify-center gap-2 hover:opacity-90 disabled:opacity-50"
+                             onClick={() => {
+                                 window.location.href = "/api/integrations/mercadolivre/connect?userId=" + (auth.currentUser?.uid || '');
+                             }}
+                             className="flex-1 bg-[#ffe600] text-[#2d3277] px-4 py-2 rounded-lg font-semibold text-[13px] flex items-center justify-center gap-2 hover:opacity-90 disabled:opacity-50"
                            >
-                             {syncing === mlIntegration.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4"/>}
-                             Sincronizar
+                             Reconectar Mercado Livre
                            </button>
                            <button 
-                             onClick={() => navigate('/dashboard/products')}
-                             className="flex-1 bg-secondary text-primary px-4 py-2 rounded-lg font-semibold text-[13px] flex items-center justify-center gap-2 hover:bg-gray-100"
+                             onClick={checkMlApiStatus}
+                             disabled={checkingApiStatus}
+                             className="flex-1 bg-secondary text-primary px-4 py-2 rounded-lg font-semibold text-[13px] flex items-center justify-center gap-2 hover:bg-gray-100 disabled:opacity-50"
                            >
-                             Ver Produtos
+                             {checkingApiStatus ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4"/>}
+                             Atualizar status
                            </button>
                        </div>
                        <button 
-                         onClick={() => handleDisconnect(mlIntegration.id)}
+                         onClick={() => {
+                             // Temporarily just alert for disconnect, backend may need a route
+                             alert('Desconexão (se houver via API) a ser implementada.');
+                         }}
                          className="w-full text-red-500 text-[12px] font-semibold mt-2 hover:underline flex items-center justify-center gap-1"
                        >
-                         <Trash2 className="w-3 h-3" /> Desconectar
+                         <Trash2 className="w-3 h-3" /> Desconectar (Em Breve)
                        </button>
                    </div>
                ) : (
                    <div className="space-y-4">
-                       <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-100 text-secondary text-[11px] font-bold uppercase rounded-md border border-subtle w-max">
-                           Não conectado
+                       <div className="flex items-center justify-between">
+                           <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-100 text-secondary text-[11px] font-bold uppercase rounded-md border border-subtle w-max">
+                               Status: NÃO CONECTADO
+                           </div>
+                           <button onClick={checkMlApiStatus} disabled={checkingApiStatus} className="text-[12px] text-secondary hover:text-primary flex items-center gap-1">
+                               {checkingApiStatus ? <Loader2 className="w-3 h-3 animate-spin"/> : <RefreshCw className="w-3 h-3"/>}
+                               Atualizar status
+                           </button>
                        </div>
                        
                        <button 
                          onClick={() => {
-                             window.location.href = "/api/integrations/mercadolivre/connect?userId=" + auth.currentUser?.uid;
+                             window.location.href = "/api/integrations/mercadolivre/connect?userId=" + (auth.currentUser?.uid || '');
                          }}
                          className={`w-full bg-[#ffe600] text-[#2d3277] border border-[#ffe600] px-4 py-3 rounded-lg font-bold text-[14px] flex items-center justify-center gap-2 hover:opacity-90 disabled:opacity-50 transition-all shadow-sm ${syncing === 'ml' ? 'pointer-events-none opacity-50' : ''}`}
                        >
