@@ -18,29 +18,30 @@ export default function Integrations() {
 
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const [message, setMessage] = useState<{type: 'success' | 'error', text: string} | null>(null);
 
   useEffect(() => {
     loadIntegrations();
     
     const mlStatus = searchParams.get('mercadolivre');
-    if (mlStatus === 'connected') {
-       alert('Conectado com sucesso ao Mercado Livre!');
-       navigate('/dashboard/integrations', { replace: true });
-    } else if (mlStatus === 'error') {
-       alert('Não foi possível conectar ao Mercado Livre.');
-       navigate('/dashboard/integrations', { replace: true });
-    } else if (mlStatus === 'missing_code') {
-       alert('O Mercado Livre não retornou o código de autorização.');
-       navigate('/dashboard/integrations', { replace: true });
-    } else if (mlStatus === 'invalid_state') {
-       alert('A sessão de conexão expirou. Tente conectar novamente.');
-       navigate('/dashboard/integrations', { replace: true });
-    } else if (mlStatus === 'token_error') {
-       alert('Erro ao trocar autorização por token. Veja os logs do servidor.');
-       navigate('/dashboard/integrations', { replace: true });
-    } else if (mlStatus === 'config_error') {
-       alert('As configurações do Mercado Livre estão incompletas.');
-       navigate('/dashboard/integrations', { replace: true });
+    if (mlStatus) {
+      if (mlStatus === 'connected') {
+         setMessage({ type: 'success', text: 'Mercado Livre conectado com sucesso.' });
+      } else if (mlStatus === 'error' || mlStatus === 'oauth_error') {
+         setMessage({ type: 'error', text: 'Não foi possível conectar ao Mercado Livre.' });
+      } else if (mlStatus === 'missing_code') {
+         setMessage({ type: 'error', text: 'O Mercado Livre não retornou o código de autorização.' });
+      } else if (mlStatus === 'invalid_state') {
+         setMessage({ type: 'error', text: 'Sessão expirada. Tente conectar novamente.' });
+      } else if (mlStatus === 'token_error') {
+         setMessage({ type: 'error', text: 'Erro ao conectar com Mercado Livre. Verifique as configurações.' });
+      } else if (mlStatus === 'config_error') {
+         setMessage({ type: 'error', text: 'As configurações do Mercado Livre estão incompletas.' });
+      } else if (mlStatus === 'save_error') {
+         setMessage({ type: 'error', text: 'Falha ao salvar a integração no banco de dados.' });
+      }
+      // Remove param to prevent showing again on reload
+      navigate('/dashboard/integrations', { replace: true });
     }
   }, [searchParams, navigate]);
 
@@ -132,6 +133,13 @@ export default function Integrations() {
         <h1 className="text-[20px] font-bold text-primary">Integrações</h1>
         <p className="text-[13px] text-secondary mt-1">Conecte suas contas para puxar produtos, imagens e preços automaticamente.</p>
       </div>
+
+      {message && (
+        <div className={`mb-6 p-4 rounded-lg flex items-start gap-3 ${message.type === 'success' ? 'bg-green-50 text-green-800 border border-green-200' : 'bg-red-50 text-red-800 border border-red-200'}`}>
+          {message.type === 'success' ? <Sparkles className="w-5 h-5 flex-shrink-0" /> : <AlertCircle className="w-5 h-5 flex-shrink-0" />}
+          <p className="text-[14px] font-medium">{message.text}</p>
+        </div>
+      )}
 
       {loading && integrations.length === 0 ? (
         <div className="py-8 flex justify-center"><Loader2 className="w-6 h-6 animate-spin text-secondary" /></div>

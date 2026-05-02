@@ -73,6 +73,9 @@ function App() {
           <Route path="integrations" element={<Integrations />} />
           <Route path="products" element={<Products />} />
         </Route>
+        
+        {/* Alias para integrations */}
+        <Route path="/integrations" element={<Navigate to="/dashboard/integrations" replace />} />
 
         {/* Rotas Admin */}
         <Route path="/admin" element={user && isAdmin ? <AdminDashboardLayout /> : <Navigate to="/dashboard" />}>

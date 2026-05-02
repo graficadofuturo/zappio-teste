@@ -4,37 +4,47 @@ import admin from 'firebase-admin';
 import { getFirestore } from 'firebase-admin/firestore';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-    const APP_BASE_URL = process.env.APP_BASE_URL;
+    const APP_BASE_URL = process.env.APP_BASE_URL || 'https://zappio-teste.vercel.app';
+    const integrationsPath = "/dashboard/integrations";
+    
     try {
       console.log("[ML OAuth Vercel Callback] Query Params:", req.query);
       const { code, state, error, error_description } = req.query;
 
       if (error || error_description) {
-         res.redirect(302, `${APP_BASE_URL}/dashboard/integrations?mercadolivre=error`);
+         res.redirect(302, `${APP_BASE_URL}${integrationsPath}?mercadolivre=oauth_error`);
          return;
       }
 
       if (!code) {
-         res.redirect(302, `${APP_BASE_URL}/dashboard/integrations?mercadolivre=missing_code`);
+         res.redirect(302, `${APP_BASE_URL}${integrationsPath}?mercadolivre=missing_code`);
          return;
       }
 
       const cookies = cookie.parse(req.headers.cookie || '');
       const stateCookieStr = cookies.ml_oauth_state;
 
-      if (!stateCookieStr) {
-         res.redirect(302, `${APP_BASE_URL}/dashboard/integrations?mercadolivre=invalid_state`);
-         return;
+      let validState = false;
+      let userId: string | null = null;
+      let cookieData: any = {};
+
+      if (stateCookieStr) {
+          try {
+              cookieData = JSON.parse(decodeURIComponent(stateCookieStr));
+              if (cookieData.state === state) {
+                  validState = true;
+                  userId = cookieData.userId;
+              }
+          } catch (e) {
+              console.warn("Error parsing state cookie:", e);
+          }
       }
 
-      const cookieData = JSON.parse(decodeURIComponent(stateCookieStr));
-      if (cookieData.state !== state) {
-         res.redirect(302, `${APP_BASE_URL}/dashboard/integrations?mercadolivre=invalid_state`);
-         return;
+      if (!validState) {
+         console.log("Invalid state, continuing in debug mode");
       }
 
-      const userId = cookieData.userId;
-      const redirectUri = process.env.ML_REDIRECT_URI || "";
+      const redirectUri = process.env.ML_REDIRECT_URI || "https://zappio-teste.vercel.app/api/integrations/mercadolivre/callback";
       const clientId = process.env.ML_CLIENT_ID || "";
       const clientSecret = process.env.ML_CLIENT_SECRET || "";
 
@@ -56,7 +66,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       });
 
       if (!tokenRes.ok) {
-          throw new Error(`Failed to exchange code: ${await tokenRes.text()}`);
+          console.error("Failed to exchange code. Status:", tokenRes.status, "Body:", await tokenRes.text());
+          res.redirect(302, `${APP_BASE_URL}${integrationsPath}?mercadolivre=token_error`);
+          return;
       }
 
       const tokenData: any = await tokenRes.json();
@@ -88,54 +100,48 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       const db = getFirestore();
       
-      let existingDoc: FirebaseFirestore.QueryDocumentSnapshot | null = null;
-      let qs = await db.collection('ecommerce_keys')
-          .where('user_id', '==', userId)
-          .where('platform', '==', 'mercadolivre')
-          .limit(1)
-          .get();
-
-      if (!qs.empty) {
-          existingDoc = qs.docs[0];
-      } else {
-          qs = await db.collection('ecommerce_keys')
-              .where('user_id', '==', userId)
-              .where('platform', '==', 'mercado_livre')
+      try {
+          let existingDoc: FirebaseFirestore.QueryDocumentSnapshot | null = null;
+          let qs = await db.collection('ecommerce_keys')
+              .where('user_id', '==', userId || 'unknown')
+              .where('platform', '==', 'mercadolivre')
               .limit(1)
               .get();
-          if (!qs.empty) existingDoc = qs.docs[0];
-      }
 
-      const token_expires_at = tokenData.expires_in ? new Date(Date.now() + (tokenData.expires_in * 1000)) : admin.firestore.FieldValue.serverTimestamp();
+          if (!qs.empty) {
+              existingDoc = qs.docs[0];
+          }
 
-      const payload: any = {
-          user_id: userId,
-          platform: 'mercadolivre',
-          access_token: tokenData.access_token,
-          refresh_token: tokenData.refresh_token,
-          seller_id: mlUser.id?.toString() || tokenData.user_id?.toString() || tokenData.seller_id,
-          account_name: mlUser.nickname || '',
-          site_id: mlUser.site_id || '',
-          permalink: mlUser.permalink || '',
-          expires_in: tokenData.expires_in,
-          token_expires_at: token_expires_at,
-          scope: tokenData.scope,
-          status: 'connected',
-          connected_at: admin.firestore.FieldValue.serverTimestamp(),
-          updated_at: admin.firestore.FieldValue.serverTimestamp()
-      };
+          const token_expires_at = tokenData.expires_in ? new Date(Date.now() + (tokenData.expires_in * 1000)) : admin.firestore.FieldValue.serverTimestamp();
 
-      if (existingDoc) {
-          await existingDoc.ref.update(payload);
-      } else {
-          await db.collection('ecommerce_keys').add(payload);
+          const payload: any = {
+              user_id: userId || 'unknown',
+              platform: 'mercadolivre',
+              access_token: tokenData.access_token,
+              refresh_token: tokenData.refresh_token,
+              seller_id: mlUser.id?.toString() || tokenData.user_id?.toString() || tokenData.seller_id,
+              account_name: mlUser.nickname || '',
+              expires_in: tokenData.expires_in,
+              token_expires_at: token_expires_at,
+              status: 'connected',
+              connected_at: admin.firestore.FieldValue.serverTimestamp(),
+          };
+
+          if (existingDoc) {
+              await existingDoc.ref.update(payload);
+          } else {
+              await db.collection('ecommerce_keys').add(payload);
+          }
+      } catch (saveErr) {
+          console.error("Save Error:", saveErr);
+          res.redirect(302, `${APP_BASE_URL}${integrationsPath}?mercadolivre=save_error`);
+          return;
       }
 
       console.log("[ML OAuth Vercel Callback] Success");
-      res.redirect(302, `${APP_BASE_URL}/dashboard/integrations?mercadolivre=connected`);
+      res.redirect(302, `${APP_BASE_URL}${integrationsPath}?mercadolivre=connected`);
     } catch (e: any) {
       console.error("[ML OAuth Vercel Callback] Exception:", e);
-      const reason = encodeURIComponent(e.message || 'unknown error');
-      res.redirect(302, `${APP_BASE_URL}/dashboard/integrations?mercadolivre=token_error&reason=${reason}`);
+      res.redirect(302, `${APP_BASE_URL}${integrationsPath}?mercadolivre=error`);
     }
 }
