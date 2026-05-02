@@ -156,57 +156,57 @@ export default function Products() {
       const link = p.product_link;
 
       return (
-        <div key={p.product_id || p.id} className="bg-primary flex flex-col border border-subtle rounded-xl overflow-hidden shadow-sm hover:shadow transition-shadow">
-            <div className="bg-secondary/20 h-[200px] flex items-center justify-center border-b border-subtle p-4 relative">
+        <div key={p.product_id || p.id} className="bg-white flex flex-col border border-gray-200 rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-all hover:-translate-y-0.5 group">
+            <div className="bg-white h-[200px] flex items-center justify-center border-b border-gray-100 p-4 relative group-hover:bg-gray-50 transition-colors">
                 {image ? (
-                    <img src={image} alt={title} className="w-full h-full object-contain mix-blend-multiply" />
+                    <img src={image} alt={title} className="w-full h-full object-contain mix-blend-multiply drop-shadow-sm" />
                 ) : (
-                    <Package className="w-10 h-10 text-subtle" />
+                    <Package className="w-10 h-10 text-gray-300" />
                 )}
             </div>
             
-            <div className="p-4 flex-1 flex flex-col">
+            <div className="p-5 flex-1 flex flex-col">
                 <div className="flex justify-between items-start mb-2 gap-2">
-                     <a href={link} target="_blank" rel="noopener noreferrer" className="text-[13px] font-semibold text-primary line-clamp-2 hover:text-accent-blue transition-colors relative z-10 block mb-1">
+                     <a href={link} target="_blank" rel="noopener noreferrer" className="text-[13.5px] font-semibold text-gray-900 line-clamp-2 hover:text-[#2d3277] transition-colors relative z-10 block mb-1 leading-snug">
                         {title}
                      </a>
                 </div>
                 
                 <div className="flex items-end gap-2 mb-4">
-                    <span className="text-[18px] font-bold text-black leading-none pb-1">
+                    <span className="text-[20px] font-extrabold text-gray-900 leading-none pb-0.5">
                         R$ {Number(price).toFixed(2).replace('.', ',')}
                     </span>
                     {oldPrice && oldPrice > price && (
-                        <span className="text-[12px] text-secondary line-through mb-1">
+                        <span className="text-[12px] text-gray-400 line-through mb-1">
                             R$ {Number(oldPrice).toFixed(2).replace('.', ',')}
                         </span>
                     )}
                     {discount && (
-                        <span className="text-[10px] font-bold text-green-600 mb-1.5 ml-1">
+                        <span className="text-[11px] font-bold text-green-600 mb-1 ml-1 bg-green-50 px-1.5 py-0.5 rounded text-center">
                             {discount} {String(discount).includes('OFF') ? '' : 'OFF'}
                         </span>
                     )}
                 </div>
 
-                <div className="mt-auto pt-4 border-t border-subtle/50 space-y-3">
+                <div className="mt-auto pt-4 border-t border-gray-100 space-y-3">
                     {isSearch ? (
                         <button 
                             onClick={() => handleAddProduct(p)}
                             disabled={added || isLoadingAdd}
-                            className={`w-full py-2 rounded-lg font-bold text-[13px] flex items-center justify-center gap-2 transition-all ${
+                            className={`w-full py-2.5 rounded-xl font-bold text-[13px] flex items-center justify-center gap-2 transition-all shadow-sm ${
                                 added 
-                                ? 'bg-green-50 text-green-700 border border-green-200' 
-                                : 'bg-[#ffe600] text-[#2d3277] hover:opacity-90'
+                                ? 'bg-green-50 text-green-700 border border-green-200 shadow-none' 
+                                : 'bg-indigo-600 text-white hover:bg-indigo-700'
                             }`}
                         >
                             {isLoadingAdd ? <Loader2 className="w-4 h-4 animate-spin" /> : added ? <CheckCircle2 className="w-4 h-4"/> : <PlusCircle className="w-4 h-4"/>}
-                            {added ? 'Já adicionado' : 'Adicionar à Biblioteca'}
+                            {added ? 'Já na Biblioteca' : 'Adicionar Oferta'}
                         </button>
                     ) : (
                         <>
                             <div>
-                                <label className="block text-[11px] font-semibold uppercase tracking-wider text-secondary mb-2 flex items-center gap-1">
-                                    <LinkIcon className="w-3 h-3" /> Link de Afiliado
+                                <label className="block text-[11px] font-bold uppercase tracking-wider text-gray-500 mb-2 flex items-center gap-1.5">
+                                    <LinkIcon className="w-3.5 h-3.5" /> Link de Afiliado
                                 </label>
                                 
                                 {editingLink === p.id ? (
@@ -215,34 +215,28 @@ export default function Products() {
                                             type="url" 
                                             value={tempLink} 
                                             onChange={e => setTempLink(e.target.value)}
-                                            className="flex-1 p-2 bg-secondary border border-subtle rounded-md text-[12px] focus:outline-none focus:border-accent-blue"
+                                            className="flex-1 p-2 bg-white border border-gray-200 shadow-inner rounded-lg text-[12px] focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all"
                                             placeholder="Cole aqui o link encurtado"
                                             autoFocus
                                         />
                                         <button 
                                             onClick={() => saveLink(p.id)}
-                                            className="bg-accent-blue text-white px-3 py-2 rounded-md text-[12px] font-semibold hover:opacity-90"
+                                            className="bg-indigo-600 text-white px-4 py-2 rounded-lg text-[12px] font-bold hover:bg-indigo-700 transition-colors shadow-sm"
                                         >
                                             Salvar
                                         </button>
                                     </div>
                                 ) : (
                                     <div 
-                                      className="w-full p-2 bg-secondary/50 border border-transparent rounded-md text-[12px] text-primary truncate hover:border-subtle cursor-pointer transition-colors"
+                                      className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-lg text-[12px] text-gray-900 truncate hover:border-indigo-300 hover:bg-indigo-50/50 cursor-pointer transition-colors font-medium shadow-sm"
                                       onClick={() => {
                                           setEditingLink(p.id);
                                           setTempLink(p.product_affiliate_link || '');
                                       }}
                                     >
-                                        {p.product_affiliate_link || <span className="text-secondary/50 italic">Nenhum link afiliado (Clique para adicionar)</span>}
+                                        {p.product_affiliate_link || <span className="text-gray-400 italic font-normal">Nenhum link configurado (clique para editar)</span>}
                                     </div>
                                 )}
-                            </div>
-                            
-                            <div className="pt-2 border-t border-subtle/30 flex justify-between items-center text-[12px] font-semibold">
-                                <a href={link} target="_blank" rel="noopener noreferrer" className="text-[#2d3277] hover:underline flex-1 text-center">
-                                    Ver no Mercado Livre
-                                </a>
                             </div>
                         </>
                     )}
@@ -253,34 +247,34 @@ export default function Products() {
   };
 
   return (
-    <div className="p-8 max-w-6xl mx-auto space-y-6">
+    <div className="p-6 md:p-10 max-w-7xl mx-auto space-y-8">
       
       <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-[24px] font-bold text-primary flex items-center gap-2">
-                <Package className="w-6 h-6"/> Produtos Afiliados
+            <h1 className="text-[24px] font-bold text-gray-900 flex items-center gap-2">
+                <Package className="w-6 h-6 text-indigo-600"/> Banco de Ofertas
             </h1>
-            <p className="text-[14px] text-secondary mt-1">Busque produtos no ML ou sincronize sua loja para gerar campanhas.</p>
+            <p className="text-[14px] text-gray-500 mt-1">Busque produtos no ML ou sincronize sua loja para gerar campanhas.</p>
           </div>
       </div>
 
-      <div className="bg-blue-50 border border-blue-200 text-blue-800 p-4 rounded-xl flex items-start gap-3">
-          <Info className="w-5 h-5 flex-shrink-0 mt-0.5" />
+      <div className="bg-blue-50 border border-blue-200 text-blue-800 p-4 rounded-xl flex items-start gap-3 shadow-sm">
+          <Info className="w-5 h-5 flex-shrink-0 mt-0.5 text-blue-600" />
           <div className="text-[13px] leading-relaxed">
               <strong>Modo de Afiliado:</strong> Por segurança, a geração automática de links afiliados depende de suporte oficial ou integração validada pela sua conta de parceiro. No momento, busque o produto, adicione à biblioteca e <strong>cole seu link afiliado manualmente</strong> gerado no Portal de Afiliados do Mercado Livre. 
           </div>
       </div>
 
-      <div className="flex gap-1 bg-secondary/20 p-1 rounded-xl w-max">
+      <div className="flex gap-1 bg-gray-100 p-1 rounded-xl w-max border border-gray-200/60">
           <button 
              onClick={() => setMode('library')}
-             className={`px-4 py-2 rounded-lg text-[13px] font-bold transition-colors ${mode === 'library' ? 'bg-primary shadow-sm text-[#2d3277]' : 'text-secondary hover:text-primary'}`}
+             className={`px-5 py-2 rounded-lg text-[13px] font-bold transition-all shadow-sm ${mode === 'library' ? 'bg-white text-gray-900' : 'text-gray-500 hover:text-gray-700 shadow-none'}`}
           >
               Minha Biblioteca
           </button>
           <button 
              onClick={() => setMode('search')}
-             className={`px-4 py-2 rounded-lg text-[13px] font-bold transition-colors ${mode === 'search' ? 'bg-primary shadow-sm text-[#2d3277]' : 'text-secondary hover:text-primary'}`}
+             className={`px-5 py-2 rounded-lg text-[13px] font-bold transition-all shadow-sm ${mode === 'search' ? 'bg-white text-gray-900' : 'text-gray-500 hover:text-gray-700 shadow-none'}`}
           >
               Buscar no Mercado Livre
           </button>
@@ -299,20 +293,20 @@ export default function Products() {
       )}
 
       {mode === 'library' && (
-          <div className="space-y-6">
-              <div className="flex justify-between items-center">
-                  <h2 className="text-[16px] font-bold text-primary">Meus Produtos Adicionados</h2>
+          <div className="space-y-6 animate-in fade-in duration-300">
+              <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
+                  <h2 className="text-[18px] font-bold text-gray-900">Meus Produtos Adicionados</h2>
                   <div className="flex gap-2">
                       <button 
                         disabled
-                        className="bg-accent-blue/10 text-accent-blue opacity-50 cursor-not-allowed px-4 py-2 rounded-lg font-bold flex items-center gap-2 text-[13px] shadow-sm"
+                        className="bg-indigo-50 text-indigo-400 opacity-70 cursor-not-allowed px-4 py-2 rounded-xl font-bold flex items-center gap-2 text-[13px] border border-indigo-100"
                       >
                         <Wand2 className="w-4 h-4" /> Automação de Links (Em breve)
                       </button>
                       <button 
                         onClick={handleSync}
                         disabled={syncing || loading}
-                        className="bg-secondary text-primary hover:bg-subtle transition-colors px-4 py-2 rounded-lg font-bold flex items-center gap-2 text-[13px] shadow-sm disabled:opacity-50"
+                        className="bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 transition-colors px-4 py-2 rounded-xl font-bold flex items-center gap-2 text-[13px] shadow-sm disabled:opacity-50"
                         title="Sincroniza todos os produtos da sua loja / conta logada no ML"
                       >
                         {syncing ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />} 
@@ -322,21 +316,23 @@ export default function Products() {
               </div>
 
               {loading ? (
-                <div className="py-12 flex justify-center"><Loader2 className="w-8 h-8 animate-spin text-secondary" /></div>
+                <div className="py-24 flex justify-center"><Loader2 className="w-8 h-8 animate-spin text-gray-400" /></div>
               ) : products.length === 0 ? (
-                <div className="bg-primary flex flex-col items-center justify-center border border-subtle rounded-xl py-16 text-center">
-                   <Package className="w-12 h-12 text-subtle mb-4" />
-                   <h3 className="text-[16px] font-bold text-primary mb-2">Nenhum produto salvo</h3>
-                   <p className="text-[14px] text-secondary max-w-sm mb-6">Você ainda não adicionou nenhum produto à sua biblioteca.</p>
+                <div className="bg-white flex flex-col items-center justify-center border border-gray-200 rounded-3xl py-24 text-center shadow-sm">
+                   <div className="w-16 h-16 bg-gray-50 border border-gray-100 rounded-2xl flex items-center justify-center mb-5">
+                     <Package className="w-8 h-8 text-gray-400" />
+                   </div>
+                   <h3 className="text-[18px] font-bold text-gray-900 mb-2">Nenhum produto salvo</h3>
+                   <p className="text-[14px] text-gray-500 max-w-sm mb-8 leading-relaxed">Você ainda não adicionou nenhum produto à sua biblioteca.</p>
                    <button 
                      onClick={() => setMode('search')}
-                     className="bg-[#ffe600] text-[#2d3277] px-6 py-2.5 rounded-lg font-bold shadow-sm hover:opacity-90"
+                     className="bg-[#ffe600] text-[#2d3277] px-6 py-3.5 rounded-xl font-bold shadow-sm hover:opacity-90 flex items-center gap-2"
                    >
-                       Buscar produtos
+                     <Search className="w-4 h-4" /> Buscar produtos no ML
                    </button>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                     {products.map(p => renderProductCard(p, false))}
                 </div>
               )}
@@ -344,42 +340,42 @@ export default function Products() {
       )}
 
       {mode === 'search' && (
-          <div className="space-y-6">
-              <form onSubmit={handleSearch} className="flex gap-2 mb-4">
+          <div className="space-y-6 animate-in fade-in duration-300">
+              <form onSubmit={handleSearch} className="flex flex-col sm:flex-row gap-3 mb-4">
                   <div className="relative flex-1">
-                      <Search className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-secondary" />
+                      <Search className="w-5 h-5 absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
                       <input 
                           type="text" 
                           value={searchQuery}
                           onChange={e => setSearchQuery(e.target.value)}
                           placeholder="Buscar no catálogo do Mercado Livre... (ex: iPhone, Geladeira, Livro)"
-                          className="w-full bg-primary border border-subtle rounded-xl pl-10 pr-4 py-3 text-[14px] focus:outline-none focus:border-accent-blue focus:ring-1 focus:ring-accent-blue transition-all"
+                          className="w-full bg-white border border-gray-200 rounded-xl pl-12 pr-4 py-3.5 text-[14px] shadow-sm focus:outline-none focus:border-[#ffe600] focus:ring-2 focus:ring-[#ffe600]/30 transition-all font-medium"
                       />
                   </div>
                   <button 
                       type="submit"
                       disabled={searching || !searchQuery.trim()}
-                      className="bg-[#ffe600] text-[#2d3277] px-6 py-3 rounded-xl font-bold flex items-center justify-center gap-2 hover:opacity-90 disabled:opacity-50 transition-all min-w-[120px]"
+                      className="bg-[#ffe600] text-[#2d3277] px-8 py-3.5 rounded-xl font-bold flex items-center justify-center gap-2 hover:opacity-90 disabled:opacity-50 transition-all min-w-[120px] shadow-sm"
                   >
                       {searching ? <Loader2 className="w-5 h-5 animate-spin"/> : 'Buscar'}
                   </button>
               </form>
 
               {searchError && (
-                  <div className="p-4 rounded-lg bg-red-50 border border-red-200 text-red-700 text-[13px] font-medium mb-6">
+                  <div className="p-4 rounded-xl bg-red-50 border border-red-200 text-red-700 text-[13px] font-medium mb-6 shadow-sm">
                       {searchError}
                   </div>
               )}
 
               {searching ? (
-                  <div className="py-12 flex justify-center"><Loader2 className="w-8 h-8 animate-spin text-secondary" /></div>
+                  <div className="py-24 flex justify-center"><Loader2 className="w-8 h-8 animate-spin text-gray-400" /></div>
               ) : searchResults.length > 0 ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                       {searchResults.map(p => renderProductCard(p, true))}
                   </div>
               ) : (
                   searchQuery && !searching && (
-                      <div className="bg-primary/50 border border-subtle border-dashed rounded-xl py-12 text-center text-secondary">
+                      <div className="bg-gray-50 border border-gray-200 border-dashed rounded-3xl py-24 text-center text-gray-500 font-medium">
                          Nenhum resultado encontrado para "{searchQuery}".
                       </div>
                   )

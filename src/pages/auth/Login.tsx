@@ -61,7 +61,7 @@ export default function Login() {
         <div className="flex flex-col items-center mb-8">
           <Bot className="h-10 w-10 text-accent-primary mb-4" />
           <h2 className="text-2xl font-bold tracking-tight text-primary">Bem-vindo de volta</h2>
-          <p className="text-secondary text-sm mt-1">Acesse seu painel ZapBot</p>
+          <p className="text-secondary text-sm mt-1">Acesse seu painel Zappio</p>
         </div>
 
         {error && (

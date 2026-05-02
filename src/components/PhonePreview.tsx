@@ -37,7 +37,8 @@ export default function PhonePreview({ message, imageUrl, dummyProduct }: PhoneP
       replacedText = replacedText.replace(/{product_category}/g, prod.product_category || '');
       replacedText = replacedText.replace(/{product_store}/g, prod.product_store || '');
       replacedText = replacedText.replace(/{product_stock}/g, prod.product_stock || '');
-      replacedText = replacedText.replace(/{product_id}/g, prod.external_product_id || prod.id || '');
+      replacedText = replacedText.replace(/{product_id}/g, prod.external_product_id || prod.product_id || prod.id || '');
+      replacedText = replacedText.replace(/{product_coupon}/g, prod.product_coupon || prod.product_cupom || '');
       replacedText = replacedText.replace(/{product_cupom}/g, prod.product_cupom || '');
       
       // Fix common typo

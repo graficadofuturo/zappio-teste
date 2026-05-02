@@ -108,19 +108,18 @@ service cloud.firestore {
     }
 
     match /ecommerce_keys/{keyId} {
-      allow get: if isSignedIn() && isValidId(keyId) && existing().user_id == request.auth.uid;
-      allow list: if isSignedIn() && resource.data.user_id == request.auth.uid;
-      allow create: if isSignedIn() && isValidEcommerceKey(incoming());
-      allow update: if isSignedIn() && isValidId(keyId) && existing().user_id == request.auth.uid
-                    && isValidEcommerceKey(incoming())
-                    && incoming().user_id == existing().user_id; // allow any other keys since it is populated via server
-      allow delete: if isSignedIn() && isValidId(keyId) && existing().user_id == request.auth.uid;
-    }
-
-    match /products/{productId} {
       allow get: if isSignedIn() && existing().user_id == request.auth.uid;
       allow list: if isSignedIn() && resource.data.user_id == request.auth.uid;
-      // products are created by server. Let's just allow read and update for the affiliate link
+      allow create: if isSignedIn() && isValidEcommerceKey(incoming());
+      allow update: if isSignedIn() && existing().user_id == request.auth.uid
+                    && isValidEcommerceKey(incoming())
+                    && incoming().user_id == existing().user_id;
+      allow delete: if isSignedIn() && existing().user_id == request.auth.uid;
+    }
+
+    match /affiliate_products/{productId} {
+      allow get: if isSignedIn() && existing().user_id == request.auth.uid;
+      allow list: if isSignedIn() && resource.data.user_id == request.auth.uid;
       allow create: if false; // server creates
       allow update: if isSignedIn() && existing().user_id == request.auth.uid
                     && incoming().user_id == existing().user_id

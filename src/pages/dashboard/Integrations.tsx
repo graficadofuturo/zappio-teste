@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { auth, db } from '../../lib/firebase';
 import { collection, query, where, getDocs, addDoc, updateDoc, doc, deleteDoc } from 'firebase/firestore';
 import { handleFirestoreError, OperationType } from '../../lib/firestore-utils';
-import { Megaphone, ShoppingCart, Loader2, Sparkles, AlertCircle, Trash2, Key, RefreshCw, ChevronDown, ChevronUp } from 'lucide-react';
+import { ShoppingBag, Loader2, Sparkles, AlertCircle, Trash2, Key, RefreshCw, ChevronDown, ChevronUp, ExternalLink, CheckCircle2 } from 'lucide-react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 
 export default function Integrations() {
@@ -40,7 +40,7 @@ export default function Integrations() {
       } else if (mlStatus === 'config_error') {
          setMessage({ type: 'error', text: 'As configurações do Mercado Livre estão incompletas.' });
       } else if (mlStatus === 'firestore_not_found') {
-         setMessage({ type: 'error', text: 'Firestore não encontrado. Verifique o FIRESTORE_DATABASE_ID ou crie o banco (default).' });
+         setMessage({ type: 'error', text: 'Firestore não encontrado. Verifique o banco de dados.' });
       } else if (mlStatus === 'save_error') {
          setMessage({ type: 'error', text: 'A conexão funcionou, mas não foi possível salvar a integração.' });
       } else if (mlStatus === 'error') {
@@ -106,10 +106,11 @@ export default function Integrations() {
           setIsAdvancedOpen(false);
           await loadIntegrations();
           
-          alert("Integração salva usando modo avançado! Você já pode sincronizar os produtos.");
+          setMessage({ type: 'success', text: "Integração salva usando modo avançado! Você já pode sincronizar os produtos." });
+          setTimeout(() => setMessage(null), 5000);
 
       } catch(e) {
-          alert('Erro ao salvar manualmente');
+          setMessage({ type: 'error', text: 'Erro ao salvar manualmente.' });
       }
       setSavingManual(false);
   };
@@ -119,181 +120,213 @@ export default function Integrations() {
       try {
           await deleteDoc(doc(db, 'ecommerce_keys', id));
           await loadIntegrations();
+          setMessage({ type: 'success', text: 'Integração desconectada com sucesso.' });
+          setTimeout(() => setMessage(null), 5000);
       } catch (e) {
           handleFirestoreError(e, OperationType.DELETE, 'ecommerce_keys');
-      }
-  };
-
-  const handleSyncML = async (integrationId: string) => {
-      setSyncing(integrationId);
-      try {
-          const res = await fetch('/api/integrations/mercadolivre/sync', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ integrationId })
-          });
-          const data = await res.json();
-          if (data.success) {
-              alert(`Produtos sincronizados: ${data.count}`);
-              await loadIntegrations();
-          } else {
-              alert('Erro na sincronização: ' + data.error);
-          }
-      } catch (e: any) {
-          alert('Erro ao sincronizar: ' + e.message);
-      } finally {
-          setSyncing(null);
       }
   };
 
   const mlIntegration = integrations.find(i => i.platform === 'mercadolivre' || i.platform === 'mercado_livre');
 
   return (
-    <div className="p-8 max-w-4xl mx-auto">
-      <div className="mb-8">
-        <h1 className="text-[20px] font-bold text-primary">Integrações</h1>
-        <p className="text-[13px] text-secondary mt-1">Conecte suas contas para puxar produtos, imagens e preços automaticamente.</p>
+    <div className="p-6 md:p-10 max-w-7xl mx-auto space-y-6">
+      <div>
+        <h1 className="text-[24px] font-bold text-gray-900">Integrações</h1>
+        <p className="text-[14px] text-gray-500 mt-1 max-w-2xl">Conecte suas contas de marketplaces para importar produtos, imagens e links automaticamente para suas campanhas.</p>
       </div>
 
       {message && (
-        <div className={`mb-6 p-4 rounded-lg flex items-start gap-3 ${message.type === 'success' ? 'bg-green-50 text-green-800 border border-green-200' : 'bg-red-50 text-red-800 border border-red-200'}`}>
-          {message.type === 'success' ? <Sparkles className="w-5 h-5 flex-shrink-0" /> : <AlertCircle className="w-5 h-5 flex-shrink-0" />}
-          <p className="text-[14px] font-medium">{message.text}</p>
+        <div className={`p-4 rounded-xl text-[13px] font-medium flex items-center gap-3 shadow-sm animate-in fade-in slide-in-from-top-2 ${message.type === 'success' ? 'bg-green-50 text-green-800 border border-green-100' : 'bg-red-50 text-red-800 border border-red-100'}`}>
+          {message.type === 'success' ? <CheckCircle2 className="w-4 h-4 flex-shrink-0" /> : <AlertCircle className="w-4 h-4 flex-shrink-0" />}
+          {message.text}
         </div>
       )}
 
       {loading && integrations.length === 0 ? (
-        <div className="py-8 flex justify-center"><Loader2 className="w-6 h-6 animate-spin text-secondary" /></div>
+        <div className="py-16 flex flex-col items-center justify-center text-gray-400">
+           <Loader2 className="w-8 h-8 animate-spin mb-4" />
+           <span className="text-[13px] font-medium">Carregando integrações...</span>
+        </div>
       ) : (
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pt-2">
           
         {/* ML Card */}
-        <div className="bg-primary border border-subtle rounded-xl p-6 flex flex-col h-full hover:border-[#ffe600] transition-colors relative overflow-hidden">
-            <div className="absolute top-0 left-0 w-full h-2 bg-[#ffe600]"></div>
+        <div className="bg-white border border-gray-200 rounded-2xl flex flex-col h-full shadow-sm hover:shadow-md transition-all relative overflow-hidden group">
+            <div className="absolute top-0 left-0 w-full h-1.5 bg-[#ffe600]"></div>
             
-            <div className="flex items-start justify-between mb-4 mt-2">
-                <div>
-                   <h3 className="text-[16px] font-bold text-primary flex items-center gap-2">Mercado Livre</h3>
-                   <p className="text-[12px] text-secondary mt-1 max-w-[200px]">Conecte sua conta para puxar produtos automaticamente.</p>
-                </div>
-                <div className="w-12 h-12 rounded-full bg-[#ffe600]/10 flex items-center justify-center font-bold text-[#2d3277] border border-[#ffe600]/30">
-                  ML
-                </div>
-            </div>
+            <div className="p-6">
+              <div className="flex items-start justify-between mb-4">
+                  <div>
+                     <h3 className="text-[16px] font-bold text-gray-900 flex items-center gap-2">Mercado Livre</h3>
+                     <p className="text-[13px] text-gray-500 mt-1 leading-relaxed pr-4">Importe seus anúncios e produtos de afiliados diretamente.</p>
+                  </div>
+                  <div className="w-12 h-12 rounded-xl bg-yellow-50 flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform">
+                    <ShoppingBag className="w-6 h-6 text-yellow-600" />
+                  </div>
+              </div>
 
-            <div className="mt-auto pt-4 border-t border-subtle/50">
-               {mlApiStatus?.connected ? (
-                   <div className="space-y-4">
-                       <div className="flex items-center gap-2 px-3 py-1.5 bg-green-50 text-green-700 text-[11px] font-bold uppercase rounded-md border border-green-200 w-max">
-                          <Sparkles className="w-3.5 h-3.5" /> Conectado
-                       </div>
-                       
-                       <div className="text-[12px] text-secondary space-y-1 my-3 bg-secondary/30 p-3 rounded-lg border border-subtle/50">
-                          <p><strong>Status:</strong> CONECTADO</p>
-                          <p><strong>Conta conectada:</strong> {mlApiStatus.account_name || mlApiStatus.nickname || mlApiStatus.seller_id}</p>
-                          <p><strong>Conectado em:</strong> {mlApiStatus.connected_at ? new Date(mlApiStatus.connected_at).toLocaleString() : ''}</p>
-                       </div>
-                       
-                       <div className="flex gap-2">
-                           <button 
-                             onClick={() => {
-                                 window.location.href = "/api/integrations/mercadolivre/connect?userId=" + (auth.currentUser?.uid || '');
-                             }}
-                             className="flex-1 bg-[#ffe600] text-[#2d3277] px-4 py-2 rounded-lg font-semibold text-[13px] flex items-center justify-center gap-2 hover:opacity-90 disabled:opacity-50"
-                           >
-                             Reconectar Mercado Livre
-                           </button>
-                           <button 
-                             onClick={checkMlApiStatus}
-                             disabled={checkingApiStatus}
-                             className="flex-1 bg-secondary text-primary px-4 py-2 rounded-lg font-semibold text-[13px] flex items-center justify-center gap-2 hover:bg-gray-100 disabled:opacity-50"
-                           >
-                             {checkingApiStatus ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4"/>}
-                             Atualizar status
-                           </button>
-                       </div>
-                       <button 
-                         onClick={() => {
-                             // Temporarily just alert for disconnect, backend may need a route
-                             alert('Desconexão (se houver via API) a ser implementada.');
-                         }}
-                         className="w-full text-red-500 text-[12px] font-semibold mt-2 hover:underline flex items-center justify-center gap-1"
-                       >
-                         <Trash2 className="w-3 h-3" /> Desconectar (Em Breve)
-                       </button>
-                   </div>
-               ) : (
-                   <div className="space-y-4">
-                       <div className="flex items-center justify-between">
-                           <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-100 text-secondary text-[11px] font-bold uppercase rounded-md border border-subtle w-max">
-                               Status: NÃO CONECTADO
-                           </div>
-                           <button onClick={checkMlApiStatus} disabled={checkingApiStatus} className="text-[12px] text-secondary hover:text-primary flex items-center gap-1">
-                               {checkingApiStatus ? <Loader2 className="w-3 h-3 animate-spin"/> : <RefreshCw className="w-3 h-3"/>}
-                               Atualizar status
-                           </button>
-                       </div>
-                       
-                       <button 
-                         onClick={() => {
-                             window.location.href = "/api/integrations/mercadolivre/connect?userId=" + (auth.currentUser?.uid || '');
-                         }}
-                         className={`w-full bg-[#ffe600] text-[#2d3277] border border-[#ffe600] px-4 py-3 rounded-lg font-bold text-[14px] flex items-center justify-center gap-2 hover:opacity-90 disabled:opacity-50 transition-all shadow-sm ${syncing === 'ml' ? 'pointer-events-none opacity-50' : ''}`}
-                       >
-                         {syncing === 'ml' ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-                         Conectar Autenticando (OAuth)
-                       </button>
-
-                       {/* Advanced Mode */}
-                       <div className="mt-4 pt-4 border-t border-subtle/50">
-                           <button 
-                              onClick={() => setIsAdvancedOpen(!isAdvancedOpen)}
-                              className="text-[12px] text-secondary font-semibold flex items-center justify-center gap-1 w-full hover:text-primary transition-colors"
-                           >
-                              <Key className="w-3 h-3" /> Fazer conexão manual
-                              {isAdvancedOpen ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-                           </button>
-                           
-                           {isAdvancedOpen && (
-                              <form onSubmit={saveManualML} className="mt-4 space-y-3 animate-in fade-in slide-in-from-top-2 duration-300 bg-secondary/50 p-4 rounded-xl border border-subtle/50">
-                                 <p className="text-[11px] text-secondary mb-3 leading-relaxed">
-                                   Insira o seu <strong>Seller ID</strong> do Mercado Livre. As chaves de Client são opcionais.
-                                 </p>
-                                 <div>
-                                   <label className="block text-[11px] font-semibold uppercase tracking-wider text-secondary mb-1">Seller / User ID</label>
-                                   <input type="text" required value={manualSellerId} onChange={e=>setManualSellerId(e.target.value)} className="w-full p-2 bg-primary border border-subtle rounded-md text-[13px]" placeholder="Ex: 123456789" />
-                                 </div>
-                                 <details className="mt-2 text-[11px] text-secondary">
-                                    <summary className="cursor-pointer font-semibold uppercase tracking-wider mb-2">Chaves Opcionais</summary>
-                                    <div className="space-y-3 mt-2 pl-2">
-                                        <div>
-                                          <label className="block text-[11px] font-semibold uppercase tracking-wider text-secondary mb-1">Client ID (App ID)</label>
-                                          <input type="text" value={manualClientId} onChange={e=>setManualClientId(e.target.value)} className="w-full p-2 bg-primary border border-subtle rounded-md text-[13px]" />
-                                        </div>
-                                        <div>
-                                          <label className="block text-[11px] font-semibold uppercase tracking-wider text-secondary mb-1">Client Secret</label>
-                                          <input type="password" value={manualClientSecret} onChange={e=>setManualClientSecret(e.target.value)} className="w-full p-2 bg-primary border border-subtle rounded-md text-[13px]" />
-                                        </div>
-                                    </div>
-                                 </details>
-                                 <button type="submit" disabled={savingManual} className="w-full bg-accent-blue text-white py-2 rounded-md text-[12px] font-semibold flex items-center justify-center gap-2 mt-3 cursor-pointer hover:bg-blue-700">
-                                     {savingManual ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Salvar Manualmente e Sincronizar'}
-                                 </button>
-                              </form>
-                           )}
-                       </div>
-
-                   </div>
-               )}
+              <div className="mt-6">
+                 {mlApiStatus?.connected ? (
+                     <div className="space-y-5">
+                         <div className="flex items-center gap-2 px-2.5 py-1 bg-green-50 text-green-700 text-[11px] font-bold uppercase tracking-wider rounded border border-green-200 w-max">
+                            <Sparkles className="w-3.5 h-3.5" /> Conectado
+                         </div>
+                         
+                         <div className="text-[13px] text-gray-700 space-y-2 bg-gray-50 p-4 rounded-xl border border-gray-100">
+                            <div className="flex justify-between items-center pb-2 border-b border-gray-200/50">
+                               <span className="text-gray-500">Conta:</span>
+                               <span className="font-semibold">{mlApiStatus.account_name || mlApiStatus.nickname || mlApiStatus.seller_id}</span>
+                            </div>
+                            <div className="flex justify-between items-center pt-1">
+                               <span className="text-gray-500">Autorizado:</span>
+                               <span className="font-medium text-[12px]">{mlApiStatus.connected_at ? new Date(mlApiStatus.connected_at).toLocaleDateString() : 'Desconhecido'}</span>
+                            </div>
+                         </div>
+                         
+                         <div className="flex flex-col gap-2 pt-2">
+                             <div className="flex gap-2">
+                               <button 
+                                 onClick={() => {
+                                     window.location.href = "/api/integrations/mercadolivre/connect?userId=" + (auth.currentUser?.uid || '');
+                                 }}
+                                 className="flex-1 bg-white border border-gray-200 text-gray-700 py-2 rounded-lg font-medium text-[13px] flex items-center justify-center gap-2 hover:bg-gray-50 transition-colors shadow-sm"
+                               >
+                                 Reconectar
+                               </button>
+                               <button 
+                                 onClick={checkMlApiStatus}
+                                 disabled={checkingApiStatus}
+                                 className="flex-1 bg-white border border-gray-200 text-gray-700 py-2 rounded-lg font-medium text-[13px] flex items-center justify-center gap-2 hover:bg-gray-50 transition-colors shadow-sm disabled:opacity-50"
+                               >
+                                 {checkingApiStatus ? <Loader2 className="w-4 h-4 animate-spin text-indigo-600" /> : <RefreshCw className="w-4 h-4 text-gray-400"/>}
+                                 Atualizar
+                               </button>
+                             </div>
+                             {mlIntegration && (
+                               <button 
+                                 onClick={() => handleDisconnect(mlIntegration.id)}
+                                 className="w-full text-red-600 bg-red-50 border border-red-100 py-2 rounded-lg text-[13px] font-medium transition-colors hover:bg-red-100 flex items-center justify-center gap-2 mt-2"
+                               >
+                                 <Trash2 className="w-4 h-4" /> Desconectar conta
+                               </button>
+                             )}
+                         </div>
+                     </div>
+                 ) : (
+                     <div className="space-y-5">
+                         <div className="flex items-center justify-between">
+                             <div className="flex items-center gap-2 px-2.5 py-1 bg-gray-100 text-gray-600 text-[11px] font-bold uppercase tracking-wider rounded border border-gray-200 w-max">
+                                 Não Conectado
+                             </div>
+                             <button onClick={checkMlApiStatus} disabled={checkingApiStatus} className="text-[12px] text-gray-500 hover:text-indigo-600 flex items-center gap-1 font-medium transition-colors">
+                                 {checkingApiStatus ? <Loader2 className="w-3 h-3 animate-spin"/> : <RefreshCw className="w-3 h-3"/>}
+                                 Verificar
+                             </button>
+                         </div>
+                         
+                         <button 
+                           onClick={() => {
+                               window.location.href = "/api/integrations/mercadolivre/connect?userId=" + (auth.currentUser?.uid || '');
+                           }}
+                           className={`w-full bg-[#ffe600] text-[#2d3277] hover:bg-[#f5dd00] py-3 rounded-xl font-bold text-[14px] flex items-center justify-center gap-2 transition-colors shadow-sm ${syncing === 'ml' ? 'pointer-events-none opacity-50' : ''}`}
+                         >
+                           {syncing === 'ml' ? <Loader2 className="w-4 h-4 animate-spin" /> : <ExternalLink className="w-4 h-4" />}
+                           Conectar Mercado Livre
+                         </button>
+  
+                         {/* Advanced Mode */}
+                         <div className="pt-2">
+                             <button 
+                                onClick={() => setIsAdvancedOpen(!isAdvancedOpen)}
+                                className="text-[13px] text-gray-500 font-medium flex items-center justify-center gap-1.5 w-full hover:text-gray-900 transition-colors"
+                             >
+                                <Key className="w-3.5 h-3.5" /> Conexão avançada (Manual)
+                                {isAdvancedOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                             </button>
+                             
+                             {isAdvancedOpen && (
+                                <form onSubmit={saveManualML} className="mt-4 space-y-4 animate-in fade-in slide-in-from-top-2 duration-200 bg-gray-50 p-4 rounded-xl border border-gray-100">
+                                   <p className="text-[12px] text-gray-500 leading-relaxed">
+                                     Utilize esta opção se você já tem um Token de Afiliado ou deseja configurar sua Api Key manualmente.
+                                   </p>
+                                   <div>
+                                     <label className="block text-[11px] font-bold uppercase tracking-wide text-gray-600 mb-1.5">Seller ID / User ID</label>
+                                     <input type="text" required value={manualSellerId} onChange={e=>setManualSellerId(e.target.value)} className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-[13px] focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all" placeholder="Ex: 123456789" />
+                                   </div>
+                                   <details className="mt-2 text-[12px] text-gray-600 group">
+                                      <summary className="cursor-pointer font-semibold mb-2 select-none">Mostrar campos de Chave (Opcional)</summary>
+                                      <div className="space-y-4 mt-3 pl-1 border-l-2 border-gray-200">
+                                          <div className="pl-3">
+                                            <label className="block text-[11px] font-bold uppercase tracking-wide text-gray-500 mb-1.5">Client ID (App ID)</label>
+                                            <input type="text" value={manualClientId} onChange={e=>setManualClientId(e.target.value)} className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-[13px] focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all" />
+                                          </div>
+                                          <div className="pl-3">
+                                            <label className="block text-[11px] font-bold uppercase tracking-wide text-gray-500 mb-1.5">Client Secret</label>
+                                            <input type="password" value={manualClientSecret} onChange={e=>setManualClientSecret(e.target.value)} className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-[13px] focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all" />
+                                          </div>
+                                      </div>
+                                   </details>
+                                   <button type="submit" disabled={savingManual} className="w-full bg-indigo-600 text-white py-2.5 rounded-lg text-[13px] font-bold flex items-center justify-center gap-2 mt-4 hover:bg-indigo-700 transition-colors shadow-sm disabled:opacity-50">
+                                       {savingManual ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Salvar Integração'}
+                                   </button>
+                                </form>
+                             )}
+                         </div>
+  
+                     </div>
+                 )}
+              </div>
             </div>
         </div>
         
-        {/* Amazon Card placeholder if needed */}
-        <div className="bg-primary border border-subtle rounded-xl p-6 flex items-center justify-center opacity-50 relative overflow-hidden">
-             <div className="absolute top-0 left-0 w-full h-2 bg-[#ff9900]"></div>
-             <div className="text-center">
-                 <h3 className="text-[16px] font-bold text-primary mb-2">Amazon Prime</h3>
-                 <p className="text-[12px] text-secondary">Em Breve...</p>
+        {/* Amazon Card */}
+        <div className="bg-white border border-gray-200 rounded-2xl flex flex-col h-full shadow-sm relative overflow-hidden opacity-60 grayscale hover:grayscale-0 transition-all cursor-not-allowed">
+             <div className="absolute top-0 left-0 w-full h-1.5 bg-[#ff9900]"></div>
+             <div className="p-6 flex flex-col h-full">
+                 <div className="flex items-start justify-between mb-4">
+                     <div>
+                        <h3 className="text-[16px] font-bold text-gray-900 flex items-center gap-2">Amazon Prime</h3>
+                        <p className="text-[13px] text-gray-500 mt-1 leading-relaxed pr-4">Importe produtos da sua conta de parceiros Amazon.</p>
+                     </div>
+                     <div className="w-12 h-12 rounded-xl bg-orange-50 flex items-center justify-center flex-shrink-0">
+                       <ShoppingBag className="w-6 h-6 text-orange-500" />
+                     </div>
+                 </div>
+                 
+                 <div className="mt-auto pt-6">
+                    <div className="flex items-center gap-2 px-2.5 py-1 bg-gray-100 text-gray-500 text-[11px] font-bold uppercase tracking-wider rounded border border-gray-200 w-max mb-4">
+                        Em breve
+                    </div>
+                    <button disabled className="w-full bg-gray-100 text-gray-400 py-3 rounded-xl font-bold text-[14px] flex items-center justify-center gap-2 border border-gray-200">
+                      Disponível futuramente
+                    </button>
+                 </div>
+             </div>
+        </div>
+
+        {/* Shopee Card */}
+        <div className="bg-white border border-gray-200 rounded-2xl flex flex-col h-full shadow-sm relative overflow-hidden opacity-60 grayscale hover:grayscale-0 transition-all cursor-not-allowed">
+             <div className="absolute top-0 left-0 w-full h-1.5 bg-[#ee4d2d]"></div>
+             <div className="p-6 flex flex-col h-full">
+                 <div className="flex items-start justify-between mb-4">
+                     <div>
+                        <h3 className="text-[16px] font-bold text-gray-900 flex items-center gap-2">Shopee</h3>
+                        <p className="text-[13px] text-gray-500 mt-1 leading-relaxed pr-4">Conecte sua conta de afiliado para puxar ofertas.</p>
+                     </div>
+                     <div className="w-12 h-12 rounded-xl bg-red-50 flex items-center justify-center flex-shrink-0">
+                       <ShoppingBag className="w-6 h-6 text-red-500" />
+                     </div>
+                 </div>
+                 
+                 <div className="mt-auto pt-6">
+                    <div className="flex items-center gap-2 px-2.5 py-1 bg-gray-100 text-gray-500 text-[11px] font-bold uppercase tracking-wider rounded border border-gray-200 w-max mb-4">
+                        Em breve
+                    </div>
+                    <button disabled className="w-full bg-gray-100 text-gray-400 py-3 rounded-xl font-bold text-[14px] flex items-center justify-center gap-2 border border-gray-200">
+                      Disponível futuramente
+                    </button>
+                 </div>
              </div>
         </div>
 

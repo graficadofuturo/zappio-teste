@@ -362,6 +362,9 @@ export default function Campaigns() {
              messageText = replaceOrRemoveLine(messageText, '{product_price}', prod.product_price ? `R$ ${Number(prod.product_price).toFixed(2).replace('.', ',')}` : '');
              messageText = replaceOrRemoveLine(messageText, '{product_old_price}', prod.product_old_price ? `~R$ ${Number(prod.product_old_price).toFixed(2).replace('.', ',')}~` : '');
              messageText = replaceOrRemoveLine(messageText, '{product_discount}', prod.product_discount || '');
+             messageText = replaceOrRemoveLine(messageText, '{product_store}', prod.product_store || '');
+             messageText = replaceOrRemoveLine(messageText, '{product_id}', prod.external_product_id || prod.product_id || prod.id || '');
+             messageText = replaceOrRemoveLine(messageText, '{product_coupon}', prod.product_coupon || prod.product_cupom || '');
              
              const linkToUse = prod.product_affiliate_link || prod.product_link || '';
              messageText = replaceOrRemoveLine(messageText, '{product_affiliate_link}', linkToUse);
@@ -423,95 +426,105 @@ export default function Campaigns() {
 
   if (!isCreating) {
     return (
-      <div className="flex-1 flex flex-col h-full bg-secondary">
-        <header className="h-[72px] border-b border-subtle bg-primary flex items-center justify-between px-8 shrink-0">
+      <div className="flex-1 flex flex-col h-full bg-gray-50/50">
+        <header className="h-[72px] border-b border-gray-200 bg-white flex items-center justify-between px-6 md:px-10 shrink-0">
           <div>
-            <h1 className="text-[18px] font-bold text-primary">Campanhas</h1>
-            <p className="text-[12px] text-secondary">Gerencie suas campanhas e disparos</p>
+            <h1 className="text-[20px] font-bold text-gray-900 tracking-tight">Campanhas</h1>
+            <p className="text-[13px] text-gray-500 mt-0.5">Gerencie suas campanhas e automações de disparo</p>
           </div>
           <button 
             onClick={() => setIsCreating(true)}
-            className="bg-accent text-white px-5 py-2.5 rounded-lg font-semibold text-[14px] flex items-center gap-2 hover:bg-accent-hover transition-colors"
+            className="bg-indigo-600 text-white px-5 py-2.5 rounded-xl font-semibold text-[13px] flex items-center gap-2 hover:bg-indigo-700 transition-all shadow-sm hover:shadow"
           >
             <Plus className="w-4 h-4" /> Nova Campanha
           </button>
         </header>
 
-        <div className="p-8 flex-1 overflow-y-auto">
+        <div className="p-6 md:p-10 flex-1 overflow-y-auto">
           {campaignsList.length === 0 ? (
-            <div className="text-center py-20">
-              <Megaphone className="w-12 h-12 text-secondary opacity-50 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-primary mb-2">Nenhuma campanha criada</h3>
-              <p className="text-sm text-secondary">Crie sua primeira campanha para iniciar seus disparos.</p>
+            <div className="flex flex-col items-center justify-center py-24 text-center max-w-md mx-auto">
+              <div className="w-16 h-16 bg-white border border-gray-100 rounded-2xl flex items-center justify-center shadow-sm mb-5">
+                <Megaphone className="w-8 h-8 text-indigo-500" />
+              </div>
+              <h3 className="text-[18px] font-bold text-gray-900 mb-2">Nenhuma campanha criada</h3>
+              <p className="text-[14px] text-gray-500 mb-8 leading-relaxed">Crie sua primeira campanha para disparar mensagens e aumentar suas vendas de forma automatizada.</p>
+              <button 
+                onClick={() => setIsCreating(true)}
+                className="bg-white border border-gray-200 text-gray-900 px-6 py-2.5 rounded-xl font-semibold text-[13px] flex items-center gap-2 hover:bg-gray-50 transition-colors shadow-sm"
+              >
+                <Plus className="w-4 h-4" /> Criar Primeira Campanha
+              </button>
             </div>
           ) : (
-            <div className="space-y-4 max-w-4xl">
+            <div className="space-y-4 max-w-5xl">
               {campaignsList.map(camp => (
-                <div key={camp.id} className="bg-primary border border-subtle rounded-xl p-5 flex items-center justify-between">
+                <div key={camp.id} className="bg-white border border-gray-200 rounded-2xl p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm hover:border-gray-300 transition-colors">
                   <div className="flex items-center gap-4">
-                     <div className="w-10 h-10 rounded-full bg-accent/10 flex items-center justify-center text-accent">
-                        <Send className="w-5 h-5" />
+                     <div className="w-12 h-12 rounded-xl bg-indigo-50 border border-indigo-100/50 flex items-center justify-center text-indigo-600 shrink-0">
+                        <Send className="w-6 h-6" />
                      </div>
                      <div>
-                       <h3 className="text-[15px] font-semibold text-primary">{camp.name}</h3>
-            <div className="flex items-center gap-3 text-[12px] text-secondary mt-1">
-              <span className="flex items-center gap-1"><Calendar className="w-3 h-3"/> {camp.created_at?.toDate()?.toLocaleDateString()}</span>
-              <span>•</span>
+                       <h3 className="text-[15px] font-bold text-gray-900">{camp.name}</h3>
+            <div className="flex flex-wrap items-center gap-2 text-[13px] text-gray-500 mt-1">
+              <span className="flex items-center gap-1 font-medium"><Calendar className="w-3.5 h-3.5"/> {camp.created_at?.toDate()?.toLocaleDateString()}</span>
+              <span className="text-gray-300">•</span>
               {camp.trigger_type === 'scheduled' && (
                 <>
-                  <span className="flex items-center gap-1 text-accent"><Clock className="w-3 h-3"/> Programado</span>
-                  <span>•</span>
+                  <span className="flex items-center gap-1 text-indigo-600 font-medium"><Clock className="w-3.5 h-3.5"/> Programado</span>
+                  <span className="text-gray-300">•</span>
                 </>
               )}
               {camp.trigger_type === 'auto' && (
                 <>
-                  <span className="flex items-center gap-1 text-green-500"><Sparkles className="w-3 h-3"/> Contínuo</span>
-                  <span>•</span>
+                  <span className="flex items-center gap-1 text-teal-600 font-medium"><Sparkles className="w-3.5 h-3.5"/> Contínuo</span>
+                  <span className="text-gray-300">•</span>
                 </>
               )}
-              <span className={`font-medium ${camp.status === 'sent' ? 'text-green-500' : camp.status === 'failed' ? 'text-red-500' : camp.status === 'paused' ? 'text-orange-500' : 'text-blue-500'}`}>
+              <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-bold uppercase tracking-wider ${camp.status === 'sent' ? 'bg-green-50 text-green-700 border border-green-200' : camp.status === 'failed' ? 'bg-red-50 text-red-700 border border-red-200' : camp.status === 'paused' ? 'bg-orange-50 text-orange-700 border border-orange-200' : 'bg-blue-50 text-blue-700 border border-blue-200'}`}>
                   {camp.status === 'sending' ? 'Enviando...' : (camp.status === 'sent' ? 'Enviada' : (camp.status === 'scheduled' ? 'Ativa' : (camp.status === 'paused' ? 'Pausada' : camp.status)))}
               </span>
             </div>
             {camp.trigger_type === 'scheduled' && (
-              <div className="mt-1 text-[11px] text-accent/80 flex flex-wrap gap-x-2 gap-y-1">
-                 {camp.scheduled_days?.length > 0 && <span className="bg-accent/5 px-1.5 py-0.5 rounded border border-accent/10">Dias: {camp.scheduled_days.map((d: number) => DAYS.find(day => day.value === d)?.label).join(', ')}</span>}
-                 {camp.scheduled_dates?.length > 0 && <span className="bg-accent/5 px-1.5 py-0.5 rounded border border-accent/10">{camp.scheduled_dates.length} data(s) fixa(s)</span>}
-                 <span className="bg-accent/5 px-1.5 py-0.5 rounded border border-accent/10">às {camp.scheduled_times?.join(', ')}</span>
+              <div className="mt-2 text-[12px] flex flex-wrap gap-x-2 gap-y-1">
+                 {camp.scheduled_days?.length > 0 && <span className="bg-gray-100 text-gray-600 px-2 py-0.5 rounded-lg border border-gray-200 font-medium">Dias: {camp.scheduled_days.map((d: number) => DAYS.find(day => day.value === d)?.label).join(', ')}</span>}
+                 {camp.scheduled_dates?.length > 0 && <span className="bg-gray-100 text-gray-600 px-2 py-0.5 rounded-lg border border-gray-200 font-medium">{camp.scheduled_dates.length} data(s) fixa(s)</span>}
+                 <span className="bg-gray-100 text-gray-600 px-2 py-0.5 rounded-lg border border-gray-200 font-medium">às {camp.scheduled_times?.join(', ')}</span>
               </div>
             )}
             {camp.trigger_type === 'auto' && (
-              <div className="mt-1 text-[11px] text-green-600 flex flex-wrap gap-x-2 gap-y-1">
-                 <span className="bg-green-500/10 px-1.5 py-0.5 rounded border border-green-500/20">A cada {camp.send_interval || '00:00'} (MM:SS)</span>
+              <div className="mt-2 text-[12px] flex flex-wrap gap-x-2 gap-y-1">
+                 <span className="bg-teal-50 text-teal-700 px-2 py-0.5 rounded-lg border border-teal-100 font-medium">A cada {camp.send_interval || '00:00'} (MM:SS)</span>
               </div>
             )}
                      </div>
                   </div>
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2 sm:gap-3">
                      {camp.trigger_type === 'auto' && (
                        <button
                          onClick={() => handleTogglePause(camp.id, camp.status)}
-                         className={`p-2 rounded-lg transition-colors ${camp.status === 'paused' ? 'text-green-500 hover:bg-green-50' : 'text-orange-500 hover:bg-orange-50'}`}
+                         className={`p-2 rounded-xl transition-colors ${camp.status === 'paused' ? 'text-teal-600 hover:bg-teal-50 border border-transparent hover:border-teal-100' : 'text-orange-600 hover:bg-orange-50 border border-transparent hover:border-orange-100'}`}
                          title={camp.status === 'paused' ? 'Retomar Disparos' : 'Pausar Disparos'}
                        >
-                         {camp.status === 'paused' ? <Play className="w-4 h-4" /> : <Pause className="w-4 h-4" />}
+                         {camp.status === 'paused' ? <Play className="w-5 h-5" /> : <Pause className="w-5 h-5" />}
                        </button>
                      )}
                      <button 
                        onClick={() => handleTriggerCampaign(camp.id, camp)} 
                        disabled={camp.status === 'sending'}
-                       className="px-4 py-2 bg-accent text-white rounded-lg text-[13px] font-semibold hover:bg-accent-hover transition-colors disabled:opacity-50"
+                       className="px-4 py-2 bg-white border border-gray-200 text-gray-900 rounded-xl text-[13px] font-semibold hover:bg-gray-50 transition-colors disabled:opacity-50 shadow-sm flex items-center justify-center min-w-[100px]"
                      >
                        {camp.status === 'sending' ? (
-                         <span className="flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Enviando...</span>
-                       ) : 'Disparar'}
+                         <span className="flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin text-indigo-600" /> Enviando</span>
+                       ) : 'Disparar Agora'}
                      </button>
-                     <button onClick={() => handleEditCampaign(camp)} className="p-2 text-secondary hover:text-blue-500 hover:bg-blue-50 rounded-lg transition-colors">
-                        <Edit2 className="w-4 h-4" />
-                     </button>
-                     <button onClick={() => handleDeleteCampaign(camp.id)} className="p-2 text-secondary hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors">
-                        <Trash2 className="w-4 h-4" />
-                     </button>
+                     <div className="flex items-center gap-1 border-l border-gray-200 pl-2 sm:pl-3 ml-1 sm:ml-2">
+                       <button onClick={() => handleEditCampaign(camp)} className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-colors">
+                          <Edit2 className="w-4.5 h-4.5" />
+                       </button>
+                       <button onClick={() => handleDeleteCampaign(camp.id)} className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors">
+                          <Trash2 className="w-4.5 h-4.5" />
+                       </button>
+                     </div>
                   </div>
                 </div>
               ))}
@@ -520,34 +533,32 @@ export default function Campaigns() {
         </div>
 
         {/* Global Toasts */}
-        {(errorMsg || successMsg) && (
-          <div className="fixed bottom-6 right-6 flex flex-col gap-2 z-50">
-            {errorMsg && (
-              <div className="bg-red-500 text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-2 max-w-sm">
-                  <AlertCircle className="w-5 h-5 shrink-0" />
-                  <p className="text-[14px] font-medium leading-snug">{errorMsg}</p>
-              </div>
-            )}
-            {successMsg && (
-              <div className="bg-green-500 text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-2 max-w-sm">
-                  <CheckCircle2 className="w-5 h-5 shrink-0" />
-                  <p className="text-[14px] font-medium leading-snug">{successMsg}</p>
-              </div>
-            )}
+      <div className="fixed bottom-6 right-6 flex flex-col gap-3 z-50">
+        {errorMsg && (
+          <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3.5 rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.08)] flex items-center gap-3 min-w-[300px] max-w-md animate-in fade-in slide-in-from-bottom-5">
+             <AlertCircle className="w-5 h-5 shrink-0 text-red-500" />
+             <p className="text-[13.5px] font-medium leading-snug">{errorMsg}</p>
           </div>
         )}
+        {successMsg && (
+          <div className="bg-green-50 border border-green-200 text-green-800 px-4 py-3.5 rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.08)] flex items-center gap-3 min-w-[300px] max-w-md animate-in fade-in slide-in-from-bottom-5">
+             <CheckCircle2 className="w-5 h-5 shrink-0 text-green-600" />
+             <p className="text-[13.5px] font-medium leading-snug">{successMsg}</p>
+          </div>
+        )}
+      </div>
 
       </div>
     );
   }
 
   return (
-    <div className="flex-1 flex flex-col h-full bg-secondary">
+    <div className="flex-1 flex flex-col h-full bg-gray-50/50">
       {/* Header */}
-      <header className="h-[72px] border-b border-subtle bg-primary flex items-center justify-between px-8 shrink-0">
+      <header className="h-[72px] border-b border-gray-200 bg-white flex items-center justify-between px-6 md:px-10 shrink-0">
         <div>
-          <h1 className="text-[18px] font-bold text-primary">{editingId ? 'Editar Campanha' : 'Nova Campanha'}</h1>
-          <p className="text-[12px] text-secondary">Configure o disparo inteligente via Gemini IA</p>
+          <h1 className="text-[20px] font-bold text-gray-900 tracking-tight">{editingId ? 'Editar Campanha' : 'Nova Campanha'}</h1>
+          <p className="text-[13px] text-gray-500 mt-0.5">Configure mensagens persuasivas e defina os alvos</p>
         </div>
             <div className="flex gap-3">
               <button onClick={() => {
@@ -563,13 +574,13 @@ export default function Campaigns() {
                 setIsRecurring(false);
                 setScheduledDays([]);
                 setScheduledTimes(['09:00']);
-              }} className="px-5 py-2.5 border border-subtle bg-transparent rounded-lg font-semibold text-[14px] text-primary hover:bg-secondary transition-colors">
+              }} className="px-5 py-2.5 border border-gray-200 bg-white rounded-xl font-semibold text-[13px] text-gray-700 hover:bg-gray-50 transition-colors shadow-sm">
                 Cancelar
               </button>
           <button 
             onClick={handleSend}
             disabled={sending}
-            className="bg-accent text-white px-5 py-2.5 rounded-lg font-semibold text-[14px] flex items-center gap-2 hover:bg-accent-hover transition-colors disabled:opacity-50"
+            className="bg-indigo-600 text-white px-5 py-2.5 rounded-xl font-semibold text-[13px] flex items-center gap-2 hover:bg-indigo-700 transition-colors disabled:opacity-50 shadow-sm"
           >
             {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Salvar Campanha'}
           </button>
@@ -577,9 +588,10 @@ export default function Campaigns() {
       </header>
 
       {/* Content Area */}
-      <div className="p-8 grid grid-cols-1 lg:grid-cols-[1fr_340px] gap-8 items-start">
+      <div className="p-6 md:p-10 flex-1 overflow-y-auto">
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-8 max-w-[1400px] mx-auto items-start">
         {/* Configure Builder */}
-        <div className="bg-primary border border-subtle rounded-xl p-6 flex flex-col">
+        <div className="bg-white border border-gray-200 shadow-sm rounded-3xl p-6 md:p-8 flex flex-col">
           {/* Agendamento Configuration */}
           <div className="mb-6 p-4 bg-secondary/50 border border-subtle rounded-xl">
              <div className="flex items-center justify-between mb-4">
@@ -995,7 +1007,10 @@ export default function Campaigns() {
                          { id: '{product_discount}', label: 'Desconto' },
                          { id: '{product_link}', label: 'Link original' },
                          { id: '{product_affiliate_link}', label: 'Link afiliado' },
-                         { id: '{product_image}', label: 'Imagem (se vazio)' }
+                         { id: '{product_image}', label: 'Imagem' },
+                         { id: '{product_store}', label: 'Loja' },
+                         { id: '{product_id}', label: 'ID' },
+                         { id: '{product_coupon}', label: 'Cupom' }
                        ].map(v => (
                           <button
                              key={v.id}
@@ -1026,32 +1041,31 @@ export default function Campaigns() {
         </div>
 
       {/* Live Preview Pane */}
-        <div className="flex flex-col items-center">
+        <div className="flex flex-col items-center sticky top-0">
           <PhonePreview 
              message={message} 
              imageUrl={imageUrl} 
              dummyProduct={products.length > 0 ? products[0] : null}
           />
         </div>
+        </div>
       </div>
 
       {/* Global Toasts */}
-      {(errorMsg || successMsg) && (
-        <div className="fixed bottom-6 right-6 flex flex-col gap-2 z-50">
-           {errorMsg && (
-             <div className="bg-red-500 text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-2 max-w-sm">
-                <AlertCircle className="w-5 h-5 shrink-0" />
-                <p className="text-[14px] font-medium leading-snug">{errorMsg}</p>
-             </div>
-           )}
-           {successMsg && (
-             <div className="bg-green-500 text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-2 max-w-sm">
-                <CheckCircle2 className="w-5 h-5 shrink-0" />
-                <p className="text-[14px] font-medium leading-snug">{successMsg}</p>
-             </div>
-           )}
-        </div>
-      )}
+      <div className="fixed bottom-6 right-6 flex flex-col gap-3 z-50">
+        {errorMsg && (
+          <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3.5 rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.08)] flex items-center gap-3 min-w-[300px] max-w-md animate-in fade-in slide-in-from-bottom-5">
+             <AlertCircle className="w-5 h-5 shrink-0 text-red-500" />
+             <p className="text-[13.5px] font-medium leading-snug">{errorMsg}</p>
+          </div>
+        )}
+        {successMsg && (
+          <div className="bg-green-50 border border-green-200 text-green-800 px-4 py-3.5 rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.08)] flex items-center gap-3 min-w-[300px] max-w-md animate-in fade-in slide-in-from-bottom-5">
+             <CheckCircle2 className="w-5 h-5 shrink-0 text-green-600" />
+             <p className="text-[13.5px] font-medium leading-snug">{successMsg}</p>
+          </div>
+        )}
+      </div>
 
     </div>
   );

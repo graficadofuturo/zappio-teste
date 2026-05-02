@@ -8,7 +8,7 @@ export default function Pricing() {
       <header className="max-w-7xl mx-auto px-6 h-[72px] border-b border-subtle flex items-center">
         <Link to="/" className="flex items-center gap-2">
           <div className="w-8 h-8 flex-shrink-0 bg-accent rounded-md"></div>
-          <span className="text-[18px] font-extrabold tracking-[-0.02em] text-primary">ZapBot AI</span>
+          <span className="text-[18px] font-extrabold tracking-[-0.02em] text-primary">Zappio</span>
         </Link>
       </header>
 

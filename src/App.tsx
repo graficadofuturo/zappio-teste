@@ -10,6 +10,7 @@ import WhatsAppInstances from './pages/dashboard/Instances';
 import Campaigns from './pages/dashboard/Campaigns';
 import Integrations from './pages/dashboard/Integrations';
 import Products from './pages/dashboard/Products';
+import Subscription from './pages/dashboard/Subscription';
 import AdminOverview from './pages/admin/AdminOverview';
 import { useEffect, useState } from 'react';
 import { auth, db } from './lib/firebase';
@@ -72,6 +73,7 @@ function App() {
           <Route path="campaigns" element={<Campaigns />} />
           <Route path="integrations" element={<Integrations />} />
           <Route path="products" element={<Products />} />
+          <Route path="subscription" element={<Subscription />} />
         </Route>
         
         {/* Alias para integrations */}
