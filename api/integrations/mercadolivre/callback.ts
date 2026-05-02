@@ -121,14 +121,38 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
 
       // 3. Save integration
+      console.log("ML_SAVE_START");
+      
+      const hasFirebaseServiceAccountKey = Boolean(process.env.FIREBASE_SERVICE_ACCOUNT_KEY);
+      console.log({ hasFirebaseServiceAccountKey });
+
       if (!admin.apps.length) {
-          if (process.env.FIREBASE_SERVICE_ACCOUNT_KEY) {
-              const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY);
+          if (!hasFirebaseServiceAccountKey) {
+              console.error("ML_FIREBASE_ADMIN_INIT_ERROR: Firebase Admin not initialized and FIREBASE_SERVICE_ACCOUNT_KEY not set");
+              res.redirect(302, `${APP_BASE_URL}${integrationsPath}?mercadolivre=save_error`);
+              return;
+          }
+
+          let serviceAccount: any = null;
+          try {
+              serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY as string);
+          } catch (error: any) {
+              console.error("ML_FIREBASE_SERVICE_ACCOUNT_PARSE_ERROR", error.message);
+              res.redirect(302, `${APP_BASE_URL}${integrationsPath}?mercadolivre=save_error`);
+              return;
+          }
+
+          try {
+              if (serviceAccount.private_key) {
+                  serviceAccount.private_key = serviceAccount.private_key.replace(/\\n/g, "\n");
+              }
               admin.initializeApp({
                   credential: admin.credential.cert(serviceAccount)
               });
-          } else {
-              throw new Error("Firebase Admin not initialized and FIREBASE_SERVICE_ACCOUNT_KEY not set");
+          } catch (error: any) {
+              console.error("ML_FIREBASE_ADMIN_INIT_ERROR", error.message);
+              res.redirect(302, `${APP_BASE_URL}${integrationsPath}?mercadolivre=save_error`);
+              return;
           }
       }
 
@@ -166,13 +190,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           } else {
               await db.collection('ecommerce_keys').add(payload);
           }
-      } catch (saveErr) {
-          console.log("ML_SAVE_ERROR", saveErr);
-          console.error("Save Error:", saveErr);
+      } catch (saveErr: any) {
+          console.error("ML_FIRESTORE_SAVE_ERROR", {
+              message: saveErr?.message,
+              code: saveErr?.code,
+              stack: saveErr?.stack,
+          });
           res.redirect(302, `${APP_BASE_URL}${integrationsPath}?mercadolivre=save_error`);
           return;
       }
 
+      console.log("ML_SAVE_SUCCESS");
       console.log("[ML OAuth Vercel Callback] Success");
       res.redirect(302, `${APP_BASE_URL}${integrationsPath}?mercadolivre=connected`);
     } catch (e: any) {

@@ -175,6 +175,43 @@ DIRETRIZES PARA AS MENSAGENS:
     });
   });
 
+  app.get("/api/debug/firebase-admin", (req, res) => {
+    let serviceAccountJsonValid = false;
+    let hasProjectId = false;
+    let hasClientEmail = false;
+    let hasPrivateKey = false;
+    let privateKeyLooksValid = false;
+
+    const keyString = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
+    const hasServiceAccountKey = Boolean(keyString);
+
+    if (hasServiceAccountKey) {
+        try {
+            const serviceAccount = JSON.parse(keyString as string);
+            serviceAccountJsonValid = true;
+            hasProjectId = Boolean(serviceAccount.project_id);
+            hasClientEmail = Boolean(serviceAccount.client_email);
+            hasPrivateKey = Boolean(serviceAccount.private_key);
+            
+            if (hasPrivateKey) {
+                const pk = serviceAccount.private_key;
+                privateKeyLooksValid = pk.includes("BEGIN PRIVATE KEY") && pk.includes("END PRIVATE KEY");
+            }
+        } catch (e) {
+            // JSON parser failed
+        }
+    }
+
+    res.json({
+      hasServiceAccountKey,
+      serviceAccountJsonValid,
+      hasProjectId,
+      hasClientEmail,
+      hasPrivateKey,
+      privateKeyLooksValid
+    });
+  });
+
   app.get("/api/integrations/mercadolivre/ping", (req, res) => {
     res.send("Mercado Livre API OK");
   });
@@ -308,12 +345,39 @@ DIRETRIZES PARA AS MENSAGENS:
       }
 
       const admin = await import("firebase-admin");
+      
+      console.log("ML_SAVE_START");
+      
+      const hasFirebaseServiceAccountKey = Boolean(process.env.FIREBASE_SERVICE_ACCOUNT_KEY);
+      console.log({ hasFirebaseServiceAccountKey });
+
       if (!admin.apps.length) {
-          if (process.env.FIREBASE_SERVICE_ACCOUNT_KEY) {
-              const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY);
+          if (!hasFirebaseServiceAccountKey) {
+              console.error("ML_FIREBASE_ADMIN_INIT_ERROR: Firebase Admin not initialized and FIREBASE_SERVICE_ACCOUNT_KEY not set");
+              res.redirect(`${APP_BASE_URL}${integrationsPath}?mercadolivre=save_error`);
+              return;
+          }
+
+          let serviceAccount: any = null;
+          try {
+              serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY as string);
+          } catch (error: any) {
+              console.error("ML_FIREBASE_SERVICE_ACCOUNT_PARSE_ERROR", error.message);
+              res.redirect(`${APP_BASE_URL}${integrationsPath}?mercadolivre=save_error`);
+              return;
+          }
+
+          try {
+              if (serviceAccount.private_key) {
+                  serviceAccount.private_key = serviceAccount.private_key.replace(/\\n/g, "\n");
+              }
               admin.initializeApp({
                   credential: admin.credential.cert(serviceAccount)
               });
+          } catch (error: any) {
+              console.error("ML_FIREBASE_ADMIN_INIT_ERROR", error.message);
+              res.redirect(`${APP_BASE_URL}${integrationsPath}?mercadolivre=save_error`);
+              return;
           }
       }
 
@@ -344,12 +408,17 @@ DIRETRIZES PARA AS MENSAGENS:
           if (existingDoc) await existingDoc.ref.update(payload);
           else await db.collection('ecommerce_keys').add(payload);
           
-      } catch (e) {
-          console.log("ML_SAVE_ERROR", e);
-          console.error("Save Error:", e);
+      } catch (saveErr: any) {
+          console.error("ML_FIRESTORE_SAVE_ERROR", {
+              message: saveErr?.message,
+              code: saveErr?.code,
+              stack: saveErr?.stack,
+          });
           res.redirect(`${APP_BASE_URL}${integrationsPath}?mercadolivre=save_error`);
           return;
       }
+
+      console.log("ML_SAVE_SUCCESS");
 
       res.redirect(`${APP_BASE_URL}${integrationsPath}?mercadolivre=connected`);
     } catch (e: any) {
