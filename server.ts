@@ -843,12 +843,17 @@ DIRETRIZES PARA AS MENSAGENS:
       console.log("ML_AFFILIATE_SEARCH_ROUTE_HIT", { q });
       
       const mlRes = await fetch(`https://api.mercadolibre.com/sites/MLB/search?q=${encodeURIComponent(q)}&limit=50`);
+
+      console.log("ML_AFFILIATE_SEARCH_ML_RESPONSE", {
+        status: mlRes.status,
+        ok: mlRes.ok
+      });
       
       if (!mlRes.ok) {
         const details = await mlRes.text().catch(() => "could not read response text");
         res.status(mlRes.status).json({
           ok: false,
-          error: "mercadolivre_fetch_failed",
+          error: "mercadolivre_search_failed",
           status: mlRes.status,
           details
         });
@@ -862,14 +867,19 @@ DIRETRIZES PARA AS MENSAGENS:
           const discountStr = oldPriceNum && oldPriceNum > priceNum ? Math.round((1 - priceNum / oldPriceNum) * 100) + '%' : null;
           return {
               product_id: item.id,
-              product_title: item.title,
-              product_price: priceNum,
-              product_old_price: oldPriceNum,
-              product_discount: discountStr,
-              product_image: item.thumbnail ? item.thumbnail.replace('-I.jpg', '-O.jpg') : null,
+              title: item.title,
+              price: priceNum,
+              old_price: oldPriceNum,
+              discount: discountStr,
+              currency_id: item.currency_id,
+              image: item.thumbnail ? item.thumbnail.replace('-I.jpg', '-O.jpg') : null,
+              thumbnail: item.thumbnail,
               product_link: item.permalink,
-              product_affiliate_link: '',
-              status: item.status,
+              seller_id: item.seller?.id,
+              seller_name: item.seller?.nickname,
+              category_id: item.category_id,
+              condition: item.condition,
+              available_quantity: item.available_quantity
           };
       });
       res.status(200).json({
@@ -886,6 +896,13 @@ DIRETRIZES PARA AS MENSAGENS:
         message: error.message || String(error)
       });
     }
+  });
+
+  app.get("/api/mercadolivre/affiliate-products/test", (req, res) => {
+    res.status(200).json({
+      ok: true,
+      message: "Rota de produtos afiliados funcionando"
+    });
   });
 
   app.post("/api/mercadolivre/products/save", async (req, res) => {

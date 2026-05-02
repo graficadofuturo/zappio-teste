@@ -19,11 +19,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const mlRes = await fetch(`https://api.mercadolibre.com/sites/MLB/search?q=${encodeURIComponent(q)}&limit=50`);
 
+    console.log("ML_AFFILIATE_SEARCH_ML_RESPONSE", {
+      status: mlRes.status,
+      ok: mlRes.ok
+    });
+
     if (!mlRes.ok) {
       const details = await mlRes.text().catch(() => "could not read response text");
       return res.status(mlRes.status).json({
         ok: false,
-        error: "mercadolivre_fetch_failed",
+        error: "mercadolivre_search_failed",
         status: mlRes.status,
         details
       });
@@ -39,14 +44,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       
       return {
         product_id: item.id,
-        product_title: item.title,
-        product_price: priceNum,
-        product_old_price: oldPriceNum,
-        product_discount: discountStr,
-        product_image: item.thumbnail ? item.thumbnail.replace('-I.jpg', '-O.jpg') : null,
+        title: item.title,
+        price: priceNum,
+        old_price: oldPriceNum,
+        discount: discountStr,
+        currency_id: item.currency_id,
+        image: item.thumbnail ? item.thumbnail.replace('-I.jpg', '-O.jpg') : null,
+        thumbnail: item.thumbnail,
         product_link: item.permalink,
-        product_affiliate_link: '',
-        status: item.status,
+        seller_id: item.seller?.id,
+        seller_name: item.seller?.nickname,
+        category_id: item.category_id,
+        condition: item.condition,
+        available_quantity: item.available_quantity
       };
     });
 

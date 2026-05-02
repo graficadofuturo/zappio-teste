@@ -16,6 +16,7 @@ export default function Products() {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [searching, setSearching] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
   const [addingIds, setAddingIds] = useState<Record<string, boolean>>({});
 
   const [syncStatus, setSyncStatus] = useState<{type: 'success' | 'error', text: string} | null>(null);
@@ -86,17 +87,22 @@ export default function Products() {
       
       setSearching(true);
       setSearchResults([]);
+      setSearchError(null);
       try {
           const res = await fetch(`/api/mercadolivre/affiliate-products/search?q=${encodeURIComponent(searchQuery)}`);
           const data = await res.json();
           if (res.ok && data.ok) {
               setSearchResults(data.products || []);
           } else {
-              alert('Erro ao buscar: ' + data.error);
+              if (res.status === 403) {
+                  setSearchError("Busca bloqueada pelo servidor. Verifique a rota de busca pública.");
+              } else {
+                  setSearchError(data.error || "Erro ao buscar");
+              }
           }
       } catch (err) {
           console.error(err);
-          alert('Erro de conexão ao tentar buscar.');
+          setSearchError("Erro de conexão ao tentar buscar.");
       }
       setSearching(false);
   };
@@ -141,12 +147,19 @@ export default function Products() {
   const renderProductCard = (p: any, isSearch: boolean = false) => {
       const added = !isSearch ? true : products.some(saved => String(saved.product_id) === String(p.product_id));
       const isLoadingAdd = addingIds[p.product_id];
+      
+      const title = p.title || p.product_title;
+      const image = p.image || p.product_image;
+      const price = p.price !== undefined ? p.price : p.product_price;
+      const oldPrice = p.old_price !== undefined ? p.old_price : p.product_old_price;
+      const discount = p.discount || p.product_discount;
+      const link = p.product_link;
 
       return (
         <div key={p.product_id || p.id} className="bg-primary flex flex-col border border-subtle rounded-xl overflow-hidden shadow-sm hover:shadow transition-shadow">
             <div className="bg-secondary/20 h-[200px] flex items-center justify-center border-b border-subtle p-4 relative">
-                {p.product_image ? (
-                    <img src={p.product_image} alt={p.product_title} className="w-full h-full object-contain mix-blend-multiply" />
+                {image ? (
+                    <img src={image} alt={title} className="w-full h-full object-contain mix-blend-multiply" />
                 ) : (
                     <Package className="w-10 h-10 text-subtle" />
                 )}
@@ -154,23 +167,23 @@ export default function Products() {
             
             <div className="p-4 flex-1 flex flex-col">
                 <div className="flex justify-between items-start mb-2 gap-2">
-                     <a href={p.product_link} target="_blank" rel="noopener noreferrer" className="text-[13px] font-semibold text-primary line-clamp-2 hover:text-accent-blue transition-colors relative z-10 block mb-1">
-                        {p.product_title}
+                     <a href={link} target="_blank" rel="noopener noreferrer" className="text-[13px] font-semibold text-primary line-clamp-2 hover:text-accent-blue transition-colors relative z-10 block mb-1">
+                        {title}
                      </a>
                 </div>
                 
                 <div className="flex items-end gap-2 mb-4">
                     <span className="text-[18px] font-bold text-black leading-none pb-1">
-                        R$ {Number(p.product_price).toFixed(2).replace('.', ',')}
+                        R$ {Number(price).toFixed(2).replace('.', ',')}
                     </span>
-                    {p.product_old_price && p.product_old_price > p.product_price && (
+                    {oldPrice && oldPrice > price && (
                         <span className="text-[12px] text-secondary line-through mb-1">
-                            R$ {Number(p.product_old_price).toFixed(2).replace('.', ',')}
+                            R$ {Number(oldPrice).toFixed(2).replace('.', ',')}
                         </span>
                     )}
-                    {p.product_discount && (
+                    {discount && (
                         <span className="text-[10px] font-bold text-green-600 mb-1.5 ml-1">
-                            {p.product_discount} OFF
+                            {discount} {String(discount).includes('OFF') ? '' : 'OFF'}
                         </span>
                     )}
                 </div>
@@ -227,7 +240,7 @@ export default function Products() {
                             </div>
                             
                             <div className="pt-2 border-t border-subtle/30 flex justify-between items-center text-[12px] font-semibold">
-                                <a href={p.product_link} target="_blank" rel="noopener noreferrer" className="text-[#2d3277] hover:underline flex-1 text-center">
+                                <a href={link} target="_blank" rel="noopener noreferrer" className="text-[#2d3277] hover:underline flex-1 text-center">
                                     Ver no Mercado Livre
                                 </a>
                             </div>
@@ -332,7 +345,7 @@ export default function Products() {
 
       {mode === 'search' && (
           <div className="space-y-6">
-              <form onSubmit={handleSearch} className="flex gap-2">
+              <form onSubmit={handleSearch} className="flex gap-2 mb-4">
                   <div className="relative flex-1">
                       <Search className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-secondary" />
                       <input 
@@ -351,6 +364,12 @@ export default function Products() {
                       {searching ? <Loader2 className="w-5 h-5 animate-spin"/> : 'Buscar'}
                   </button>
               </form>
+
+              {searchError && (
+                  <div className="p-4 rounded-lg bg-red-50 border border-red-200 text-red-700 text-[13px] font-medium mb-6">
+                      {searchError}
+                  </div>
+              )}
 
               {searching ? (
                   <div className="py-12 flex justify-center"><Loader2 className="w-8 h-8 animate-spin text-secondary" /></div>
