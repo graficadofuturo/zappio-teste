@@ -8,7 +8,17 @@ export async function getMLAuthUrl(origin: string, state: string, redirectUri: s
     return `https://auth.mercadolivre.com.br/authorization?response_type=code&client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${encodeURIComponent(state)}`;
 }
 
-export async function exchangeMLCode(code: string, userId: string, redirectUri: string) {
+export async function getMercadoLivreUser(accessToken: string) {
+    const userRes = await fetch('https://api.mercadolibre.com/users/me', {
+       headers: { Authorization: `Bearer ${accessToken}` }
+    });
+    if (!userRes.ok) {
+        throw new Error(`Failed to fetch ML user: ${await userRes.text()}`);
+    }
+    return await userRes.json();
+}
+
+export async function exchangeCodeForToken(code: string, userId: string, redirectUri: string) {
     const clientId = process.env.ML_CLIENT_ID;
     const clientSecret = process.env.ML_CLIENT_SECRET;
     if (!clientId || !clientSecret) throw new Error("ML credentials not configured");
@@ -35,14 +45,11 @@ export async function exchangeMLCode(code: string, userId: string, redirectUri: 
 
     const data: any = await res.json();
     
-    // Fetch user details
-    const userRes = await fetch('https://api.mercadolibre.com/users/me', {
-       headers: { Authorization: `Bearer ${data.access_token}` }
-    });
-    
     let mlUser = {} as any;
-    if (userRes.ok) {
-        mlUser = await userRes.json();
+    try {
+        mlUser = await getMercadoLivreUser(data.access_token);
+    } catch (e) {
+        console.warn("[ML OAuth] Error fetching user:", e);
     }
 
     return await saveMLIntegration(userId, data, mlUser);

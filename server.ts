@@ -222,8 +222,8 @@ DIRETRIZES PARA AS MENSAGENS:
 
       const userId = cookieData.userId;
 
-      const { exchangeMLCode } = await import("./mlService.ts");
-      await exchangeMLCode(code as string, userId, redirectUri);
+      const { exchangeCodeForToken } = await import("./src/lib/mercadolivre/mlService.ts");
+      await exchangeCodeForToken(code as string, userId, redirectUri);
       
       console.log("[ML OAuth Callback] Success, redirecting to:", `${APP_BASE_URL}/dashboard/integrations?mercadolivre=connected`);
       res.redirect(`${APP_BASE_URL}/dashboard/integrations?mercadolivre=connected`);
@@ -237,7 +237,7 @@ DIRETRIZES PARA AS MENSAGENS:
   app.post("/api/integrations/mercadolivre/sync", async (req, res) => {
     try {
       const { integrationId } = req.body;
-      const { syncMLProducts } = await import("./mlService.ts");
+      const { syncMLProducts } = await import("./src/lib/mercadolivre/mlService.ts");
       const count = await syncMLProducts(integrationId);
       res.json({ success: true, count });
     } catch (e: any) {

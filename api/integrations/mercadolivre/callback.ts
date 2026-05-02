@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import * as cookie from 'cookie';
-import { exchangeMLCode } from '../../../mlService.ts'; // For Vite/Vercel standard build, TS files are permitted
+import { exchangeCodeForToken } from '../../../src/lib/mercadolivre/mlService';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
     const APP_BASE_URL = process.env.APP_BASE_URL;
