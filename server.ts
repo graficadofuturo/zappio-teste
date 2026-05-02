@@ -129,15 +129,12 @@ DIRETRIZES PARA AS MENSAGENS:
   });
 
   app.get("/api/integrations/mercadolivre/debug-config", (req, res) => {
-    const APP_BASE_URL = process.env.APP_BASE_URL || "https://ais-pre-jgg5kfa6ozln2cfdkicjmx-62492944237.us-west2.run.app";
-    const redirectUri = process.env.ML_REDIRECT_URI || `${APP_BASE_URL}/api/integrations/mercadolivre/callback`;
     res.json({
       hasClientId: !!process.env.ML_CLIENT_ID,
       hasClientSecret: !!process.env.ML_CLIENT_SECRET,
-      redirectUri: redirectUri,
-      appBaseUrl: APP_BASE_URL,
-      webhookUrl: `${APP_BASE_URL}/api/webhooks/mercadolivre`,
-      nodeEnv: process.env.NODE_ENV || "development",
+      redirectUri: process.env.ML_REDIRECT_URI,
+      appBaseUrl: process.env.APP_BASE_URL,
+      webhookUrl: process.env.ML_WEBHOOK_URL
     });
   });
 
@@ -157,20 +154,23 @@ DIRETRIZES PARA AS MENSAGENS:
       const state = randomBytes(16).toString("hex");
       res.cookie('ml_oauth_state', JSON.stringify({ state, userId: userId as string }), { httpOnly: true, maxAge: 1000 * 60 * 10, sameSite: 'lax', secure: true });
 
-      const { getMLAuthUrl } = await import("./mlService.ts");
-      const APP_BASE_URL = process.env.APP_BASE_URL || "https://ais-pre-jgg5kfa6ozln2cfdkicjmx-62492944237.us-west2.run.app";
-      const redirectUri = process.env.ML_REDIRECT_URI || `${APP_BASE_URL}/api/integrations/mercadolivre/callback`;
-      const url = await getMLAuthUrl(APP_BASE_URL, state, redirectUri);
+      const redirectUri = process.env.ML_REDIRECT_URI || "";
+      const authorizationUrl =
+        "https://auth.mercadolivre.com.br/authorization" +
+        "?response_type=code" +
+        "&client_id=" + process.env.ML_CLIENT_ID +
+        "&redirect_uri=" + encodeURIComponent(redirectUri) +
+        "&state=" + state;
       
       console.log("[ML OAuth Connect] ML_CLIENT_ID exists:", !!process.env.ML_CLIENT_ID);
       console.log("[ML OAuth Connect] ML_CLIENT_SECRET exists:", !!process.env.ML_CLIENT_SECRET);
       console.log("[ML OAuth Connect] ML_REDIRECT_URI used:", redirectUri);
-      console.log("[ML OAuth Connect] Generated Auth URL:", url);
+      console.log("[ML OAuth Connect] Generated Auth URL:", authorizationUrl);
       
-      res.redirect(url);
+      res.redirect(authorizationUrl);
     } catch (e: any) {
       console.error("[ML OAuth] Connect route error:", e);
-      const APP_BASE_URL = process.env.APP_BASE_URL || "https://ais-pre-jgg5kfa6ozln2cfdkicjmx-62492944237.us-west2.run.app";
+      const APP_BASE_URL = process.env.APP_BASE_URL;
       if (e.message?.includes('config') || e.message?.includes('ML_CLIENT')) {
           res.redirect(`${APP_BASE_URL}/dashboard/integrations?mercadolivre=config_error`);
       } else {
@@ -180,7 +180,7 @@ DIRETRIZES PARA AS MENSAGENS:
   });
 
   app.get("/api/integrations/mercadolivre/callback", async (req, res) => {
-    const APP_BASE_URL = process.env.APP_BASE_URL || "https://ais-pre-jgg5kfa6ozln2cfdkicjmx-62492944237.us-west2.run.app";
+    const APP_BASE_URL = process.env.APP_BASE_URL;
     const redirectUri = process.env.ML_REDIRECT_URI || `${APP_BASE_URL}/api/integrations/mercadolivre/callback`;
     try {
       console.log("[ML OAuth Callback] Query Params:", req.query);
@@ -223,7 +223,7 @@ DIRETRIZES PARA AS MENSAGENS:
       const userId = cookieData.userId;
 
       const { exchangeMLCode } = await import("./mlService.ts");
-      await exchangeMLCode(code as string, APP_BASE_URL, userId, redirectUri);
+      await exchangeMLCode(code as string, userId, redirectUri);
       
       console.log("[ML OAuth Callback] Success, redirecting to:", `${APP_BASE_URL}/dashboard/integrations?mercadolivre=connected`);
       res.redirect(`${APP_BASE_URL}/dashboard/integrations?mercadolivre=connected`);

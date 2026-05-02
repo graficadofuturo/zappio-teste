@@ -196,7 +196,7 @@ export default function Integrations() {
                        
                        <button 
                          onClick={() => {
-                             const url = "https://ais-pre-jgg5kfa6ozln2cfdkicjmx-62492944237.us-west2.run.app/api/integrations/mercadolivre/connect?userId=" + auth.currentUser?.uid;
+                             const url = "/api/integrations/mercadolivre/connect?userId=" + auth.currentUser?.uid;
                              if (window.self !== window.top) {
                                  window.open(url, '_blank');
                              } else {

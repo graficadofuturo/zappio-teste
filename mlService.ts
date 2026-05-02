@@ -8,7 +8,7 @@ export async function getMLAuthUrl(origin: string, state: string, redirectUri: s
     return `https://auth.mercadolivre.com.br/authorization?response_type=code&client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${encodeURIComponent(state)}`;
 }
 
-export async function exchangeMLCode(code: string, origin: string, userId: string, redirectUri: string) {
+export async function exchangeMLCode(code: string, userId: string, redirectUri: string) {
     const clientId = process.env.ML_CLIENT_ID;
     const clientSecret = process.env.ML_CLIENT_SECRET;
     if (!clientId || !clientSecret) throw new Error("ML credentials not configured");
