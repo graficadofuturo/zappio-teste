@@ -1,0 +1,194 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "A user profile",
+      "type": "object",
+      "properties": {
+        "is_admin": {
+          "type": "boolean"
+        },
+        "email": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "is_admin",
+        "email"
+      ]
+    },
+    "WhatsappInstance": {
+      "title": "WhatsApp Instance",
+      "description": "A connected WhatsApp instance",
+      "type": "object",
+      "properties": {
+        "user_id": {
+          "type": "string"
+        },
+        "instance_name": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        },
+        "phone_number": {
+          "type": "string"
+        },
+        "created_at": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "user_id",
+        "instance_name",
+        "status",
+        "phone_number"
+      ]
+    },
+    "WhatsappGroup": {
+      "title": "WhatsApp Contacts Group",
+      "description": "A group of contacts",
+      "type": "object",
+      "properties": {
+        "user_id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "user_id",
+        "name",
+        "type"
+      ]
+    },
+    "Campaign": {
+      "title": "Campaign",
+      "description": "An automated campaign",
+      "type": "object",
+      "properties": {
+        "user_id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "instance_id": {
+          "type": "string"
+        },
+        "target_group_id": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        },
+        "image_url": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["draft", "scheduled", "sending", "sent", "failed", "paused"]
+        },
+        "trigger_type": {
+          "type": "string",
+          "enum": ["manual", "scheduled"]
+        },
+        "is_recurring": {
+          "type": "boolean"
+        },
+        "scheduled_days": {
+          "type": "array",
+          "items": { "type": "number" }
+        },
+        "scheduled_times": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "scheduled_dates": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "next_run": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "last_run": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "user_id",
+        "name",
+        "instance_id",
+        "target_group_id",
+        "message",
+        "status",
+        "trigger_type"
+      ]
+    },
+    "EcommerceKey": {
+      "title": "E-commerce Integration Key",
+      "description": "Credentials for affiliate integrations",
+      "type": "object",
+      "properties": {
+        "user_id": {
+          "type": "string"
+        },
+        "platform": {
+          "type": "string"
+        },
+        "api_key": {
+          "type": "string"
+        },
+        "api_secret": {
+          "type": "string"
+        },
+        "affiliate_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "user_id",
+        "platform",
+        "api_key",
+        "api_secret",
+        "affiliate_id"
+      ]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "#/entities/User",
+      "description": "User profiles"
+    },
+    "/whatsapp_instances/{instanceId}": {
+      "schema": "#/entities/WhatsappInstance",
+      "description": "User whatsapp instances"
+    },
+    "/whatsapp_contacts_groups/{groupId}": {
+      "schema": "#/entities/WhatsappGroup",
+      "description": "User contact groups"
+    },
+    "/campaigns/{campaignId}": {
+      "schema": "#/entities/Campaign",
+      "description": "User campaigns"
+    },
+    "/ecommerce_keys/{keyId}": {
+      "schema": "#/entities/EcommerceKey",
+      "description": "User integration keys"
+    }
+  }
+}

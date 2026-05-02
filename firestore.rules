@@ -1,0 +1,136 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isSignedIn() { return request.auth != null; }
+    function isAdmin() { return isSignedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.is_admin == true; }
+    function isValidId(id) { return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-@\\.]+$'); }
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['is_admin', 'email']) && data.keys().size() <= 2
+        && data.is_admin is bool
+        && data.email is string && data.email.size() <= 200;
+    }
+
+    match /users/{userId} {
+      allow get: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+      allow list: if isAdmin();
+      
+      allow create: if isSignedIn() && request.auth.uid == userId
+                    && isValidUser(incoming())
+                    && incoming().is_admin == false;
+
+      allow update: if isSignedIn() && request.auth.uid == userId
+                    && isValidUser(incoming())
+                    && (isAdmin() || incoming().diff(existing()).affectedKeys().hasOnly(['email']))
+                    && (!incoming().diff(existing()).affectedKeys().hasAny(['is_admin']) || isAdmin());
+      allow delete: if isAdmin();
+    }
+
+    function isValidInstance(data) {
+      return data.keys().hasAll(['user_id', 'instance_name', 'status', 'phone_number', 'created_at'])
+        && data.keys().size() <= 5
+        && data.user_id is string && data.user_id == request.auth.uid
+        && data.instance_name is string && data.instance_name.size() <= 100
+        && data.status is string && data.status.size() <= 50
+        && data.phone_number is string && data.phone_number.size() <= 50
+        && data.created_at is timestamp;
+    }
+
+    match /whatsapp_instances/{instanceId} {
+      allow get: if isSignedIn() && isValidId(instanceId) && existing().user_id == request.auth.uid;
+      allow list: if isSignedIn() && (resource.data.user_id == request.auth.uid || isAdmin());
+      allow create: if isSignedIn() && isValidInstance(incoming());
+      allow update: if isSignedIn() && isValidId(instanceId) && existing().user_id == request.auth.uid
+                    && isValidInstance(incoming())
+                    && incoming().user_id == existing().user_id
+                    && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'phone_number', 'instance_name']);
+      allow delete: if isSignedIn() && isValidId(instanceId) && existing().user_id == request.auth.uid;
+    }
+
+    function isValidGroup(data) {
+      return data.keys().hasAll(['user_id', 'name', 'type'])
+        && data.user_id is string && data.user_id == request.auth.uid
+        && data.name is string && data.name.size() <= 100
+        && data.type is string && data.type.size() <= 50;
+    }
+
+    match /whatsapp_contacts_groups/{groupId} {
+      allow get: if isSignedIn() && isValidId(groupId) && existing().user_id == request.auth.uid;
+      allow list: if isSignedIn() && (resource.data.user_id == request.auth.uid || isAdmin());
+      allow create: if isSignedIn() && isValidGroup(incoming());
+      allow update: if isSignedIn() && isValidId(groupId) && existing().user_id == request.auth.uid
+                    && isValidGroup(incoming())
+                    && incoming().user_id == existing().user_id
+                    && incoming().diff(existing()).affectedKeys().hasOnly(['name', 'type', 'jid', 'participants_count', 'updated_at']);
+      allow delete: if isSignedIn() && isValidId(groupId) && existing().user_id == request.auth.uid;
+    }
+
+    function isValidCampaign(data) {
+      return data.keys().hasAll(['user_id', 'name', 'instance_id', 'target_group_id', 'message', 'status', 'trigger_type'])
+        && data.user_id is string && data.user_id == request.auth.uid
+        && data.name is string && data.name.size() <= 100
+        && data.instance_id is string && data.instance_id.size() <= 128
+        && data.target_group_id is string && data.target_group_id.size() <= 128
+        && data.message is string && data.message.size() <= 5000
+        && data.get('image_url', '') is string && data.get('image_url', '').size() <= 1000
+        && data.status is string && data.status.size() <= 50
+        && data.trigger_type is string && data.trigger_type in ['manual', 'scheduled', 'auto']
+        && (data.get('is_recurring', false) is bool)
+        && (data.get('auto_send_now', false) is bool)
+        && (data.get('send_interval', '') is string) && data.get('send_interval', '').size() <= 20
+        && (data.get('scheduled_days', []) is list)
+        && (data.get('scheduled_times', []) is list)
+        && (data.get('scheduled_dates', []) is list)
+        && (data.get('use_ml_products', false) is bool);
+    }
+
+    match /campaigns/{campaignId} {
+      allow get: if isSignedIn() && isValidId(campaignId) && existing().user_id == request.auth.uid;
+      allow list: if isSignedIn() && (resource.data.user_id == request.auth.uid || isAdmin());
+      allow create: if isSignedIn() && isValidCampaign(incoming());
+      allow update: if isSignedIn() && isValidId(campaignId) && (existing().user_id == request.auth.uid || isAdmin())
+                    && isValidCampaign(incoming())
+                    && incoming().user_id == existing().user_id
+                    && incoming().diff(existing()).affectedKeys().hasOnly(['name', 'target_group_id', 'instance_id', 'status', 'message', 'image_url', 'updated_at', 'trigger_type', 'is_recurring', 'scheduled_days', 'scheduled_times', 'scheduled_dates', 'next_run', 'last_run', 'auto_send_now', 'send_interval', 'use_ml_products', 'ml_product_ids']);
+      allow delete: if isSignedIn() && isValidId(campaignId) && existing().user_id == request.auth.uid;
+    }
+
+    function isValidEcommerceKey(data) {
+      return data.keys().hasAll(['user_id', 'platform'])
+        && data.user_id is string && data.user_id == request.auth.uid
+        && data.platform is string && data.platform.size() <= 50;
+    }
+
+    match /ecommerce_keys/{keyId} {
+      allow get: if isSignedIn() && isValidId(keyId) && existing().user_id == request.auth.uid;
+      allow list: if isSignedIn() && resource.data.user_id == request.auth.uid;
+      allow create: if isSignedIn() && isValidEcommerceKey(incoming());
+      allow update: if isSignedIn() && isValidId(keyId) && existing().user_id == request.auth.uid
+                    && isValidEcommerceKey(incoming())
+                    && incoming().user_id == existing().user_id; // allow any other keys since it is populated via server
+      allow delete: if isSignedIn() && isValidId(keyId) && existing().user_id == request.auth.uid;
+    }
+
+    match /products/{productId} {
+      allow get: if isSignedIn() && existing().user_id == request.auth.uid;
+      allow list: if isSignedIn() && resource.data.user_id == request.auth.uid;
+      // products are created by server. Let's just allow read and update for the affiliate link
+      allow create: if false; // server creates
+      allow update: if isSignedIn() && existing().user_id == request.auth.uid
+                    && incoming().user_id == existing().user_id
+                    && incoming().diff(existing()).affectedKeys().hasOnly(['product_affiliate_link', 'updated_at']);
+      allow delete: if false;
+    }
+
+    match /campaign_product_history/{historyId} {
+      allow get, list: if isSignedIn(); // Add proper restraint if needed, though they aren't listed on UI
+      allow create, update, delete: if false; // Server only
+    }
+  }
+}

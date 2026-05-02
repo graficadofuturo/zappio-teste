@@ -1,0 +1,78 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+}
+
+:root {
+  /* Minimalist & High-Conversion Variables */
+  --bg-primary: #ffffff;
+  --bg-secondary: #fafafa;
+  --bg-tertiary: #f5f5f5;
+  
+  --text-primary: #0a0a0a;
+  --text-secondary: #666666;
+  --text-muted: #999999;
+  
+  --border-subtle: #e5e5e5;
+  --border-medium: #cccccc;
+  
+  --accent-primary: #000000;
+  --accent-hover: #333333;
+  --accent-blue: #0066ff;
+  --accent-foreground: #ffffff;
+  
+  /* WhatsApp specific */
+  --wa-green: #25D366;
+  --wa-bg: #efeae2;
+  --wa-bubble-in: #ffffff;
+  --wa-bubble-out: #dcf8c6;
+}
+
+.dark {
+  --bg-primary: #0a0a0a;
+  --bg-secondary: #121212;
+  --bg-tertiary: #1a1a1a;
+  
+  --text-primary: #f8fafc;
+  --text-secondary: #94a3b8;
+  --text-muted: #64748b;
+  
+  --border-subtle: #27272a;
+  --border-medium: #3f3f46;
+  
+  --accent-primary: #ffffff;
+  --accent-hover: #e2e8f0;
+  --accent-blue: #3b82f6;
+  --accent-foreground: #000000;
+
+  --wa-bg: #0b141a;
+  --wa-bubble-in: #202c33;
+  --wa-bubble-out: #005c4b;
+}
+
+body {
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Base utility classes for CSS vars */
+.bg-primary { background-color: var(--bg-primary); }
+.bg-secondary { background-color: var(--bg-secondary); }
+.bg-tertiary { background-color: var(--bg-tertiary); }
+
+.text-primary { color: var(--text-primary); }
+.text-secondary { color: var(--text-secondary); }
+.text-muted { color: var(--text-muted); }
+
+.border-subtle { border-color: var(--border-subtle); }
+.border-medium { border-color: var(--border-medium); }
+
+.bg-accent { background-color: var(--accent-primary); }
+.bg-accent-blue { background-color: var(--accent-blue); }
+.text-accent-fg { color: var(--accent-foreground); }
+.hover\:bg-accent-hover:hover { background-color: var(--accent-hover); }
