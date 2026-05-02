@@ -49,7 +49,20 @@ export async function exchangeMLCode(code: string, userId: string, redirectUri: 
 }
 
 export async function saveMLIntegration(userId: string, data: any, mlUser: any, manualClientId?: string, manualClientSecret?: string) {
-    if (!admin.apps.length) throw new Error("Firebase Admin not initialized");
+    if (!admin.apps.length) {
+        if (process.env.FIREBASE_SERVICE_ACCOUNT_KEY) {
+            try {
+                const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY);
+                admin.initializeApp({
+                    credential: admin.credential.cert(serviceAccount)
+                });
+            } catch (e) {
+                console.error('[MLService] Invalid FIREBASE_SERVICE_ACCOUNT_KEY JSON format:', e);
+            }
+        } else {
+             throw new Error("Firebase Admin not initialized and FIREBASE_SERVICE_ACCOUNT_KEY not set");
+        }
+    }
     const db = getFirestore();
     
     // Check if integration already exists
@@ -104,7 +117,20 @@ export async function saveMLIntegration(userId: string, data: any, mlUser: any, 
 }
 
 export async function syncMLProducts(integrationId: string) {
-    if (!admin.apps.length) throw new Error("Firebase Admin not initialized");
+    if (!admin.apps.length) {
+        if (process.env.FIREBASE_SERVICE_ACCOUNT_KEY) {
+            try {
+                const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY);
+                admin.initializeApp({
+                    credential: admin.credential.cert(serviceAccount)
+                });
+            } catch (e) {
+                console.error('[MLService] Invalid FIREBASE_SERVICE_ACCOUNT_KEY JSON format:', e);
+            }
+        } else {
+             throw new Error("Firebase Admin not initialized and FIREBASE_SERVICE_ACCOUNT_KEY not set");
+        }
+    }
     const db = getFirestore();
     const docRef = db.collection('ecommerce_keys').doc(integrationId);
     const docSnap = await docRef.get();
