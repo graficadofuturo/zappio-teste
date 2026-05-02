@@ -21,7 +21,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       });
 
       if (error || error_description) {
-         res.redirect(302, `${APP_BASE_URL}${integrationsPath}?mercadolivre=oauth_error`);
+         res.redirect(302, `${APP_BASE_URL}${integrationsPath}?mercadolivre=error`);
          return;
       }
 
@@ -234,7 +234,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           });
 
           await db
-            .collection("marketplace_integrations")
+            .collection("ecommerce_keys")
             .doc(String(sellerId))
             .set(integrationData, { merge: true });
             

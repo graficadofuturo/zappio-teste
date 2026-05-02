@@ -260,7 +260,7 @@ DIRETRIZES PARA AS MENSAGENS:
           } catch (err) {}
       }
 
-      const qs = await db.collection("marketplace_integrations")
+      const qs = await db.collection("ecommerce_keys")
         .where("platform", "==", "mercadolivre")
         .where("status", "==", "connected")
         .limit(1)
@@ -307,18 +307,14 @@ DIRETRIZES PARA AS MENSAGENS:
       res.cookie('ml_oauth_state', JSON.stringify({ state, userId: userId ? String(userId) : "unknown" }), { httpOnly: true, maxAge: 1000 * 60 * 10, sameSite: 'lax', secure: true });
 
       const redirectUri = process.env.ML_REDIRECT_URI || "https://zappio-teste.vercel.app/api/integrations/mercadolivre/callback";
-      const authorizationUrl =
-        "https://auth.mercadolivre.com.br/authorization" +
-        "?response_type=code" +
-        "&client_id=" + process.env.ML_CLIENT_ID +
-        "&redirect_uri=" + encodeURIComponent(redirectUri) +
-        "&state=" + state;
+      const clientId = process.env.ML_CLIENT_ID || "";
+      const authorizationUrl = `https://auth.mercadolivre.com.br/authorization?response_type=code&client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${state}`;
       
       res.redirect(authorizationUrl);
     } catch (e: any) {
       console.error("[ML OAuth] Connect route error:", e);
       const APP_BASE_URL = process.env.APP_BASE_URL || "https://zappio-teste.vercel.app";
-      res.redirect(`${APP_BASE_URL}/dashboard/integrations?mercadolivre=config_error`);
+      res.redirect(`${APP_BASE_URL}/dashboard/integrations?mercadolivre=error`);
     }
   });
 
@@ -340,7 +336,7 @@ DIRETRIZES PARA AS MENSAGENS:
       });
 
       if (error || error_description) {
-         res.redirect(`${APP_BASE_URL}${integrationsPath}?mercadolivre=oauth_error`);
+         res.redirect(`${APP_BASE_URL}${integrationsPath}?mercadolivre=error`);
          return;
       }
 
@@ -541,7 +537,7 @@ DIRETRIZES PARA AS MENSAGENS:
           });
 
           await db
-            .collection("marketplace_integrations")
+            .collection("ecommerce_keys")
             .doc(String(sellerId))
             .set(integrationData, { merge: true });
             

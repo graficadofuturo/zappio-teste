@@ -18,12 +18,7 @@ export default function handler(req: VercelRequest, res: VercelResponse) {
   const redirectUri = process.env.ML_REDIRECT_URI || "https://zappio-teste.vercel.app/api/integrations/mercadolivre/callback";
   const clientId = process.env.ML_CLIENT_ID || "";
   
-  const authorizationUrl =
-        "https://auth.mercadolivre.com.br/authorization" +
-        "?response_type=code" +
-        "&client_id=" + clientId +
-        "&redirect_uri=" + encodeURIComponent(redirectUri) +
-        "&state=" + state;
+  const authorizationUrl = `https://auth.mercadolivre.com.br/authorization?response_type=code&client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${state}`;
 
   res.redirect(302, authorizationUrl);
 }

@@ -68,7 +68,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         } catch (err) {}
     }
 
-    let query = db.collection("marketplace_integrations")
+    let query = db.collection("ecommerce_keys")
       .where("platform", "==", "mercadolivre")
       .where("status", "==", "connected");
       

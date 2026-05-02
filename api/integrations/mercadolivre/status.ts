@@ -44,7 +44,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         } catch (err) {}
     }
 
-    const qs = await db.collection("marketplace_integrations")
+    const qs = await db.collection("ecommerce_keys")
       .where("platform", "==", "mercadolivre")
       .where("status", "==", "connected")
       .limit(1)
