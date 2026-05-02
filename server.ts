@@ -128,6 +128,19 @@ DIRETRIZES PARA AS MENSAGENS:
     res.json({ success: true });
   });
 
+  app.get("/api/integrations/mercadolivre/debug-config", (req, res) => {
+    const APP_BASE_URL = process.env.APP_BASE_URL || "https://ais-pre-jgg5kfa6ozln2cfdkicjmx-62492944237.us-west2.run.app";
+    const redirectUri = process.env.ML_REDIRECT_URI || `${APP_BASE_URL}/api/integrations/mercadolivre/callback`;
+    res.json({
+      hasClientId: !!process.env.ML_CLIENT_ID,
+      hasClientSecret: !!process.env.ML_CLIENT_SECRET,
+      redirectUri: redirectUri,
+      appBaseUrl: APP_BASE_URL,
+      webhookUrl: `${APP_BASE_URL}/api/webhooks/mercadolivre`,
+      nodeEnv: process.env.NODE_ENV || "development",
+    });
+  });
+
   app.get("/api/integrations/mercadolivre/ping", (req, res) => {
     res.send("Mercado Livre API OK");
   });
@@ -157,7 +170,12 @@ DIRETRIZES PARA AS MENSAGENS:
       res.redirect(url);
     } catch (e: any) {
       console.error("[ML OAuth] Connect route error:", e);
-      res.status(400).json({ error: e.message || "Failed to generate ML URL" });
+      const APP_BASE_URL = process.env.APP_BASE_URL || "https://ais-pre-jgg5kfa6ozln2cfdkicjmx-62492944237.us-west2.run.app";
+      if (e.message?.includes('config') || e.message?.includes('ML_CLIENT')) {
+          res.redirect(`${APP_BASE_URL}/dashboard/integrations?mercadolivre=config_error`);
+      } else {
+          res.redirect(`${APP_BASE_URL}/dashboard/integrations?mercadolivre=error`);
+      }
     }
   });
 
@@ -211,7 +229,8 @@ DIRETRIZES PARA AS MENSAGENS:
       res.redirect(`${APP_BASE_URL}/dashboard/integrations?mercadolivre=connected`);
     } catch (e: any) {
       console.error("[ML OAuth] Exception in callback:", e);
-      res.redirect(`${APP_BASE_URL}/dashboard/integrations?mercadolivre=error`);
+      const reason = encodeURIComponent(e.message || 'unknown error');
+      res.redirect(`${APP_BASE_URL}/dashboard/integrations?mercadolivre=token_error&reason=${reason}`);
     }
   });
 

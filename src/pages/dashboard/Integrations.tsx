@@ -30,10 +30,16 @@ export default function Integrations() {
        alert('Não foi possível conectar ao Mercado Livre.');
        navigate('/dashboard/integrations', { replace: true });
     } else if (mlStatus === 'missing_code') {
-       alert('Autorização cancelada ou código não fornecido.');
+       alert('O Mercado Livre não retornou o código de autorização.');
        navigate('/dashboard/integrations', { replace: true });
     } else if (mlStatus === 'invalid_state') {
-       alert('Sessão inválida. Por favor, tente conectar novamente.');
+       alert('A sessão de conexão expirou. Tente conectar novamente.');
+       navigate('/dashboard/integrations', { replace: true });
+    } else if (mlStatus === 'token_error') {
+       alert('Erro ao trocar autorização por token. Veja os logs do servidor.');
+       navigate('/dashboard/integrations', { replace: true });
+    } else if (mlStatus === 'config_error') {
+       alert('As configurações do Mercado Livre estão incompletas.');
        navigate('/dashboard/integrations', { replace: true });
     }
   }, [searchParams, navigate]);
