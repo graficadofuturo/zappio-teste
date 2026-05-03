@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { auth, db } from '../lib/firebase';
 import { updateDoc, doc } from 'firebase/firestore';
 import { handleFirestoreError, OperationType } from '../lib/firestore-utils';
-import { Loader2, Package, Link as LinkIcon, RefreshCw, AlertCircle, Search, PlusCircle, CheckCircle2, Wand2, Info } from 'lucide-react';
+import { Loader2, Package, Link as LinkIcon, RefreshCw, AlertCircle, Search, PlusCircle, CheckCircle2, Wand2, Info, Sparkles } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 export default function Products() {
@@ -12,197 +12,99 @@ export default function Products() {
   const [editingLink, setEditingLink] = useState<string | null>(null);
   const [tempLink, setTempLink] = useState('');
   
-  const [mode, setMode] = useState<'library' | 'search'>('library');
   const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState<any[]>([]);
-  const [searching, setSearching] = useState(false);
-  const [searchError, setSearchError] = useState<string | null>(null);
-  const [addingIds, setAddingIds] = useState<Record<string, boolean>>({});
-
   const [syncStatus, setSyncStatus] = useState<{type: 'success' | 'error', text: string} | null>(null);
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (mode === 'library') loadProducts();
-  }, [mode]);
+    loadProducts();
+  }, []);
 
   const loadProducts = async () => {
     setLoading(true);
     setSyncStatus(null);
     try {
-      const user = auth.currentUser;
-      if (user) {
-        const res = await fetch(`/api/mercadolivre/products?userId=${user.uid}`);
-        const data = await res.json();
-        
-        if (res.ok && data.ok) {
-            setProducts(data.products || []);
-        } else {
-            console.error(data.error);
-        }
+      const response = await fetch(`/api/offers?marketplace=Mercado Livre&status=active`);
+      const data = await response.json();
+      
+      if (response.ok && data.ok) {
+          setProducts(data.offers || []);
+      } else {
+          console.error(data.error);
       }
     } catch (e) {
-        console.error("Failed to load ML products:", e);
+        console.error("Failed to load offers:", e);
     }
     setLoading(false);
   };
 
-  const handleSync = async () => {
+  const handleSyncDaily = async () => {
       setSyncing(true);
       setSyncStatus(null);
       try {
-          const user = auth.currentUser;
-          if (!user) return;
-          
-          const res = await fetch('/api/mercadolivre/products/sync', {
+          const res = await fetch('/api/offers/mercadolivre/sync-daily', {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ userId: user.uid })
+              headers: { 'Content-Type': 'application/json' }
           });
           
           const data = await res.json();
           
           if (!res.ok || !data.ok) {
-              if (data.error === 'not_connected') {
-                  setSyncStatus({ type: 'error', text: 'Conecte o Mercado Livre primeiro na página Integrações para usar a busca por vendedor.' });
-              } else if (res.status === 401) {
-                  setSyncStatus({ type: 'error', text: 'Token expirado. Reconecte o Mercado Livre.' });
-              } else {
-                  setSyncStatus({ type: 'error', text: data.error || 'Erro ao sincronizar produtos.' });
-              }
+              setSyncStatus({ type: 'error', text: data.error || 'Erro ao sincronizar ofertas do dia.' });
           } else {
-              setSyncStatus({ type: 'success', text: `${data.count} produtos sincronizados (da sua loja) com sucesso!` });
-              if (mode === 'library') await loadProducts();
-              else setMode('library'); // switch mode
+              setSyncStatus({ type: 'success', text: data.message });
+              await loadProducts();
           }
       } catch (e: any) {
-          setSyncStatus({ type: 'error', text: 'Erro de conexão ao tentar sincronizar.' });
+          setSyncStatus({ type: 'error', text: 'Erro de conexão ao tentar coletar ofertas.' });
       }
       setSyncing(false);
   };
 
-  const handleSearch = async (e: React.FormEvent) => {
-      e.preventDefault();
-      if (!searchQuery.trim()) return;
-      
-      setSearching(true);
-      setSearchResults([]);
-      setSearchError(null);
-      try {
-          const res = await fetch(`/api/mercadolivre/affiliate-products/search?q=${encodeURIComponent(searchQuery)}`);
-          const data = await res.json();
-          if (res.ok && data.ok) {
-              setSearchResults(data.products || []);
-          } else {
-              if (res.status === 403) {
-                  setSearchError("Busca bloqueada pelo servidor. Verifique a rota de busca pública.");
-              } else {
-                  setSearchError(data.error || "Erro ao buscar");
-              }
-          }
-      } catch (err) {
-          console.error(err);
-          setSearchError("Erro de conexão ao tentar buscar.");
-      }
-      setSearching(false);
+  const handleUpdateOffer = async (id: string) => {
+     loadProducts();
   };
 
-  const handleAddProduct = async (product: any) => {
-      try {
-          const user = auth.currentUser;
-          if (!user) return alert("Você precisa estar logado!");
-          
-          setAddingIds(prev => ({ ...prev, [product.product_id]: true }));
-          const res = await fetch('/api/mercadolivre/products/save', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ userId: user.uid, product })
-          });
-          const data = await res.json();
-          if (!res.ok || !data.ok) {
-              alert('Erro ao salvar produto: ' + data.error);
-          }
-      } catch (err) {
-          console.error(err);
-          alert('Erro de conexão ao tentar salvar o produto.');
-      }
-      setAddingIds(prev => ({ ...prev, [product.product_id]: false }));
+  const marketplaceLogo = (mp: string) => {
+    if (mp === "Mercado Livre") {
+      return (
+        <div className="absolute top-3 right-3 z-10 w-7 h-7 bg-[#ffe600] rounded-full flex items-center justify-center border border-yellow-300 shadow-md">
+          <span className="text-[10px] font-black text-[#2d3277]">ML</span>
+        </div>
+      );
+    }
+    return null;
   };
 
-  const saveLink = async (productId: string) => {
-      try {
-          const { serverTimestamp } = await import('firebase/firestore');
-          await updateDoc(doc(db, 'affiliate_products', productId), {
-              product_affiliate_link: tempLink,
-              updated_at: serverTimestamp()
-          });
-          setEditingLink(null);
-          await loadProducts();
-      } catch (e) {
-          handleFirestoreError(e, OperationType.UPDATE, 'affiliate_products');
-          alert('Erro ao salvar link de afiliado');
-      }
-  };
-
-  const autoGenerateLink = async (product: any) => {
-      try {
-          const user = auth.currentUser;
-          if (!user) return;
-
-          setEditingLink(product.id);
-          setTempLink('Gerando link...');
-
-          const res = await fetch('/api/mercadolivre/generate-affiliate', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ userId: user.uid, productUrl: product.product_link })
-          });
-          
-          const data = await res.json();
-          if (res.ok && data.ok) {
-              setTempLink(data.affiliate_link);
-              // Save automatically
-              const { serverTimestamp } = await import('firebase/firestore');
-              await updateDoc(doc(db, 'affiliate_products', product.id), {
-                  product_affiliate_link: data.affiliate_link,
-                  updated_at: serverTimestamp()
-              });
-              await loadProducts();
-              setEditingLink(null);
-          } else {
-              alert('Erro: ' + (data.error || 'Falha ao gerar link'));
-              setTempLink(product.product_affiliate_link || '');
-          }
-      } catch (e) {
-          alert('Erro de conexão ao gerar link.');
-          setTempLink(product.product_affiliate_link || '');
-      }
-  };
-
-  const renderProductCard = (p: any, isSearch: boolean = false) => {
-      const added = !isSearch ? true : products.some(saved => String(saved.product_id) === String(p.product_id));
-      const isLoadingAdd = addingIds[p.product_id];
-      
-      const title = p.title || p.product_title;
-      const image = p.image || p.product_image;
-      const price = p.price !== undefined ? p.price : p.product_price;
-      const oldPrice = p.old_price !== undefined ? p.old_price : p.product_old_price;
-      const discount = p.discount || p.product_discount;
-      const link = p.product_link;
+  const renderProductCard = (p: any) => {
+      const title = p.product_name;
+      const image = p.product_image;
+      const price = p.product_price;
+      const oldPrice = p.product_old_price;
+      const discount = p.product_discount;
+      const link = p.product_original_link;
+      const affiliateLink = p.product_affiliate_link;
+      const category = p.category || "Geral";
 
       return (
-        <div key={p.product_id || p.id} className="bg-white flex flex-col border border-gray-200 rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-all hover:-translate-y-0.5 group">
+        <div key={p.id} className="bg-white flex flex-col border border-gray-200 rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-all hover:-translate-y-0.5 group">
             <div className="bg-white h-[200px] flex items-center justify-center border-b border-gray-100 p-4 relative group-hover:bg-gray-50 transition-colors">
+                <div className="absolute top-3 left-3 z-10">
+                    <span className="px-2 py-1 bg-white/90 backdrop-blur-sm border border-gray-100 rounded-md text-[10px] font-bold text-gray-500 uppercase shadow-sm">
+                        {category}
+                    </span>
+                </div>
                 {image ? (
                     <img src={image} alt={title} className="w-full h-full object-contain mix-blend-multiply drop-shadow-sm" />
                 ) : (
                     <Package className="w-10 h-10 text-gray-300" />
                 )}
+                {marketplaceLogo(p.marketplace)}
             </div>
             
             <div className="p-5 flex-1 flex flex-col">
                 <div className="flex justify-between items-start mb-2 gap-2">
-                     <a href={link} target="_blank" rel="noopener noreferrer" className="text-[13.5px] font-semibold text-gray-900 line-clamp-2 hover:text-[#2d3277] transition-colors relative z-10 block mb-1 leading-snug">
+                     <a href={link} target="_blank" rel="noopener noreferrer" className="text-[14px] font-bold text-gray-900 line-clamp-2 hover:text-[#2d3277] transition-colors relative z-10 block mb-1 leading-snug">
                         {title}
                      </a>
                 </div>
@@ -218,216 +120,123 @@ export default function Products() {
                     )}
                     {discount && (
                         <span className="text-[11px] font-bold text-green-600 mb-1 ml-1 bg-green-50 px-1.5 py-0.5 rounded text-center">
-                            {discount} {String(discount).includes('OFF') ? '' : 'OFF'}
+                            {discount}
                         </span>
                     )}
                 </div>
 
-                <div className="mt-auto pt-4 border-t border-gray-100 space-y-3">
-                    {isSearch ? (
-                        <button 
-                            onClick={() => handleAddProduct(p)}
-                            disabled={added || isLoadingAdd}
-                            className={`w-full py-2.5 rounded-xl font-bold text-[13px] flex items-center justify-center gap-2 transition-all shadow-sm ${
-                                added 
-                                ? 'bg-green-50 text-green-700 border border-green-200 shadow-none' 
-                                : 'bg-indigo-600 text-white hover:bg-indigo-700'
-                            }`}
-                        >
-                            {isLoadingAdd ? <Loader2 className="w-4 h-4 animate-spin" /> : added ? <CheckCircle2 className="w-4 h-4"/> : <PlusCircle className="w-4 h-4"/>}
-                            {added ? 'Já na Biblioteca' : 'Adicionar Oferta'}
-                        </button>
-                    ) : (
-                        <>
-                            <div>
-                                <label className="block text-[11px] font-bold uppercase tracking-wider text-gray-500 mb-2 flex items-center gap-1.5">
-                                    <LinkIcon className="w-3.5 h-3.5" /> Link de Afiliado
-                                </label>
-                                
-                                {editingLink === p.id ? (
-                                    <div className="flex items-center gap-2">
-                                        <input 
-                                            type="url" 
-                                            value={tempLink} 
-                                            onChange={e => setTempLink(e.target.value)}
-                                            className="flex-1 p-2 bg-white border border-gray-200 shadow-inner rounded-lg text-[12px] focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all"
-                                            placeholder="Cole aqui o link encurtado"
-                                            autoFocus
-                                            disabled={tempLink === 'Gerando link...'}
-                                        />
-                                        <button 
-                                            onClick={() => saveLink(p.id)}
-                                            disabled={tempLink === 'Gerando link...'}
-                                            className="bg-indigo-600 text-white px-4 py-2 rounded-lg text-[12px] font-bold hover:bg-indigo-700 transition-colors shadow-sm disabled:opacity-50"
-                                        >
-                                            Salvar
-                                        </button>
-                                    </div>
-                                ) : (
-                                    <div className="flex gap-2">
-                                        <div 
-                                          className="flex-1 p-2.5 bg-gray-50 border border-gray-200 rounded-lg text-[12px] text-gray-900 truncate hover:border-indigo-300 hover:bg-indigo-50/50 cursor-pointer transition-colors font-medium shadow-sm"
-                                          onClick={() => {
-                                              setEditingLink(p.id);
-                                              setTempLink(p.product_affiliate_link || '');
-                                          }}
-                                        >
-                                            {p.product_affiliate_link || <span className="text-gray-400 italic font-normal">Nenhum link configurado</span>}
-                                        </div>
-                                        <button
-                                            onClick={() => autoGenerateLink(p)}
-                                            className="bg-indigo-50 text-indigo-700 px-3 rounded-lg flex flex-col items-center justify-center hover:bg-indigo-100 transition-colors border border-indigo-200 shadow-sm"
-                                            title="Gerar automaticamente via Cookie Refresh"
-                                        >
-                                            <Wand2 className="w-4 h-4" />
-                                        </button>
-                                    </div>
-                                )}
-                            </div>
-                        </>
-                    )}
+                <div className="mt-auto pt-4 border-t border-gray-100 space-y-2">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className={`w-2 h-2 rounded-full ${affiliateLink ? 'bg-green-500' : 'bg-yellow-500'}`}></span>
+                      <span className="text-[11px] font-medium text-gray-500">
+                        {affiliateLink ? 'Link Afiliado Pronto' : 'Aguardando Link'}
+                      </span>
+                    </div>
+                    
+                    <button 
+                        onClick={() => navigate('/campaigns', { state: { offerId: p.id } })}
+                        className="w-full py-3 bg-indigo-600 text-white rounded-xl font-bold text-[13px] flex items-center justify-center gap-2 hover:bg-indigo-700 transition-all shadow-sm"
+                    >
+                        <Sparkles className="w-4 h-4"/> Usar em campanha
+                    </button>
+                    
+                    <div className="flex gap-2">
+                      <a 
+                        href={link} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="flex-1 py-2 bg-gray-50 text-gray-700 border border-gray-200 rounded-lg text-[12px] font-bold text-center hover:bg-gray-100 transition-colors"
+                      >
+                        Ver produto
+                      </a>
+                      <button 
+                        onClick={() => handleUpdateOffer(p.id)}
+                        className="p-2 bg-gray-50 text-gray-500 border border-gray-200 rounded-lg hover:bg-gray-100 transition-colors"
+                        title="Atualizar oferta"
+                      >
+                        <RefreshCw className="w-4 h-4" />
+                      </button>
+                    </div>
                 </div>
             </div>
         </div>
       );
   };
-
   return (
     <div className="p-6 md:p-10 max-w-7xl mx-auto space-y-8">
       
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <h1 className="text-[24px] font-bold text-gray-900 flex items-center gap-2">
                 <Package className="w-6 h-6 text-indigo-600"/> Banco de Ofertas
             </h1>
-            <p className="text-[14px] text-gray-500 mt-1">Busque produtos no ML ou sincronize sua loja para gerar campanhas.</p>
+            <p className="text-[14px] text-gray-500 mt-1">Produtos reais coletados do Mercado Livre para suas automações.</p>
           </div>
+          <button 
+            onClick={handleSyncDaily}
+            disabled={syncing || loading}
+            className="bg-[#ffe600] text-[#2d3277] hover:bg-[#f5dd00] transition-colors px-6 py-3 rounded-xl font-bold flex items-center justify-center gap-2 text-[14px] shadow-sm disabled:opacity-50"
+          >
+            {syncing ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />} 
+            Sincronizar Ofertas do Dia
+          </button>
       </div>
 
       <div className="bg-blue-50 border border-blue-200 text-blue-800 p-4 rounded-xl flex items-start gap-3 shadow-sm">
           <Info className="w-5 h-5 flex-shrink-0 mt-0.5 text-blue-600" />
           <div className="text-[13px] leading-relaxed">
-              <strong>Modo de Afiliado:</strong> Por segurança, a geração automática de links afiliados depende de suporte oficial ou integração validada pela sua conta de parceiro. No momento, busque o produto, adicione à biblioteca e <strong>cole seu link afiliado manualmente</strong> gerado no Portal de Afiliados do Mercado Livre. 
+              <strong>Coleta Automática:</strong> Nosso sistema coleta as melhores ofertas do dia no Mercado Livre. 
+              As ofertas são sincronizadas com preço e imagem reais. Certifique-se de configurar seu link de afiliado na campanha ou integração.
           </div>
       </div>
 
-      <div className="flex gap-1 bg-gray-100 p-1 rounded-xl w-max border border-gray-200/60">
-          <button 
-             onClick={() => setMode('library')}
-             className={`px-5 py-2 rounded-lg text-[13px] font-bold transition-all shadow-sm ${mode === 'library' ? 'bg-white text-gray-900' : 'text-gray-500 hover:text-gray-700 shadow-none'}`}
-          >
-              Minha Biblioteca
-          </button>
-          <button 
-             onClick={() => setMode('search')}
-             className={`px-5 py-2 rounded-lg text-[13px] font-bold transition-all shadow-sm ${mode === 'search' ? 'bg-white text-gray-900' : 'text-gray-500 hover:text-gray-700 shadow-none'}`}
-          >
-              Buscar no Mercado Livre
-          </button>
-      </div>
-      
       {syncStatus && (
-          <div className={`p-4 rounded-lg border text-[13px] font-medium flex items-center gap-2 ${syncStatus.type === 'success' ? 'bg-green-50 border-green-200 text-green-700' : 'bg-red-50 border-red-200 text-red-700'}`}>
-              <AlertCircle className="w-4 h-4" />
-              {syncStatus.text}
-              {syncStatus.text.includes('Integrações') && (
-                  <button onClick={() => navigate('/integrations')} className="ml-auto underline font-bold">
-                      Ir para Integrações
-                  </button>
-              )}
+          <div className="animate-in slide-in-from-top-2 duration-300">
+            <div className={`p-4 rounded-lg border text-[13px] font-medium flex items-center gap-2 ${syncStatus.type === 'success' ? 'bg-green-50 border-green-200 text-green-700' : 'bg-red-50 border-red-200 text-red-700'}`}>
+                {syncStatus.type === 'success' ? <CheckCircle2 className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
+                {syncStatus.text}
+            </div>
           </div>
       )}
 
-      {mode === 'library' && (
-          <div className="space-y-6 animate-in fade-in duration-300">
-              <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
-                  <h2 className="text-[18px] font-bold text-gray-900">Meus Produtos Adicionados</h2>
-                  <div className="flex gap-2">
-                      <button 
-                        disabled
-                        className="bg-indigo-50 text-indigo-400 opacity-70 cursor-not-allowed px-4 py-2 rounded-xl font-bold flex items-center gap-2 text-[13px] border border-indigo-100"
-                      >
-                        <Wand2 className="w-4 h-4" /> Automação de Links (Em breve)
-                      </button>
-                      <button 
-                        onClick={handleSync}
-                        disabled={syncing || loading}
-                        className="bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 transition-colors px-4 py-2 rounded-xl font-bold flex items-center gap-2 text-[13px] shadow-sm disabled:opacity-50"
-                        title="Sincroniza todos os produtos da sua loja / conta logada no ML"
-                      >
-                        {syncing ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />} 
-                        Sync da Loja OAuth
-                      </button>
-                  </div>
+      <div className="space-y-6 animate-in fade-in duration-300">
+          <div className="flex items-center justify-between">
+              <h2 className="text-[18px] font-bold text-gray-900 flex items-center gap-2">
+                Ofertas Disponíveis
+                <span className="bg-gray-100 text-gray-600 text-[12px] px-2 py-0.5 rounded-full">{products.length}</span>
+              </h2>
+              <div className="flex items-center gap-2">
+                <div className="relative">
+                  <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <input 
+                    type="text" 
+                    value={searchQuery}
+                    onChange={e => setSearchQuery(e.target.value)}
+                    placeholder="Filtrar ofertas..." 
+                    className="pl-9 pr-4 py-2 bg-white border border-gray-200 rounded-lg text-[13px] focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all shadow-sm"
+                  />
+                </div>
               </div>
-
-              {loading ? (
-                <div className="py-24 flex justify-center"><Loader2 className="w-8 h-8 animate-spin text-gray-400" /></div>
-              ) : products.length === 0 ? (
-                <div className="bg-white flex flex-col items-center justify-center border border-gray-200 rounded-3xl py-24 text-center shadow-sm">
-                   <div className="w-16 h-16 bg-gray-50 border border-gray-100 rounded-2xl flex items-center justify-center mb-5">
-                     <Package className="w-8 h-8 text-gray-400" />
-                   </div>
-                   <h3 className="text-[18px] font-bold text-gray-900 mb-2">Nenhum produto salvo</h3>
-                   <p className="text-[14px] text-gray-500 max-w-sm mb-8 leading-relaxed">Você ainda não adicionou nenhum produto à sua biblioteca.</p>
-                   <button 
-                     onClick={() => setMode('search')}
-                     className="bg-[#ffe600] text-[#2d3277] px-6 py-3.5 rounded-xl font-bold shadow-sm hover:opacity-90 flex items-center gap-2"
-                   >
-                     <Search className="w-4 h-4" /> Buscar produtos no ML
-                   </button>
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                    {products.map(p => renderProductCard(p, false))}
-                </div>
-              )}
           </div>
-      )}
 
-      {mode === 'search' && (
-          <div className="space-y-6 animate-in fade-in duration-300">
-              <form onSubmit={handleSearch} className="flex flex-col sm:flex-row gap-3 mb-4">
-                  <div className="relative flex-1">
-                      <Search className="w-5 h-5 absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
-                      <input 
-                          type="text" 
-                          value={searchQuery}
-                          onChange={e => setSearchQuery(e.target.value)}
-                          placeholder="Buscar no catálogo do Mercado Livre... (ex: iPhone, Geladeira, Livro)"
-                          className="w-full bg-white border border-gray-200 rounded-xl pl-12 pr-4 py-3.5 text-[14px] shadow-sm focus:outline-none focus:border-[#ffe600] focus:ring-2 focus:ring-[#ffe600]/30 transition-all font-medium"
-                      />
-                  </div>
-                  <button 
-                      type="submit"
-                      disabled={searching || !searchQuery.trim()}
-                      className="bg-[#ffe600] text-[#2d3277] px-8 py-3.5 rounded-xl font-bold flex items-center justify-center gap-2 hover:opacity-90 disabled:opacity-50 transition-all min-w-[120px] shadow-sm"
-                  >
-                      {searching ? <Loader2 className="w-5 h-5 animate-spin"/> : 'Buscar'}
-                  </button>
-              </form>
-
-              {searchError && (
-                  <div className="p-4 rounded-xl bg-red-50 border border-red-200 text-red-700 text-[13px] font-medium mb-6 shadow-sm">
-                      {searchError}
-                  </div>
-              )}
-
-              {searching ? (
-                  <div className="py-24 flex justify-center"><Loader2 className="w-8 h-8 animate-spin text-gray-400" /></div>
-              ) : searchResults.length > 0 ? (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                      {searchResults.map(p => renderProductCard(p, true))}
-                  </div>
-              ) : (
-                  searchQuery && !searching && (
-                      <div className="bg-gray-50 border border-gray-200 border-dashed rounded-3xl py-24 text-center text-gray-500 font-medium">
-                         Nenhum resultado encontrado para "{searchQuery}".
-                      </div>
-                  )
-              )}
-          </div>
-      )}
+          {loading ? (
+            <div className="py-24 flex justify-center"><Loader2 className="w-8 h-8 animate-spin text-gray-400" /></div>
+          ) : products.length === 0 ? (
+            <div className="bg-white flex flex-col items-center justify-center border border-gray-200 rounded-3xl py-24 text-center shadow-sm">
+               <div className="w-16 h-16 bg-gray-50 border border-gray-100 rounded-2xl flex items-center justify-center mb-5">
+                 <Package className="w-8 h-8 text-gray-400" />
+               </div>
+               <h3 className="text-[18px] font-bold text-gray-900 mb-2">Nenhuma oferta carregada</h3>
+               <p className="text-[14px] text-gray-500 max-w-sm mb-8 leading-relaxed">As ofertas sincronizadas aparecerão aqui. Clique em "Sincronizar Ofertas do Dia" para começar.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                {products
+                  .filter(p => !searchQuery || p.product_name?.toLowerCase().includes(searchQuery.toLowerCase()))
+                  .map(p => renderProductCard(p))}
+            </div>
+          )}
+      </div>
     </div>
   );
 }

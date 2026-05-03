@@ -86,6 +86,13 @@
         "message": {
           "type": "string"
         },
+        "message_mode": {
+          "type": "string",
+          "enum": ["personalized", "automatic"]
+        },
+        "instruction_ia": {
+          "type": "string"
+        },
         "image_url": {
           "type": "string"
         },
@@ -167,6 +174,47 @@
         "api_secret",
         "affiliate_id"
       ]
+    },
+    "AffiliateOffer": {
+      "title": "Affiliate Offer",
+      "description": "An offer collected from marketplaces",
+      "type": "object",
+      "properties": {
+        "marketplace": { "type": "string" },
+        "category": { "type": "string" },
+        "product_id": { "type": "string" },
+        "product_name": { "type": "string" },
+        "product_image": { "type": "string" },
+        "product_price": { "type": "number" },
+        "product_old_price": { "type": "number" },
+        "product_discount": { "type": "string" },
+        "product_original_link": { "type": "string" },
+        "product_affiliate_link": { "type": "string" },
+        "status": { "type": "string" },
+        "source_url": { "type": "string" },
+        "collected_at": { "type": "string" },
+        "updated_at": { "type": "string" }
+      }
+    },
+    "CampaignProductHistory": {
+      "title": "Campaign Product History",
+      "description": "Records of products sent in campaigns",
+      "type": "object",
+      "properties": {
+        "campaign_id": { "type": "string" },
+        "offer_id": { "type": "string" },
+        "product_id": { "type": "string" },
+        "product_name": { "type": "string" },
+        "marketplace": { "type": "string" },
+        "category": { "type": "string" },
+        "product_image": { "type": "string" },
+        "product_original_link": { "type": "string" },
+        "product_affiliate_link": { "type": "string" },
+        "whatsapp_instance_id": { "type": "string" },
+        "recipient_id": { "type": "string" },
+        "sent_at": { "type": "string" },
+        "status": { "type": "string" }
+      }
     }
   },
   "firestore": {
@@ -189,6 +237,14 @@
     "/ecommerce_keys/{keyId}": {
       "schema": "#/entities/EcommerceKey",
       "description": "User integration keys"
+    },
+    "/affiliate_offers/{offerId}": {
+      "schema": "#/entities/AffiliateOffer",
+      "description": "Global affiliate offers"
+    },
+    "/campaign_product_history/{historyId}": {
+      "schema": "#/entities/CampaignProductHistory",
+      "description": "Send history"
     }
   }
 }

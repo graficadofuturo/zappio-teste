@@ -1,21 +1,33 @@
 import { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { auth, db } from '../lib/firebase';
-import { collection, query, where, getDocs, addDoc, onSnapshot, serverTimestamp, orderBy, deleteDoc, doc, updateDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, addDoc, onSnapshot, serverTimestamp, orderBy, deleteDoc, doc, updateDoc, limit } from 'firebase/firestore';
 import { handleFirestoreError, OperationType } from '../lib/firestore-utils';
 import PhonePreview from '../components/PhonePreview';
-import { Send, Bot, Loader2, Sparkles, Image as ImageIcon, Plus, Trash2, Calendar, Megaphone, Edit2, Clock, CheckCircle2, AlertCircle, Play, Pause, ChevronDown, ChevronUp } from 'lucide-react';
+import { Send, Bot, Loader2, Sparkles, Image as ImageIcon, Plus, Trash2, Calendar, Megaphone, Edit2, Clock, CheckCircle2, AlertCircle, Play, Pause, ChevronDown, ChevronUp, Copy, Wand2, Type, Zap, BookOpen, Quote } from 'lucide-react';
+import { generateCopy, generateVariations } from '../services/gemini';
 
 export default function Campaigns() {
+  const location = useLocation();
   const [isCreating, setIsCreating] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [campaignsList, setCampaignsList] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (location.state?.offerId) {
+      setIsCreating(true);
+      setMessageMode('auto_offer');
+    }
+  }, [location]);
 
   const [message, setMessage] = useState('');
   const [imageUrl, setImageUrl] = useState('');
   const [generating, setGenerating] = useState(false);
   const [sending, setSending] = useState(false);
   
-  const [isAiSectionOpen, setIsAiSectionOpen] = useState(true);
+  const [isAiSectionOpen, setIsAiSectionOpen] = useState(false);
+  const [messageMode, setMessageMode] = useState<'manual' | 'auto_offer'>('manual');
+  const [instructionIA, setInstructionIA] = useState('');
   
   const [instances, setInstances] = useState<any[]>([]);
   const [groups, setGroups] = useState<any[]>([]);
@@ -98,50 +110,30 @@ export default function Campaigns() {
   const [categories, setCategories] = useState<string[]>([]);
 
   useEffect(() => {
-    fetch('/api/campaigns/categories')
+    fetch('/api/offers/categories')
       .then(res => res.json())
-      .then(data => setCategories(data))
+      .then(data => setCategories(data.categories || []))
       .catch(console.error);
   }, []);
 
-  const loadPreviewOffer = async () => {
-    setLoadingPreview(true);
-    try {
-      const res = await fetch(`/api/campaigns/dummy/preview-offer?category=${encodeURIComponent(offerCategory)}`);
-      if (!res.ok) throw new Error(await res.text());
-      const data = await res.json();
-      setPreviewProduct(data.product);
-      showSuccess("Oferta de exemplo carregada!");
-    } catch (e: any) {
-      showError(e.message || "Erro ao carregar oferta de exemplo.");
-    } finally {
-      setLoadingPreview(false);
-    }
-  };
-
-  const generateCopyWithAI = async () => {
-    if (!message) {
-      showError("Escreva a estrutura da mensagem primeiro para usar a IA.");
+  const handleAICalling = async (instruction: string) => {
+    if (!message && instruction.includes('texto')) {
+      showError("Escreva algo ou dê uma instrução clara para a IA.");
       return;
     }
     setGenerating(true);
     try {
-      const res = await fetch('/api/campaigns/dummy/generate-copy', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          category: offerCategory,
-          tone: aiTone,
-          template: message,
-          product: previewProduct
-        })
-      });
-      if (!res.ok) throw new Error(await res.text());
-      const data = await res.json();
-      setMessage(data.copy);
-      showSuccess("Mensagem melhorada pela IA!");
+      if (instruction.includes('variações')) {
+        const vars = await generateVariations(message);
+        setAiVariations(vars.map(v => ({ title: 'Sugestão', text: v })));
+        showSuccess("Variações geradas!");
+      } else {
+        const copy = await generateCopy(instruction, message, aiTone);
+        setMessage(copy);
+        showSuccess("Copy processada com sucesso!");
+      }
     } catch (e: any) {
-      showError(e.message || "Erro ao gerar copy com IA.");
+      showError("Erro na IA: " + e.message);
     } finally {
       setGenerating(false);
     }
@@ -242,15 +234,17 @@ export default function Campaigns() {
     try {
         const payload: any = {
           name: campaignName,
-          instance_id: targets[0].instance_id, // keep for backwards compatibility
-          target_group_id: targets[0].group_id, // keep for backwards compatibility
+          instance_id: targets[0].instance_id, 
+          target_group_id: targets[0].group_id, 
           targets: targets,
           message,
+          message_mode: messageMode,
+          instruction_ia: instructionIA,
           offer_category: offerCategory,
           ai_tone: aiTone,
           image_url: imageUrl || '',
-          use_ml_products: useAllProducts || selectedProductIds.length > 0 || offerCategory !== 'Todos',
-          ml_product_ids: useAllProducts ? 'ALL' : selectedProductIds,
+          use_ml_products: messageMode === 'auto_offer',
+          ml_product_ids: selectedProductIds,
           updated_at: serverTimestamp(),
           trigger_type: autoSendNow ? 'auto' : triggerType,
           auto_send_now: autoSendNow,
@@ -332,9 +326,11 @@ export default function Campaigns() {
     } else {
       setTargets([{ instance_id: camp.instance_id || '', group_id: camp.target_group_id || '' }]);
     }
+    setMessageMode(camp.message_mode || (camp.use_ml_products ? 'auto_offer' : 'manual'));
+    setInstructionIA(camp.instruction_ia || '');
     setOfferCategory(camp.offer_category || 'Todos');
     setAiTone(camp.ai_tone || 'Amigável');
-    setPreviewProduct(null); // Reset preview on edit
+    setPreviewProduct(null); 
     setMessage(camp.message || '');
     setImageUrl(camp.image_url || '');
     setTriggerType(camp.trigger_type === 'auto' ? 'manual' : (camp.trigger_type || 'manual'));
@@ -345,32 +341,27 @@ export default function Campaigns() {
     setScheduledTimes(camp.scheduled_times || ['09:00']);
     setScheduledDates(camp.scheduled_dates || []);
     
-    // Set ML Products
-    setUseAllProducts(camp.ml_product_ids === 'ALL' || camp.use_ml_products === true);
-    if (camp.ml_product_ids && Array.isArray(camp.ml_product_ids)) {
-       setSelectedProductIds(camp.ml_product_ids);
-       setUseAllProducts(false);
-    } else {
-       setSelectedProductIds([]);
-    }
+    setSelectedProductIds(Array.isArray(camp.ml_product_ids) ? camp.ml_product_ids : []);
     
     setIsCreating(true);
   };
 
   const handleTriggerCampaign = async (id: string, camp: any) => {
     try {
-      // Compatibility with previous singular definition and new multiple target definition
+      const user = auth.currentUser;
+      if (!user) return;
+
       const targetList = (camp.targets && camp.targets.length > 0) 
         ? camp.targets 
         : [{ instance_id: camp.instance_id, group_id: camp.target_group_id }];
 
-      // Check first instance connection as sanity check
+      // Check first instance connection
       const firstTarget = targetList[0];
       const statusRes = await fetch(`/api/whatsapp/status?instanceId=${firstTarget.instance_id}`);
       if (statusRes.ok) {
          const statusData = await statusRes.json();
          if (statusData.status !== 'connected') {
-             showError('Uma ou mais Instâncias de WhatsApp selecionadas não estão conectadas. Por favor, acesse a aba "Instâncias" e faça o login via QR Code antes de disparar.');
+             showError('Uma ou mais instâncias não estão conectadas. Verifique o WhatsApp.');
              return;
          }
       }
@@ -380,56 +371,36 @@ export default function Campaigns() {
         updated_at: serverTimestamp()
       });
       
-      let messageText = camp.message || '';
-      let finalImageUrl = camp.image_url || '';
+      // Prepare message and image
+      const prepRes = await fetch('/api/campaigns/prepare-message', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          campaignId: id,
+          category: camp.offer_category,
+          userId: user.uid,
+          template: camp.message,
+          tone: camp.ai_tone,
+          messageMode: camp.message_mode || (camp.use_ml_products ? 'auto_offer' : 'manual')
+        })
+      });
 
-      if (camp.use_ml_products && (messageText.includes('{') || finalImageUrl.includes('{product_image}'))) {
-         let matchedProduct = products.length > 0 ? products[0] : null;
-         if (camp.ml_product_ids && camp.ml_product_ids !== 'ALL') {
-             const allowed = products.filter(p => camp.ml_product_ids.includes(p.id));
-             if (allowed.length > 0) matchedProduct = allowed[0];
-         }
-         if (matchedProduct) {
-             const prod = matchedProduct;
-             
-             const replaceOrRemoveLine = (text: string, placeholder: string, value: string) => {
-                 if (!value) {
-                     return text.split('\n').filter(line => !line.includes(placeholder)).join('\n');
-                 }
-                 return text.replace(new RegExp(placeholder, 'g'), value);
-             };
-
-             messageText = replaceOrRemoveLine(messageText, '{product_title}', prod.product_title || '');
-             messageText = replaceOrRemoveLine(messageText, '{product_price}', prod.product_price ? `R$ ${Number(prod.product_price).toFixed(2).replace('.', ',')}` : '');
-             messageText = replaceOrRemoveLine(messageText, '{product_old_price}', prod.product_old_price ? `~R$ ${Number(prod.product_old_price).toFixed(2).replace('.', ',')}~` : '');
-             messageText = replaceOrRemoveLine(messageText, '{product_discount}', prod.product_discount || '');
-             messageText = replaceOrRemoveLine(messageText, '{product_store}', prod.product_store || '');
-             messageText = replaceOrRemoveLine(messageText, '{product_id}', prod.external_product_id || prod.product_id || prod.id || '');
-             messageText = replaceOrRemoveLine(messageText, '{product_coupon}', prod.product_coupon || prod.product_cupom || '');
-             
-             const linkToUse = prod.product_affiliate_link || prod.product_link || '';
-             messageText = replaceOrRemoveLine(messageText, '{product_affiliate_link}', linkToUse);
-             messageText = replaceOrRemoveLine(messageText, '{product_link}', linkToUse);
-             
-             messageText = replaceOrRemoveLine(messageText, '{product_image}', prod.product_image || '');
-            
-             // Clean up any remaining empty variables
-             const lines = messageText.split('\n');
-             messageText = lines.filter((l: string) => !/{[a-zA-Z0-9_]+}/.test(l)).join('\n');
-             
-             if (finalImageUrl.includes('{product_image}')) {
-                 finalImageUrl = finalImageUrl.replace(/{product_image}/g, prod.product_image || '');
-             } else if (!finalImageUrl && messageText.includes('{product_image}')) {
-                 finalImageUrl = prod.product_image || '';
-             }
-         }
+      const prepData = await prepRes.json();
+      if (!prepRes.ok || !prepData.ok) {
+        if (prepData.noMoreProducts) {
+          showError("Todos os produtos desta categoria já foram enviados nesta campanha.");
+          await updateDoc(doc(db, 'campaigns', id), { status: 'paused', updated_at: serverTimestamp() });
+          return;
+        }
+        throw new Error(prepData.error || "Erro ao preparar mensagem.");
       }
 
-      const errors: string[] = [];
+      const messageText = prepData.message;
+      const finalImageUrl = prepData.imageUrl || camp.image_url;
 
+      const errors: string[] = [];
       for (const target of targetList) {
           const jid = target.group_id.replace(`${target.instance_id}_`, '');
-          
           try {
             const res = await fetch('/api/whatsapp/send', {
               method: 'POST',
@@ -441,22 +412,21 @@ export default function Campaigns() {
                 image_url: finalImageUrl
               })
             });
-
-            if (!res.ok) {
-              let errorMsg = `Erro ao enviar para ${jid}`;
-              try {
-                const errData = await res.json();
-                errorMsg = errData.error || errorMsg;
-              } catch (e) { /* ignore */ }
-              errors.push(errorMsg);
-            }
+            if (!res.ok) errors.push(`Erro ao enviar para ${jid}`);
           } catch (e: any) {
-            errors.push(`Erro geral no envio para ${jid}: ${e.message}`);
+            errors.push(`Erro no envio para ${jid}: ${e.message}`);
           }
       }
 
-      if (errors.length > 0) {
-          throw new Error(errors.join(', '));
+      if (errors.length > 0) throw new Error(errors.join(', '));
+
+      // Mark as sent in history if it was an auto offer
+      if (prepData.productId) {
+        await fetch('/api/campaigns/mark-sent', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ campaignId: id, productId: prepData.productId, userId: user.uid })
+        });
       }
 
       showSuccess('Campanha disparada com sucesso!');
@@ -467,15 +437,8 @@ export default function Campaigns() {
       });
     } catch (e: any) {
       console.error(e);
-      showError('Falha ao disparar campanha: ' + e.message);
-      try {
-        await updateDoc(doc(db, 'campaigns', id), {
-            status: 'failed',
-            updated_at: serverTimestamp()
-        });
-      } catch (err) {
-        handleFirestoreError(err, OperationType.UPDATE, 'campaigns');
-      }
+      showError('Falha: ' + e.message);
+      await updateDoc(doc(db, 'campaigns', id), { status: 'failed', updated_at: serverTimestamp() });
     }
   };
 
@@ -919,28 +882,162 @@ export default function Campaigns() {
             </button>
           </div>
 
-          <div className="mb-5 border border-subtle rounded-xl p-4 bg-white shadow-sm transition-all duration-300">
+          {/* Copyright Expert IA */}
+          <div className="mb-5 border border-indigo-100 rounded-xl p-0 bg-white shadow-sm overflow-hidden">
             <button 
               type="button"
-              className="w-full flex items-center justify-between text-left"
+              className={`w-full flex items-center justify-between text-left p-4 transition-colors ${isAiSectionOpen ? 'bg-indigo-50/50' : 'hover:bg-gray-50'}`}
               onClick={() => setIsAiSectionOpen(!isAiSectionOpen)}
             >
-              <h3 className="text-[14px] font-bold text-primary flex items-center gap-2">
-                <Sparkles className="w-4 h-4 text-accent-blue" /> 
-                Fonte Automática de Ofertas
+              <h3 className="text-[14px] font-bold text-indigo-900 flex items-center gap-2">
+                <Bot className="w-5 h-5 text-indigo-600" /> 
+                Copyright Expert IA
               </h3>
-              {isAiSectionOpen ? <ChevronUp className="w-4 h-4 text-secondary" /> : <ChevronDown className="w-4 h-4 text-secondary" />}
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] font-bold text-indigo-500 uppercase tracking-wider">Assistente Ativo</span>
+                {isAiSectionOpen ? <ChevronUp className="w-4 h-4 text-indigo-400" /> : <ChevronDown className="w-4 h-4 text-indigo-400" />}
+              </div>
             </button>
             
             {isAiSectionOpen && (
-              <div className="mt-4 animate-in fade-in duration-300">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+              <div className="p-5 animate-in fade-in slide-in-from-top-2 duration-300">
+                <div className="mb-4">
+                  <label className="block text-[11px] font-bold uppercase tracking-wider text-gray-500 mb-2">Instruções para a IA</label>
+                  <textarea
+                    value={instructionIA}
+                    onChange={(e) => setInstructionIA(e.target.value)}
+                    placeholder="Ex: Transforme este texto em uma oferta irresistível com foco em urgência..."
+                    rows={2}
+                    className="w-full p-3 bg-gray-50 border border-gray-200 rounded-lg text-[13px] focus:outline-none focus:border-indigo-500 min-h-[60px]"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-4">
+                  <button 
+                    onClick={() => handleAICalling('Melhore este texto focando em conversão')}
+                    className="flex items-center justify-center gap-2 py-2.5 px-3 bg-white border border-gray-200 rounded-lg text-[12px] font-bold text-gray-700 hover:border-indigo-300 hover:bg-indigo-50 transition-all shadow-sm"
+                  >
+                    <Wand2 className="w-3.5 h-3.5 text-indigo-500" /> Melhorar Copy
+                  </button>
+                  <button 
+                    onClick={() => handleAICalling('Crie 3 variações curtas deste texto')}
+                    className="flex items-center justify-center gap-2 py-2.5 px-3 bg-white border border-gray-200 rounded-lg text-[12px] font-bold text-gray-700 hover:border-indigo-300 hover:bg-indigo-50 transition-all shadow-sm"
+                  >
+                    <Type className="w-3.5 h-3.5 text-indigo-500" /> Criar Variações
+                  </button>
+                  <button 
+                    onClick={() => handleAICalling('Mude o tom para ser mais engraçado e amigável')}
+                    className="flex items-center justify-center gap-2 py-2.5 px-3 bg-white border border-gray-200 rounded-lg text-[12px] font-bold text-gray-700 hover:border-indigo-300 hover:bg-indigo-50 transition-all shadow-sm"
+                  >
+                    <Zap className="w-3.5 h-3.5 text-indigo-500" /> Mudar Tom
+                  </button>
+                  <button 
+                    onClick={() => handleAICalling('Simplifique o texto para ser rápido de ler')}
+                    className="flex items-center justify-center gap-2 py-2.5 px-3 bg-white border border-gray-200 rounded-lg text-[12px] font-bold text-gray-700 hover:border-indigo-300 hover:bg-indigo-50 transition-all shadow-sm"
+                  >
+                    <ChevronDown className="w-3.5 h-3.5 text-indigo-500" /> Simplificar
+                  </button>
+                  <button 
+                    onClick={() => handleAICalling('Torne o texto muito mais persuasivo')}
+                    className="flex items-center justify-center gap-2 py-2.5 px-3 bg-white border border-gray-200 rounded-lg text-[12px] font-bold text-gray-700 hover:border-indigo-300 hover:bg-indigo-50 transition-all shadow-sm"
+                  >
+                    <BookOpen className="w-3.5 h-3.5 text-indigo-500" /> Persuadir
+                  </button>
+                  <button 
+                    onClick={() => handleAICalling('Conte uma pequena história sobre o benefício deste produto')}
+                    className="flex items-center justify-center gap-2 py-2.5 px-3 bg-white border border-gray-200 rounded-lg text-[12px] font-bold text-gray-700 hover:border-indigo-300 hover:bg-indigo-50 transition-all shadow-sm"
+                  >
+                    <Quote className="w-3.5 h-3.5 text-indigo-500" /> Storytelling
+                  </button>
+                </div>
+
+                <div className="flex items-center justify-between pt-4 border-t border-gray-100">
+                  <span className="text-[11px] text-gray-400 italic">IA alimentada por Gemini Flash 1.5</span>
+                  <button 
+                    onClick={() => handleAICalling(instructionIA || 'Melhore meu copy')}
+                    disabled={generating || !message}
+                    className="bg-indigo-600 text-white px-5 py-2 rounded-lg font-bold text-[13px] flex items-center gap-2 hover:bg-indigo-700 transition-all shadow-md disabled:opacity-50"
+                  >
+                    {generating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4"/>} 
+                    {generating ? 'Processando...' : 'Aplicar com IA'}
+                  </button>
+                </div>
+
+                {aiVariations && (
+                  <div className="mt-4 p-4 bg-indigo-50/50 rounded-xl border border-indigo-100 animate-in zoom-in-95 duration-200">
+                    <h4 className="text-[12px] font-bold text-indigo-900 mb-3 flex items-center justify-between">
+                      Sugestões da IA
+                      <button onClick={() => setAiVariations(null)} className="text-indigo-400 hover:text-indigo-600"><Trash2 className="w-3.5 h-3.5" /></button>
+                    </h4>
+                    <div className="space-y-3">
+                      {aiVariations.map((v, i) => (
+                        <div key={i} className="bg-white p-3 rounded-lg border border-indigo-200 shadow-sm relative group">
+                          <p className="text-[12px] text-gray-700 leading-relaxed pr-8">{v.text}</p>
+                          <button 
+                            onClick={() => { setMessage(v.text); setAiVariations(null); }}
+                            className="absolute top-2 right-2 p-1.5 text-indigo-600 hover:bg-indigo-50 rounded-md transition-all shadow-sm"
+                            title="Usar esta variação"
+                          >
+                            <CheckCircle2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          <div className="mb-6">
+            <label className="block text-[11px] font-bold uppercase tracking-wider text-gray-500 mb-3">Modo de Mensagem</label>
+            <div className="grid grid-cols-2 gap-3">
+              <button 
+                type="button"
+                onClick={() => setMessageMode('manual')}
+                className={`p-4 rounded-xl border-2 transition-all flex flex-col items-center gap-2 ${messageMode === 'manual' ? 'border-indigo-600 bg-indigo-50/50 ring-2 ring-indigo-600/10' : 'border-gray-200 hover:border-indigo-200 hover:bg-gray-50'}`}
+              >
+                <div className={`w-10 h-10 rounded-full flex items-center justify-center ${messageMode === 'manual' ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-400'}`}>
+                  <Type className="w-5 h-5" />
+                </div>
+                <div className="text-center">
+                  <span className={`block text-[13px] font-bold ${messageMode === 'manual' ? 'text-indigo-900' : 'text-gray-900'}`}>Mensagem Personalizada</span>
+                  <span className="text-[10px] text-gray-500 font-medium">Texto real fixo em todos os envios</span>
+                </div>
+              </button>
+
+              <button 
+                type="button"
+                onClick={() => setMessageMode('auto_offer')}
+                className={`p-4 rounded-xl border-2 transition-all flex flex-col items-center gap-2 ${messageMode === 'auto_offer' ? 'border-indigo-600 bg-indigo-50/50 ring-2 ring-indigo-600/10' : 'border-gray-200 hover:border-indigo-200 hover:bg-gray-50'}`}
+              >
+                <div className={`w-10 h-10 rounded-full flex items-center justify-center ${messageMode === 'auto_offer' ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-400'}`}>
+                  <Sparkles className="w-5 h-5" />
+                </div>
+                <div className="text-center">
+                  <span className={`block text-[13px] font-bold ${messageMode === 'auto_offer' ? 'text-indigo-900' : 'text-gray-900'}`}>Oferta Automática</span>
+                  <span className="text-[10px] text-gray-500 font-medium">Usa produtos reais do Banco de Ofertas</span>
+                </div>
+              </button>
+            </div>
+          </div>
+          
+          {messageMode === 'auto_offer' && (
+            <div className="mb-6 p-5 bg-indigo-50/30 border border-indigo-100 rounded-2xl animate-in fade-in slide-in-from-left-2 duration-300">
+               <div className="flex items-center gap-2 mb-4">
+                 <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center text-white">
+                   <Zap className="w-4 h-4" />
+                 </div>
+                 <h3 className="text-[14px] font-bold text-indigo-900">Configuração de Oferta Automática</h3>
+               </div>
+
+               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-[12px] font-semibold uppercase tracking-[0.05em] text-secondary mb-2">Categoria das ofertas</label>
+                    <label className="block text-[11px] font-bold uppercase text-gray-500 mb-2">Categoria das Ofertas</label>
                     <select 
                       value={offerCategory}
                       onChange={(e) => setOfferCategory(e.target.value)}
-                      className="w-full p-2.5 border border-subtle rounded-lg text-[13px] bg-secondary focus:outline-none focus:border-accent-primary"
+                      className="w-full p-2.5 border border-gray-200 rounded-lg text-[13px] bg-white focus:outline-none focus:border-indigo-500 shadow-sm"
                     >
                       {categories.length > 0 ? categories.map(cat => (
                         <option key={cat} value={cat}>{cat}</option>
@@ -950,89 +1047,26 @@ export default function Campaigns() {
                     </select>
                   </div>
                   <div>
-                    <label className="block text-[12px] font-semibold uppercase tracking-[0.05em] text-secondary mb-2">Tom da IA</label>
-                    <select 
-                      value={aiTone}
-                      onChange={(e) => setAiTone(e.target.value)}
-                      className="w-full p-2.5 border border-subtle rounded-lg text-[13px] bg-secondary focus:outline-none focus:border-accent-primary"
-                    >
-                      <option value="Oferta agressiva">🔥 Oferta agressiva</option>
-                      <option value="Urgência">⏳ Urgência</option>
-                      <option value="Amigável">😊 Amigável</option>
-                      <option value="Direto ao ponto">🎯 Direto ao ponto</option>
-                      <option value="Premium">💎 Premium</option>
-                      <option value="Engraçado">🥳 Engraçado</option>
-                    </select>
+                     <label className="block text-[11px] font-bold uppercase text-gray-500 mb-2">Tom das Mensagens</label>
+                     <select 
+                        value={aiTone}
+                        onChange={(e) => setAiTone(e.target.value)}
+                        className="w-full p-2.5 border border-gray-200 rounded-lg text-[13px] bg-white focus:outline-none focus:border-indigo-500 shadow-sm"
+                      >
+                        <option value="Oferta agressiva">🔥 Oferta agressiva</option>
+                        <option value="Urgência">⏳ Urgência</option>
+                        <option value="Amigável">😊 Amigável</option>
+                        <option value="Direto ao ponto">🎯 Direto ao ponto</option>
+                        <option value="Premium">💎 Premium</option>
+                        <option value="Engraçado">🥳 Engraçado</option>
+                      </select>
                   </div>
-                </div>
-
-                <div className="flex items-center justify-between mt-3 mb-4">
-                   <p className="text-[12px] text-secondary/80">A IA buscará produtos reais nesta categoria e não deixará repetir produtos na mesma campanha.</p>
-                </div>
-
-                <div className="mb-4">
-                  <div className="flex justify-between items-center mb-2">
-                    <label className="block text-[12px] font-semibold uppercase tracking-[0.05em] text-secondary">Preview do WhatsApp Mensagem</label>
-                    <button 
-                      type="button" 
-                      onClick={loadPreviewOffer}
-                      disabled={loadingPreview}
-                      className="text-[11px] font-bold text-indigo-600 bg-indigo-50 px-3 py-1 rounded-full hover:bg-indigo-100 transition-colors disabled:opacity-50 flex items-center gap-1"
-                    >
-                      {loadingPreview ? <Loader2 className="w-3 h-3 animate-spin"/> : <Sparkles className="w-3 h-3"/>}
-                      Carregar Oferta de Exemplo
-                    </button>
-                  </div>
-                  
-                  {previewProduct ? (
-                     <div className="bg-[#e5ddd5] p-4 rounded-xl border border-gray-200 shadow-sm relative">
-                        <div className="bg-[#dcf8c6] p-3 rounded-lg rounded-tr-none text-[#303030] text-[13px] font-sans inline-block max-w-[85%] whitespace-pre-wrap leading-relaxed shadow-sm relative">
-                           {previewProduct.product_image && (
-                              <img src={previewProduct.product_image} alt="Preview" className="w-full max-h-48 object-cover rounded mb-2 border border-black/10" />
-                           )}
-                           {(() => {
-                              let msg = message || 'Escreva a estrutura da mensagem para ver o preview...';
-                              const p = previewProduct;
-                              msg = msg.replace(/{product_title}/g, p.product_title || '');
-                              msg = msg.replace(/{product_price}/g, p.product_price ? `R$ ${Number(p.product_price).toFixed(2).replace('.', ',')}` : '');
-                              msg = msg.replace(/{product_old_price}/g, p.product_old_price ? `~R$ ${Number(p.product_old_price).toFixed(2).replace('.', ',')}~` : '');
-                              msg = msg.replace(/{product_discount}/g, p.product_discount || '');
-                              msg = msg.replace(/{product_link}/g, p.product_link || '');
-                              msg = msg.replace(/{product_affiliate_link}/g, p.product_affiliate_link || p.product_link || '');
-                              msg = msg.replace(/{product_image}/g, '');
-                              msg = msg.replace(/{product_category}/g, p.product_category || '');
-                              msg = msg.replace(/{product_store}/g, p.product_store || '');
-                              msg = msg.replace(/{product_id}/g, p.external_product_id || p.id || '');
-                              msg = msg.replace(/{product_coupon}/g, p.product_coupon || '');
-                              // remove empty variables and blank lines
-                              const cleanLines = msg.split('\n').map(l => l.replace(/{[^{}]+}/g, '').trim()).filter(l => l !== '');
-                              return cleanLines.join('\n');
-                           })()}
-                           <div className="text-right text-[10px] text-black/40 mt-1 uppercase font-bold tracking-wider">
-                             Agora
-                           </div>
-                        </div>
-                     </div>
-                  ) : (
-                     <div className="p-4 bg-gray-50 border border-gray-200 rounded-xl text-center text-[12px] text-gray-500 italic">
-                        Selecione uma categoria e carregue uma oferta para visualizar o preview.
-                     </div>
-                  )}
-                </div>
-
-                <div className="flex items-center justify-end mt-3 border-t border-subtle pt-4">
-                   <button 
-                     onClick={generateCopyWithAI}
-                     disabled={generating || !previewProduct}
-                     className="bg-accent-blue text-white px-5 py-2.5 rounded-lg font-semibold text-[13px] flex items-center gap-2 hover:opacity-90 transition-opacity disabled:opacity-50"
-                   >
-                     {generating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4"/>} 
-                     {generating ? 'Melhorando...' : 'Gerar copy com IA'}
-                   </button>
-                </div>
-              </div>
-            )}
-          </div>
+               </div>
+               <p className="text-[11px] text-indigo-600/70 mt-4 leading-relaxed bg-white/60 p-3 rounded-lg border border-indigo-100/50">
+                O sistema selecionará automaticamente ofertas da categoria <strong>{offerCategory}</strong> e enviará uma mensagem formatada. Nunca repetirá o mesmo produto na mesma campanha.
+               </p>
+            </div>
+          )}
 
           <div className="mb-2 relative">
             <div className="flex items-center justify-between mb-2">
