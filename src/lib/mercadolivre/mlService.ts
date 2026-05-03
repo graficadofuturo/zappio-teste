@@ -1,4 +1,3 @@
-import fetch from 'node-fetch';
 import { getAdminFirestore, removeUndefinedDeep } from '../../api/firebaseAdmin.ts';
 
 export async function getMLAuthUrl(origin: string, state: string, redirectUri: string) {

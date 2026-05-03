@@ -76,14 +76,14 @@ router.get("/auth-url", async (req, res) => {
 
     if (missing.length > 0) {
       console.error("ML_AUTH_URL_ERROR", "Missing environment variables", missing);
-      return res.status(200).json({
+      return res.status(500).json({
         ok: false,
         error: "missing_env",
         missing
       });
     }
 
-    const state = crypto.randomBytes(16).toString("hex");
+    const state = crypto.randomUUID();
 
     const authorizationUrl = new URL("https://auth.mercadolivre.com.br/authorization");
     authorizationUrl.searchParams.set("response_type", "code");
@@ -104,7 +104,9 @@ router.get("/auth-url", async (req, res) => {
 
     return res.status(200).json({
       ok: true,
-      authorizationUrl: authorizationUrl.toString()
+      authorizationUrl: authorizationUrl.toString(),
+      redirectUri: ML_REDIRECT_URI,
+      state: state
     });
   } catch (error: any) {
     console.error("ML_AUTH_URL_ERROR", error.message);

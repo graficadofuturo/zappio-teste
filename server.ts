@@ -18,91 +18,88 @@ import integrationsRouter from "./src/api/routes/integrations.ts";
 import offersRouter from "./src/api/routes/offers.ts";
 
 async function startServer() {
-  const app = express();
-  const PORT = 3000;
+  try {
+    const app = express();
+    const PORT = 3000;
 
-  app.use(express.json());
-  app.use(cookieParser());
+    app.use(express.json());
+    app.use(cookieParser());
+    
+    console.log("[Server] Middleware initialized");
 
-  app.get("/api/debug-env", (req, res) => {
-    res.json({ key: process.env.GEMINI_API_KEY });
-  });
+    app.get("/api/health", (req, res) => res.json({ status: "ok" }));
+    
+    app.get("/api/debug-env", (req, res) => {
+      res.json({ key: process.env.GEMINI_API_KEY ? "Set" : "Not Set" });
+    });
 
-  // Mount API Routes
-  app.use("/api/shopee", shopeeRouter);
-  app.use("/api/ai", aiRoutes);
-  app.use("/api/whatsapp", whatsappRoutes);
-  app.use("/api/integrations/mercadolivre", mercadolivreRoutes);
-  app.use("/api/integrations", integrationsRouter);
-  app.use("/api/mercadolivre/products", productRoutes);
-  app.use("/api/mercadolivre/affiliate-products", productRoutes);
-  app.use("/api/webhooks", webhookRoutes);
-  app.use("/api/campaigns", campaignRoutes);
-  app.use("/api/offers", offersRouter);
-  app.use("/api/subscriptions", subscriptionRoutes);
+    // Mount API Routes
+    console.log("[Server] Mounting routes...");
+    app.use("/api/shopee", shopeeRouter);
+    app.use("/api/ai", aiRoutes);
+    app.use("/api/whatsapp", whatsappRoutes);
+    app.use("/api/integrations/mercadolivre", mercadolivreRoutes);
+    app.use("/api/integrations", integrationsRouter);
+    app.use("/api/mercadolivre/products", productRoutes);
+    app.use("/api/mercadolivre/affiliate-products", productRoutes);
+    app.use("/api/webhooks", webhookRoutes);
+    app.use("/api/campaigns", campaignRoutes);
+    app.use("/api/offers", offersRouter);
+    app.use("/api/subscriptions", subscriptionRoutes);
+    
+    console.log("[Server] Routes mounted");
 
-  app.get("/api/debug/firebase-admin", (req, res) => {
-    let serviceAccountJsonValid = false;
-    let hasProjectId = false;
-    let hasClientEmail = false;
-    let hasPrivateKey = false;
-    let privateKeyLooksValid = false;
-
-    const keyString = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
-    const hasServiceAccountKey = Boolean(keyString);
-
-    if (hasServiceAccountKey) {
-        try {
-            const serviceAccount = JSON.parse(keyString as string);
-            serviceAccountJsonValid = true;
-            hasProjectId = Boolean(serviceAccount.project_id);
-            hasClientEmail = Boolean(serviceAccount.client_email);
-            hasPrivateKey = Boolean(serviceAccount.private_key);
-            
-            if (hasPrivateKey) {
-                const pk = serviceAccount.private_key;
-                privateKeyLooksValid = pk.includes("BEGIN PRIVATE KEY") && pk.includes("END PRIVATE KEY");
-            }
-        } catch (e) {
-            // JSON parser failed
-        }
+    // Vite middleware for development
+    if (process.env.NODE_ENV !== "production") {
+      console.log("[Server] Starting Vite in dev mode...");
+      const vite = await createViteServer({
+        server: { middlewareMode: true },
+        appType: "spa",
+      });
+      app.use(vite.middlewares);
+    } else {
+      console.log("[Server] Starting in production mode...");
+      const distPath = path.join(process.cwd(), "dist");
+      app.use(express.static(distPath));
+      app.get("*", (req, res) => {
+        res.sendFile(path.join(distPath, "index.html"));
+      });
     }
 
-    res.json({
-      hasServiceAccountKey,
-      serviceAccountJsonValid,
-      hasProjectId,
-      hasClientEmail,
-      hasPrivateKey,
-      privateKeyLooksValid
-    });
-  });
+    if (!process.env.VERCEL) {
+      app.listen(PORT, "0.0.0.0", async () => {
+        console.log(`[Server] Web server listening on port ${PORT}`);
+        
+        try {
+          const { loadExistingInstances } = await import("./whatsappService.ts");
+          loadExistingInstances().catch(e => console.error("[Server] Auto-load instances error:", e));
 
-  // Vite middleware for development
-  if (process.env.NODE_ENV !== "production") {
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: "spa",
-    });
-    app.use(vite.middlewares);
-  } else {
-    const distPath = path.join(process.cwd(), "dist");
-    app.use(express.static(distPath));
-    app.get("*", (req, res) => {
-      res.sendFile(path.join(distPath, "index.html"));
-    });
+          // Campaign Scheduler
+          const { startScheduler } = await import("./campaignScheduler.ts");
+          startScheduler();
+          console.log("[Server] Scheduler started");
+        } catch (e) {
+          console.error("[Server] Error loading background services:", e);
+        }
+
+        console.log(`Server running on http://localhost:${PORT}`);
+      });
+    } else {
+      console.log("[Server] Running on Vercel, skipping app.listen");
+    }
+    
+    return app;
+  } catch (error) {
+    console.error("[Server] Critical startup error:", error);
+    process.exit(1);
   }
-
-  app.listen(PORT, "0.0.0.0", async () => {
-    const { loadExistingInstances } = await import("./whatsappService.ts");
-    loadExistingInstances().catch(e => console.error("Auto-load instances error:", e));
-
-    // Campaign Scheduler
-    const { startScheduler } = await import("./campaignScheduler.ts");
-    startScheduler();
-
-    console.log(`Server running on http://localhost:${PORT}`);
-  });
 }
 
-startServer();
+const appPromise = startServer();
+
+export default async function (req: any, res: any) {
+  const app = await appPromise;
+  if (app) {
+    return app(req, res);
+  }
+}
