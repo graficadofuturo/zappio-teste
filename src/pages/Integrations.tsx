@@ -17,12 +17,7 @@ export default function Integrations() {
   const [syncingMl, setSyncingMl] = useState(false);
   const [disconnectingMl, setDisconnectingMl] = useState(false);
   const [mlApiStatus, setMlApiStatus] = useState<any>(null);
-
-  const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
-  const [manualClientId, setManualClientId] = useState('');
-  const [manualClientSecret, setManualClientSecret] = useState('');
-  const [manualSellerId, setManualSellerId] = useState('');
-  const [savingManual, setSavingManual] = useState(false);
+  const [showDisconnectModal, setShowDisconnectModal] = useState(false);
 
   const [shopeeAppId, setShopeeAppId] = useState('');
   const [shopeeAppSecret, setShopeeAppSecret] = useState('');
@@ -32,6 +27,16 @@ export default function Integrations() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const [message, setMessage] = useState<{type: 'success' | 'error', text: string} | null>(null);
+
+  const showSuccess = (text: string) => {
+    setMessage({ type: 'success', text });
+    setTimeout(() => setMessage(null), 5000);
+  };
+
+  const showError = (text: string) => {
+    setMessage({ type: 'error', text });
+    setTimeout(() => setMessage(null), 5000);
+  };
 
   useEffect(() => {
     loadIntegrations();
@@ -44,23 +49,23 @@ export default function Integrations() {
 
     if (mlParam === "connected") {
       setMercadoLivreConnected(true);
-      setMessage({ type: 'success', text: 'Mercado Livre conectado com sucesso.' });
+      showSuccess('Mercado Livre conectado com sucesso.');
     } else if (mlParam === 'missing_code') {
-      setMessage({ type: 'error', text: 'O Mercado Livre não retornou o código de autorização. Tente conectar novamente.' });
+      showError('O Mercado Livre não retornou o código de autorização. Tente conectar novamente.');
     } else if (mlParam === 'invalid_state') {
-      setMessage({ type: 'error', text: 'Sessão de conexão expirada. Tente conectar novamente.' });
+      showError('Sessão de conexão expirada. Tente conectar novamente.');
     } else if (mlParam === 'token_error') {
-      setMessage({ type: 'error', text: 'Erro ao trocar autorização por token. Verifique as configurações do Mercado Livre.' });
+      showError('Erro ao trocar autorização por token. Verifique as configurações do Mercado Livre.');
     } else if (mlParam === 'config_error') {
-      setMessage({ type: 'error', text: 'As configurações do Mercado Livre estão incompletas.' });
+      showError('As configurações do Mercado Livre estão incompletas.');
     } else if (mlParam === 'firestore_not_found') {
-      setMessage({ type: 'error', text: 'Firestore não encontrado. Verifique o banco de dados.' });
+      showError('Firestore não encontrado. Verifique o banco de dados.');
     } else if (mlParam === 'save_error') {
-      setMessage({ type: 'error', text: 'A conexão funcionou, mas não foi possível salvar a integração.' });
+      showError('A conexão funcionou, mas não foi possível salvar a integração.');
     } else if (mlParam === 'error') {
-      setMessage({ type: 'error', text: 'Não foi possível conectar ao Mercado Livre.' });
+      showError('Não foi possível conectar ao Mercado Livre.');
     } else if (mlParam) {
-      setMessage({ type: 'error', text: `Erro Mercado Livre: ${mlParam}` });
+      showError(`Erro Mercado Livre: ${mlParam}`);
     }
 
     if (mlParam) {
@@ -98,8 +103,6 @@ export default function Integrations() {
       }
     }
 
-    // Wrap in setTimeout to ensure auth is loaded for Firebase? Actually we should rely on onAuthStateChanged usually.
-    // For now try directly.
     checkStatus();
   }, [searchParams, navigate]);
 
@@ -143,8 +146,6 @@ export default function Integrations() {
     }
   };
 
-
-
   const loadIntegrations = async () => {
     setLoading(true);
     try {
@@ -182,40 +183,6 @@ export default function Integrations() {
     }
   };
 
-  const saveManualML = async (e: React.FormEvent) => {
-      e.preventDefault();
-      setSavingManual(true);
-      try {
-          const user = auth.currentUser;
-          if (!user) return;
-          
-          const payload: any = {
-              user_id: user.uid,
-              platform: 'mercadolivre',
-              api_key: manualClientId,
-              api_secret: manualClientSecret,
-              ml_user_id: manualSellerId,
-              status: 'connected',
-              sync_count: 0,
-              updated_at: new Date()
-          };
-          
-          await addDoc(collection(db, 'ecommerce_keys'), payload);
-          setManualClientId('');
-          setManualClientSecret('');
-          setManualSellerId('');
-          setIsAdvancedOpen(false);
-          await loadIntegrations();
-          
-          setMessage({ type: 'success', text: "Integração salva usando modo avançado! Você já pode sincronizar os produtos." });
-          setTimeout(() => setMessage(null), 5000);
-
-      } catch(e) {
-          setMessage({ type: 'error', text: 'Erro ao salvar manualmente.' });
-      }
-      setSavingManual(false);
-  };
-
   const saveShopee = async (e: React.FormEvent) => {
       e.preventDefault();
       setSavingShopee(true);
@@ -239,20 +206,19 @@ export default function Integrations() {
           setIsShopeeFormOpen(false);
           await loadIntegrations();
           
-          setMessage({ type: 'success', text: "Shopee conectada com sucesso!" });
-          setTimeout(() => setMessage(null), 5000);
+          showSuccess("Shopee conectada com sucesso!");
 
       } catch(e) {
-          setMessage({ type: 'error', text: 'Erro ao salvar Shopee.' });
+          showError('Erro ao salvar Shopee.');
       }
       setSavingShopee(false);
   };
 
   const handleDisconnectMl = async () => {
-    if (!window.confirm("Tem certeza que deseja desconectar sua conta do Mercado Livre?")) return;
-    
     try {
       setDisconnectingMl(true);
+      setShowDisconnectModal(false);
+      
       const response = await fetch("/api/integrations/mercadolivre/disconnect", {
         method: "POST"
       });
@@ -274,11 +240,11 @@ export default function Integrations() {
          } catch(e) {}
       }
       
-      alert("Mercado Livre desconectado com sucesso.");
+      showSuccess("Mercado Livre desconectado com sucesso.");
       await checkMlApiStatus();
     } catch (error) {
       console.error("ML_DISCONNECT_FRONT_ERROR", error);
-      alert("Não foi possível desconectar o Mercado Livre.");
+      showError("Não foi possível desconectar o Mercado Livre.");
     } finally {
       setDisconnectingMl(false);
     }
@@ -299,10 +265,10 @@ export default function Integrations() {
       }
       
       setMlApiStatus(data);
-      alert("Mercado Livre sincronizado com sucesso.");
+      showSuccess("Mercado Livre sincronizado com sucesso.");
     } catch (error) {
       console.error("ML_SYNC_FRONT_ERROR", error);
-      alert("Não foi possível sincronizar. Reconecte o Mercado Livre.");
+      showError("Não foi possível sincronizar. Reconecte o Mercado Livre.");
     } finally {
       setSyncingMl(false);
     }
@@ -310,32 +276,14 @@ export default function Integrations() {
 
   const handleDisconnect = async (id: string, platform?: string) => {
       if (platform === 'mercadolivre') {
-        await handleDisconnectMl();
+        setShowDisconnectModal(true);
         return;
       }
       
-      if (!confirm('Deseja realmente desconectar esta integração?')) return;
       try {
-          // If we saved ML into users/{uid}/integrations/mercadolivre, we should also delete from there. 
-          // The manual or legacy ones are in `ecommerce_keys`. We will try deleting both to be safe.
-          try {
-            await deleteDoc(doc(db, 'ecommerce_keys', id));
-          } catch(e) {}
-          
-          if (platform === 'mercadolivre') {
-            const user = auth.currentUser;
-            if (user) {
-               try {
-                  await deleteDoc(doc(db, 'users', user.uid, 'integrations', 'mercadolivre'));
-               } catch(e) {}
-            }
-            setMlApiStatus(null);
-            checkMlApiStatus();
-          }
-
+          await deleteDoc(doc(db, 'ecommerce_keys', id));
           await loadIntegrations();
-          setMessage({ type: 'success', text: 'Integração desconectada com sucesso.' });
-          setTimeout(() => setMessage(null), 5000);
+          showSuccess('Integração desconectada com sucesso.');
       } catch (e) {
           handleFirestoreError(e, OperationType.DELETE, 'ecommerce_keys');
       }
@@ -422,10 +370,6 @@ export default function Integrations() {
                                    <span className="font-semibold">{mlApiStatus.email}</span>
                                 </div>
                               )}
-                              <div className="flex justify-between items-center pt-1 border-t border-gray-200/50 mt-1">
-                                 <span className="text-gray-500">Última Sinc.:</span>
-                                 <span className="font-medium text-[12px]">{mlApiStatus.lastSyncAt ? new Date(mlApiStatus.lastSyncAt).toLocaleString() : 'Nunca'}</span>
-                              </div>
                               <div className="flex justify-between items-center pt-1">
                                  <span className="text-gray-500">Autorizado:</span>
                                  <span className="font-medium text-[12px]">{mlApiStatus.connectedAt ? new Date(mlApiStatus.connectedAt).toLocaleDateString() : 'Desconhecido'}</span>
@@ -479,46 +423,6 @@ export default function Integrations() {
                            {syncing === 'ml' ? <Loader2 className="w-4 h-4 animate-spin" /> : <ExternalLink className="w-4 h-4" />}
                            Conectar Mercado Livre
                          </button>
-  
-                         {/* Advanced Mode */}
-                         <div className="pt-2">
-                             <button 
-                                onClick={() => setIsAdvancedOpen(!isAdvancedOpen)}
-                                className="text-[13px] text-gray-500 font-medium flex items-center justify-center gap-1.5 w-full hover:text-gray-900 transition-colors"
-                             >
-                                <Key className="w-3.5 h-3.5" /> Conexão avançada (Manual)
-                                {isAdvancedOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-                             </button>
-                             
-                             {isAdvancedOpen && (
-                                <form onSubmit={saveManualML} className="mt-4 space-y-4 animate-in fade-in slide-in-from-top-2 duration-200 bg-gray-50 p-4 rounded-xl border border-gray-100">
-                                   <p className="text-[12px] text-gray-500 leading-relaxed">
-                                     Utilize esta opção se você já tem um Token de Afiliado ou deseja configurar sua Api Key manualmente.
-                                   </p>
-                                   <div>
-                                     <label className="block text-[11px] font-bold uppercase tracking-wide text-gray-600 mb-1.5">Seller ID / User ID</label>
-                                     <input type="text" required value={manualSellerId} onChange={e=>setManualSellerId(e.target.value)} className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-[13px] focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all" placeholder="Ex: 123456789" />
-                                   </div>
-                                   <details className="mt-2 text-[12px] text-gray-600 group">
-                                      <summary className="cursor-pointer font-semibold mb-2 select-none">Mostrar campos de Chave (Opcional)</summary>
-                                      <div className="space-y-4 mt-3 pl-1 border-l-2 border-gray-200">
-                                          <div className="pl-3">
-                                            <label className="block text-[11px] font-bold uppercase tracking-wide text-gray-500 mb-1.5">Client ID (App ID)</label>
-                                            <input type="text" value={manualClientId} onChange={e=>setManualClientId(e.target.value)} className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-[13px] focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all" />
-                                          </div>
-                                          <div className="pl-3">
-                                            <label className="block text-[11px] font-bold uppercase tracking-wide text-gray-500 mb-1.5">Client Secret</label>
-                                            <input type="password" value={manualClientSecret} onChange={e=>setManualClientSecret(e.target.value)} className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-[13px] focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all" />
-                                          </div>
-                                      </div>
-                                   </details>
-                                   <button type="submit" disabled={savingManual} className="w-full bg-indigo-600 text-white py-2.5 rounded-lg text-[13px] font-bold flex items-center justify-center gap-2 mt-4 hover:bg-indigo-700 transition-colors shadow-sm disabled:opacity-50">
-                                       {savingManual ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Salvar Integração'}
-                                   </button>
-                                </form>
-                             )}
-                         </div>
-  
                      </div>
                  )}
               </div>
@@ -608,6 +512,41 @@ export default function Integrations() {
         </div>
 
       </div>
+      )}
+
+      {/* Disconnect Modal */}
+      {showDisconnectModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl w-full max-w-md p-6 shadow-2xl animate-in zoom-in-95 duration-200">
+            <div className="flex items-center gap-3 mb-4 text-red-600">
+              <div className="w-10 h-10 rounded-full bg-red-50 flex items-center justify-center">
+                <Trash2 className="w-5 h-5" />
+              </div>
+              <h2 className="text-[18px] font-bold">Desconectar Mercado Livre?</h2>
+            </div>
+            
+            <p className="text-[14px] text-gray-600 leading-relaxed mb-6">
+              Sua conta será desconectada e o Zappio deixará de acessar os dados do Mercado Livre até uma nova conexão.
+            </p>
+            
+            <div className="flex gap-3">
+              <button 
+                onClick={() => setShowDisconnectModal(false)}
+                className="flex-1 px-4 py-2.5 border border-gray-200 text-gray-700 rounded-xl font-semibold text-[14px] hover:bg-gray-50 transition-colors"
+                disabled={disconnectingMl}
+              >
+                Cancelar
+              </button>
+              <button 
+                onClick={handleDisconnectMl}
+                className="flex-1 px-4 py-2.5 bg-red-600 text-white rounded-xl font-semibold text-[14px] hover:bg-red-700 transition-colors shadow-sm flex items-center justify-center gap-2"
+                disabled={disconnectingMl}
+              >
+                {disconnectingMl ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Desconectar'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
