@@ -36,6 +36,9 @@ export default function Integrations() {
     
     const params = new URLSearchParams(window.location.search);
     const mlParam = params.get("mercadolivre");
+    
+    console.log("ML_URL_PARAM", mlParam);
+    console.log("ML_CONNECTED_FROM_URL", mlParam === "connected");
 
     if (mlParam === "connected") {
       setMercadoLivreConnected(true);
@@ -78,6 +81,7 @@ export default function Integrations() {
 
         const data = await response.json();
         console.log("ML_STATUS_RESPONSE", data);
+        console.log("ML_CARD_CONNECTED_STATE", data.connected === true || mlParam === "connected");
         
         setMlApiStatus(data);
 
@@ -308,7 +312,9 @@ export default function Integrations() {
               <div className="flex items-start justify-between mb-4">
                   <div>
                      <h3 className="text-[16px] font-bold text-gray-900 flex items-center gap-2">Mercado Livre</h3>
-                     <p className="text-[13px] text-gray-500 mt-1 leading-relaxed pr-4">Importe seus anúncios e produtos de afiliados diretamente.</p>
+                     <p className="text-[13px] text-gray-500 mt-1 leading-relaxed pr-4">
+                       {mercadoLivreConnected ? "Conta Mercado Livre conectada e pronta para importar produtos." : "Importe seus anúncios e produtos de afiliados diretamente."}
+                     </p>
                   </div>
                   <div className="w-12 h-12 rounded-xl bg-yellow-50 flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform">
                     <ShoppingBag className="w-6 h-6 text-yellow-600" />
@@ -324,61 +330,57 @@ export default function Integrations() {
                      </div>
                  ) : mercadoLivreConnected ? (
                      <div className="space-y-5">
-                         <div className="flex items-center gap-2 px-2.5 py-1 bg-green-50 text-green-700 text-[11px] font-bold uppercase tracking-wider rounded border border-green-200 w-max">
-                            <Sparkles className="w-3.5 h-3.5" /> CONECTADO
+                         <div className="flex items-center justify-between">
+                             <div className="flex items-center gap-2 px-2.5 py-1 bg-green-50 text-green-700 text-[11px] font-bold uppercase tracking-wider rounded border border-green-200 w-max">
+                                <Sparkles className="w-3.5 h-3.5" /> CONECTADO
+                             </div>
+                             <button onClick={checkMlApiStatus} disabled={checkingApiStatus} className="text-[12px] text-gray-500 hover:text-indigo-600 flex items-center gap-1 font-medium transition-colors">
+                                 {checkingApiStatus ? <Loader2 className="w-3 h-3 animate-spin"/> : <RefreshCw className="w-3 h-3"/>}
+                                 Verificar
+                             </button>
                          </div>
                          
-                         <div className="text-[13px] text-gray-700 space-y-2 bg-gray-50 p-4 rounded-xl border border-gray-100">
-                            <div className="flex justify-between items-center pb-2 border-b border-gray-200/50">
-                               <span className="text-gray-500">Conta:</span>
-                               <span className="font-semibold">{mlApiStatus.account_name || mlApiStatus.nickname || mlApiStatus.seller_id}</span>
-                            </div>
-                            <div className="flex justify-between items-center pt-1">
-                               <span className="text-gray-500">Autorizado:</span>
-                               <span className="font-medium text-[12px]">{mlApiStatus.connected_at ? new Date(mlApiStatus.connected_at).toLocaleDateString() : 'Desconhecido'}</span>
-                            </div>
-                         </div>
+                         {mlApiStatus && mlApiStatus.connected && (
+                           <div className="text-[13px] text-gray-700 space-y-2 bg-gray-50 p-4 rounded-xl border border-gray-100">
+                              <div className="flex justify-between items-center pb-2 border-b border-gray-200/50">
+                                 <span className="text-gray-500">Conta:</span>
+                                 <span className="font-semibold">{mlApiStatus.account_name || mlApiStatus.nickname || mlApiStatus.mlUserId || mlApiStatus.seller_id}</span>
+                              </div>
+                              <div className="flex justify-between items-center pt-1">
+                                 <span className="text-gray-500">Autorizado:</span>
+                                 <span className="font-medium text-[12px]">{mlApiStatus.connectedAt ? new Date(mlApiStatus.connectedAt).toLocaleDateString() : 'Desconhecido'}</span>
+                              </div>
+                           </div>
+                         )}
                          
                          <div className="flex flex-col gap-2 pt-2">
-                             <div className="flex gap-2">
+                             <button 
+                               onClick={() => {}}
+                               className="w-full bg-white border border-gray-200 text-gray-700 py-2 rounded-lg font-medium text-[13px] flex items-center justify-center gap-2 hover:bg-gray-50 transition-colors shadow-sm"
+                             >
+                               Gerenciar Mercado Livre
+                             </button>
+                             <div className="flex flex-col sm:flex-row gap-2">
                                <button 
-                                 onClick={checkMlApiStatus}
-                                 disabled={checkingApiStatus}
-                                 className="flex-1 bg-white border border-gray-200 text-gray-700 py-2 rounded-lg font-medium text-[13px] flex items-center justify-center gap-2 hover:bg-gray-50 transition-colors shadow-sm disabled:opacity-50"
+                                 onClick={() => {}}
+                                 className="flex-1 bg-indigo-50 text-indigo-600 border border-indigo-100 py-2 rounded-lg text-[13px] font-medium transition-colors hover:bg-indigo-100 flex items-center justify-center gap-2 shadow-sm"
                                >
-                                 {checkingApiStatus ? <Loader2 className="w-4 h-4 animate-spin text-indigo-600" /> : <RefreshCw className="w-4 h-4 text-gray-400"/>}
-                                 Verificar
+                                 <RefreshCw className="w-4 h-4" /> Sincronizar
                                </button>
                                <button 
-                                 onClick={handleConnectML}
-                                 className="flex-1 bg-white border border-gray-200 text-gray-700 py-2 rounded-lg font-medium text-[13px] flex items-center justify-center gap-2 hover:bg-gray-50 transition-colors shadow-sm"
+                                 onClick={() => handleDisconnect(mlIntegration?.id || String(mlApiStatus?.mlUserId) || 'mercadolivre', 'mercadolivre')}
+                                 className="flex-1 text-red-600 bg-red-50 border border-red-100 py-2 rounded-lg text-[13px] font-medium transition-colors hover:bg-red-100 flex items-center justify-center gap-2 shadow-sm"
                                >
-                                 Gerenciar conexão
+                                 <Trash2 className="w-4 h-4" /> Desconectar
                                </button>
                              </div>
-                             {mlApiStatus?.connected && (
-                               <div className="flex flex-col sm:flex-row gap-2 mt-2">
-                                 <button 
-                                   onClick={() => {}}
-                                   className="flex-1 bg-indigo-50 text-indigo-600 border border-indigo-100 py-2 rounded-lg text-[13px] font-medium transition-colors hover:bg-indigo-100 flex items-center justify-center gap-2 shadow-sm"
-                                 >
-                                   <RefreshCw className="w-4 h-4" /> Sincronizar agora
-                                 </button>
-                                 <button 
-                                   onClick={() => handleDisconnect(mlIntegration?.id || String(mlApiStatus.mlUserId) || 'mercadolivre', 'mercadolivre')}
-                                   className="flex-1 text-red-600 bg-red-50 border border-red-100 py-2 rounded-lg text-[13px] font-medium transition-colors hover:bg-red-100 flex items-center justify-center gap-2 shadow-sm"
-                                 >
-                                   <Trash2 className="w-4 h-4" /> Desconectar conta
-                                 </button>
-                               </div>
-                             )}
                          </div>
                      </div>
                  ) : (
                      <div className="space-y-5">
                          <div className="flex items-center justify-between">
                              <div className="flex items-center gap-2 px-2.5 py-1 bg-gray-100 text-gray-600 text-[11px] font-bold uppercase tracking-wider rounded border border-gray-200 w-max">
-                                 {checkingApiStatus && !mlApiStatus ? 'VERIFICANDO...' : 'NÃO CONECTADO'}
+                                 NÃO CONECTADO
                              </div>
                              <button onClick={checkMlApiStatus} disabled={checkingApiStatus} className="text-[12px] text-gray-500 hover:text-indigo-600 flex items-center gap-1 font-medium transition-colors">
                                  {checkingApiStatus ? <Loader2 className="w-3 h-3 animate-spin"/> : <RefreshCw className="w-3 h-3"/>}
