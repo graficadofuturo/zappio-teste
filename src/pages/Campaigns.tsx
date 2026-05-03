@@ -5,7 +5,6 @@ import { collection, query, where, getDocs, addDoc, onSnapshot, serverTimestamp,
 import { handleFirestoreError, OperationType } from '../lib/firestore-utils';
 import PhonePreview from '../components/PhonePreview';
 import { Send, Bot, Loader2, Sparkles, Image as ImageIcon, Plus, Trash2, Calendar, Megaphone, Edit2, Clock, CheckCircle2, AlertCircle, Play, Pause, ChevronDown, ChevronUp, Copy, Wand2, Type, Zap, BookOpen, Quote } from 'lucide-react';
-import { generateCopy, generateVariations } from '../services/gemini';
 
 export default function Campaigns() {
   const location = useLocation();
@@ -149,12 +148,26 @@ export default function Campaigns() {
     setGenerating(true);
     try {
       if (instruction.includes('variações')) {
-        const vars = await generateVariations(message);
-        setAiVariations(vars.map(v => ({ title: 'Sugestão', text: v })));
+        const res = await fetch('/api/ai/generate-variations', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: message })
+        });
+        const data = await res.json();
+        if (!data.ok) throw new Error(data.error);
+        
+        setAiVariations(data.variations.map((v: string) => ({ title: 'Sugestão', text: v })));
         showSuccess("Variações geradas!");
       } else {
-        const copy = await generateCopy(instruction, message, aiTone);
-        setMessage(copy);
+        const res = await fetch('/api/ai/generate-copy', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ instruction, currentText: message, tone: aiTone })
+        });
+        const data = await res.json();
+        if (!data.ok) throw new Error(data.error);
+
+        setMessage(data.text);
         showSuccess("Copy processada com sucesso!");
       }
     } catch (e: any) {

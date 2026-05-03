@@ -4,7 +4,17 @@ import { getRandomKeyword, CAMPAIGN_CATEGORIES, getNextProductForCampaign, recor
 import { GoogleGenAI } from "@google/genai";
 
 const router = Router();
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+
+// Lazy initialize AI
+let genAI: any = null;
+function getAI() {
+  if (!genAI) {
+    const key = process.env.GEMINI_API_KEY;
+    if (!key) throw new Error("GEMINI_API_KEY não configurada no servidor.");
+    genAI = new GoogleGenAI({ apiKey: key });
+  }
+  return genAI;
+}
 
 // Utility to fetch products from ML directly
 async function fetchMLProductsByKeyword(keyword: string): Promise<any[]> {
@@ -186,7 +196,8 @@ INSTRUÇÕES:
 
 Retorne APENAS o texto da mensagem final. Sem tags markdown block de código, sem comentários.`;
 
-        const response = await ai.models.generateContent({
+        const aiClient = getAI();
+        const response = await aiClient.models.generateContent({
             model: 'gemini-3.1-pro-preview',
             contents: prompt
         });

@@ -28,7 +28,7 @@ async function startServer() {
 
   // Mount API Routes
   app.use("/api/shopee", shopeeRouter);
-  app.use("/api", aiRoutes);
+  app.use("/api/ai", aiRoutes);
   app.use("/api/whatsapp", whatsappRoutes);
   app.use("/api/integrations", integrationsRouter);
   app.use("/api/integrations/mercadolivre", mercadolivreRoutes);
