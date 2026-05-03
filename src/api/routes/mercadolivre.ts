@@ -119,99 +119,113 @@ router.get("/auth-url", async (req, res) => {
 });
 
 router.get("/callback", async (req, res) => {
-  const code = req.query.code;
-  const state = req.query.state;
-  const error = req.query.error;
-  
   const APP_BASE_URL = process.env.APP_BASE_URL || process.env.APP_URL || `${req.headers['x-forwarded-proto'] || req.protocol}://${req.headers.host}`;
-  const ML_CLIENT_ID = process.env.ML_CLIENT_ID;
-  const ML_CLIENT_SECRET = process.env.ML_CLIENT_SECRET;
-  const ML_REDIRECT_URI = process.env.ML_REDIRECT_URI;
-
-  console.log("ML_CALLBACK_START", {
-    hasCode: !!code,
-    hasState: !!state,
-    hasMlRedirectUri: !!ML_REDIRECT_URI,
-    appBaseUrl: APP_BASE_URL
-  });
-
+  
   try {
-    if (error) {
-       console.error("ML_CALLBACK_ERROR_FROM_PROVIDER", error);
-       return res.redirect(`${APP_BASE_URL}/integrations?mercadolivre=error&reason=${error}`);
-    }
+    const url = new URL(req.originalUrl || req.url, APP_BASE_URL);
+    const code = url.searchParams.get("code") || req.query.code;
+    const state = url.searchParams.get("state") || req.query.state;
+
+    console.log("ML_CALLBACK_START");
+    console.log("ML_CALLBACK_PARAMS", { hasCode: !!code, hasState: !!state });
 
     if (!code) {
-       console.error("ML_CALLBACK_MISSING_CODE");
-       return res.redirect(`${APP_BASE_URL}/integrations?mercadolivre=error&reason=missing_code`);
+      return res.redirect(`${APP_BASE_URL}/integrations?mercadolivre=missing_code`);
     }
+
+    if (!state) {
+      return res.redirect(`${APP_BASE_URL}/integrations?mercadolivre=missing_state`);
+    }
+
+    const ML_CLIENT_ID = process.env.ML_CLIENT_ID;
+    const ML_CLIENT_SECRET = process.env.ML_CLIENT_SECRET;
+    const ML_REDIRECT_URI = process.env.ML_REDIRECT_URI;
+    const FIREBASE_SERVICE_ACCOUNT_KEY = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
+    const FIRESTORE_DATABASE_ID = process.env.FIRESTORE_DATABASE_ID;
 
     if (!ML_CLIENT_ID || !ML_CLIENT_SECRET || !ML_REDIRECT_URI) {
-        console.error("ML_CALLBACK_CONFIG_ERROR", {
-            hasClientId: !!ML_CLIENT_ID,
-            hasClientSecret: !!ML_CLIENT_SECRET,
-            hasRedirectUri: !!ML_REDIRECT_URI
-        });
-        return res.redirect(`${APP_BASE_URL}/integrations?mercadolivre=error&reason=config_error`);
+      console.error("ML_CALLBACK_ERROR", "Missing ML_CLIENT_ID, ML_CLIENT_SECRET or ML_REDIRECT_URI");
+      return res.redirect(`${APP_BASE_URL}/integrations?mercadolivre=callback_exception`);
     }
 
-    console.log("ML_TOKEN_EXCHANGE_START");
-    const tokenRes = await fetch('https://api.mercadolibre.com/oauth/token', {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/x-www-form-urlencoded', 
-          'Accept': 'application/json' 
-        },
-        body: new URLSearchParams({
-            grant_type: 'authorization_code',
-            client_id: ML_CLIENT_ID,
-            client_secret: ML_CLIENT_SECRET,
-            code: String(code),
-            redirect_uri: ML_REDIRECT_URI
-        }).toString()
+    console.log("ML_TOKEN_REQUEST_START");
+    
+    const tokenParams = new URLSearchParams({
+      grant_type: "authorization_code",
+      client_id: ML_CLIENT_ID,
+      client_secret: ML_CLIENT_SECRET,
+      code: String(code),
+      redirect_uri: ML_REDIRECT_URI,
+    });
+
+    const tokenRes = await fetch("https://api.mercadolibre.com/oauth/token", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        "Accept": "application/json"
+      },
+      body: tokenParams.toString()
     });
 
     if (!tokenRes.ok) {
-        const errorData = await tokenRes.json().catch(() => ({}));
-        console.error("ML_TOKEN_ERROR_RESPONSE", errorData);
-        return res.redirect(`${APP_BASE_URL}/integrations?mercadolivre=error&reason=token_error`);
+      const errBody = await tokenRes.text();
+      console.error("ML_CALLBACK_ERROR", "Token Error:", errBody);
+      return res.redirect(`${APP_BASE_URL}/integrations?mercadolivre=token_error`);
     }
 
     const tokenData: any = await tokenRes.json();
-    console.log("ML_TOKEN_RESPONSE_RECEIVED");
+    console.log("ML_TOKEN_RESPONSE", { hasAccessToken: !!tokenData.access_token });
 
-    const userRes = await fetch('https://api.mercadolibre.com/users/me', {
-        headers: { Authorization: `Bearer ${tokenData.access_token}` }
+    console.log("ML_USERS_ME_REQUEST_START");
+    const userRes = await fetch("https://api.mercadolibre.com/users/me", {
+      method: "GET",
+      headers: {
+        "Authorization": `Bearer ${tokenData.access_token}`
+      }
     });
 
     if (!userRes.ok) {
-        console.error("ML_USERS_ME_ERROR_RESPONSE");
-        return res.redirect(`${APP_BASE_URL}/integrations?mercadolivre=error&reason=users_me_error`);
+      const errBody = await userRes.text();
+      console.error("ML_CALLBACK_ERROR", "Users Me Error:", errBody);
+      return res.redirect(`${APP_BASE_URL}/integrations?mercadolivre=user_error`);
     }
 
     const mlUser: any = await userRes.json();
-    console.log("ML_USERS_ME_RESPONSE_RECEIVED", { nickname: mlUser.nickname });
+    console.log("ML_USERS_ME_RESPONSE", { mlUserId: mlUser.id, nickname: mlUser.nickname });
 
-    const db = getAdminFirestore();
-
-    // Recover userId from state or cookie if available
-    let userId = 'unknown';
-    const stateCookie = req.cookies?.ml_oauth_state;
-    if (stateCookie) {
-        try {
-            const cookieData = JSON.parse(stateCookie);
-            userId = cookieData.userId;
-        } catch (e) {}
+    if (!FIREBASE_SERVICE_ACCOUNT_KEY || !FIRESTORE_DATABASE_ID) {
+      console.error("ML_CALLBACK_ERROR", "Missing FIREBASE_SERVICE_ACCOUNT_KEY or FIRESTORE_DATABASE_ID");
+      return res.redirect(`${APP_BASE_URL}/integrations?mercadolivre=save_error`);
     }
 
-    const sellerId = (mlUser.id || tokenData.user_id || '').toString();
-    const accountName = mlUser.first_name ? `${mlUser.first_name} ${mlUser.last_name || ''}`.trim() : mlUser.nickname;
+    console.log("ML_FIRESTORE_SAVE_START");
     
-    const integrationData = removeUndefinedDeep({
-      user_id: userId,
+    const { initializeApp, getApps, cert } = await import("firebase-admin/app");
+    const { getFirestore } = await import("firebase-admin/firestore");
+
+    const serviceAccount = JSON.parse(FIREBASE_SERVICE_ACCOUNT_KEY);
+    
+    if (serviceAccount.private_key) {
+      serviceAccount.private_key = serviceAccount.private_key.replace(/\\n/g, "\n");
+    }
+
+    const app = getApps().length
+      ? getApps()[0]
+      : initializeApp({
+          credential: cert(serviceAccount),
+          projectId: serviceAccount.project_id,
+        });
+
+    const db = getFirestore(app, FIRESTORE_DATABASE_ID || "(default)");
+
+    const sellerId = String(mlUser.id || tokenData.user_id || "");
+    const accountName = mlUser.first_name ? `${mlUser.first_name} ${mlUser.last_name || ''}`.trim() : mlUser.nickname;
+
+    const data = {
+      user_id: "unknown",
       platform: "mercadolivre",
       seller_id: sellerId,
-      ml_user_id: mlUser.id?.toString(),
+      ml_user_id: String(mlUser.id),
       account_name: accountName,
       nickname: mlUser.nickname,
       email: mlUser.email,
@@ -219,22 +233,24 @@ router.get("/callback", async (req, res) => {
       access_token: tokenData.access_token,
       refresh_token: tokenData.refresh_token,
       expires_in: tokenData.expires_in,
-      token_expires_at: tokenData.expires_in
-        ? new Date(Date.now() + tokenData.expires_in * 1000).toISOString()
-        : null,
+      token_expires_at: tokenData.expires_in ? new Date(Date.now() + tokenData.expires_in * 1000).toISOString() : undefined,
       status: "connected",
       connected_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
-    });
+    };
 
-    await db.collection("ecommerce_keys").doc(sellerId).set(integrationData, { merge: true });
-    
+    const cleanData = Object.fromEntries(
+      Object.entries(data).filter(([_, value]) => value !== undefined)
+    );
+
+    await db.collection("ecommerce_keys").doc(sellerId).set(cleanData, { merge: true });
+
     console.log("ML_FIRESTORE_SAVE_SUCCESS", { sellerId });
-    res.clearCookie('ml_oauth_state');
+    console.log("ML_CALLBACK_REDIRECT_CONNECTED");
     return res.redirect(`${APP_BASE_URL}/integrations?mercadolivre=connected`);
   } catch (error: any) {
-    console.error("ML_CALLBACK_EXCEPTION", error.message);
-    return res.redirect(`${APP_BASE_URL}/integrations?mercadolivre=error&reason=callback_exception`);
+    console.error("ML_CALLBACK_ERROR", error);
+    return res.redirect(`${APP_BASE_URL}/integrations?mercadolivre=callback_exception`);
   }
 });
 
