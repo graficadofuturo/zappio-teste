@@ -107,6 +107,7 @@ router.get("/auth-url", async (req, res) => {
   console.log("ML_AUTH_URL_ENV_CHECK", {
     hasClientId: !!ML_CLIENT_ID,
     hasRedirectUri: !!ML_REDIRECT_URI,
+    redirectUri: ML_REDIRECT_URI,
     appBaseUrl: APP_BASE_URL
   });
 
@@ -126,33 +127,30 @@ router.get("/auth-url", async (req, res) => {
 
     const { userId } = req.query;
     
-    // We encode the state to contain random data + userId
-    const statePayload = {
-        uuid: crypto.randomUUID(),
-        userId: userId ? String(userId) : "unknown"
-    };
-    const state = encodeURIComponent(JSON.stringify(statePayload));
+    const state = crypto.randomUUID();
 
-    const authorizationUrl = new URL("https://auth.mercadolivre.com.br/authorization");
-    authorizationUrl.searchParams.set("response_type", "code");
-    authorizationUrl.searchParams.set("client_id", ML_CLIENT_ID!);
-    authorizationUrl.searchParams.set("redirect_uri", ML_REDIRECT_URI!);
-    authorizationUrl.searchParams.set("state", state);
+    const params = new URLSearchParams({
+      response_type: "code",
+      client_id: ML_CLIENT_ID!,
+      redirect_uri: ML_REDIRECT_URI!,
+      state: state
+    });
+
+    const authorizationUrl = `https://auth.mercadolivre.com.br/authorization?${params.toString()}`;
 
     // Also use cookie as a fallback explicitly if state parsing somehow fails
-    res.cookie('ml_oauth_state', JSON.stringify(statePayload), { 
+    res.cookie('ml_oauth_state', JSON.stringify({ uuid: state, userId: userId ? String(userId) : "unknown" }), { 
       httpOnly: true, 
       maxAge: 1000 * 60 * 10, 
       sameSite: 'none', 
       secure: true 
     });
 
-    console.log("ML_AUTH_URL_SUCCESS", { state: statePayload.uuid });
-    console.log("ML_AUTH_URL_CREATED");
+    console.log("ML_AUTH_URL_CREATED", { authorizationUrl });
 
     return res.status(200).json({
       ok: true,
-      authorizationUrl: authorizationUrl.toString(),
+      authorizationUrl: authorizationUrl,
       redirectUri: ML_REDIRECT_URI,
       clientIdPresent: true,
       state: state
@@ -165,6 +163,35 @@ router.get("/auth-url", async (req, res) => {
       message: error.message || "Erro ao gerar URL de conexão."
     });
   }
+});
+
+router.get("/debug-auth-url", async (req, res) => {
+  const ML_CLIENT_ID = process.env.ML_CLIENT_ID;
+  const ML_REDIRECT_URI = process.env.ML_REDIRECT_URI;
+
+  let authUrl = "N/A";
+  let stateLooksDoubleEncoded = false;
+
+  if (ML_CLIENT_ID && ML_REDIRECT_URI) {
+    const state = crypto.randomUUID();
+    const params = new URLSearchParams({
+      response_type: "code",
+      client_id: ML_CLIENT_ID,
+      redirect_uri: ML_REDIRECT_URI,
+      state: state
+    });
+    authUrl = `https://auth.mercadolivre.com.br/authorization?${params.toString()}`;
+    stateLooksDoubleEncoded = authUrl.includes("%25");
+  }
+
+  res.json({
+    ok: true,
+    clientId: ML_CLIENT_ID ? "presente" : "ausente",
+    redirectUri: ML_REDIRECT_URI,
+    authorizationUrl: authUrl,
+    stateLooksDoubleEncoded,
+    usesCorrectRedirectUri: ML_REDIRECT_URI === "https://zappio-teste.vercel.app/api/integrations/mercadolivre/callback"
+  });
 });
 
 router.get("/callback", async (req, res) => {
