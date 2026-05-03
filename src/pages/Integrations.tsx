@@ -13,8 +13,10 @@ export default function Integrations() {
   const [mercadoLivreLoading, setMercadoLivreLoading] = useState(true);
 
   const [syncing, setSyncing] = useState<string | null>(null);
-  const [mlApiStatus, setMlApiStatus] = useState<any>(null);
   const [checkingApiStatus, setCheckingApiStatus] = useState(false);
+  const [syncingMl, setSyncingMl] = useState(false);
+  const [disconnectingMl, setDisconnectingMl] = useState(false);
+  const [mlApiStatus, setMlApiStatus] = useState<any>(null);
 
   const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
   const [manualClientId, setManualClientId] = useState('');
@@ -82,15 +84,9 @@ export default function Integrations() {
         const data = await response.json();
         console.log("ML_STATUS_RESPONSE", data);
         console.log("ML_USER_ID_FROM_STATUS", data?.mlUserId);
-        console.log("ML_CARD_CONNECTED_STATE", data.connected === true || mlParam === "connected");
         
         setMlApiStatus(data);
-
-        if (data.ok && data.connected === true) {
-          setMercadoLivreConnected(true);
-        } else if (mlParam !== "connected") {
-          setMercadoLivreConnected(false);
-        }
+        setMercadoLivreConnected(data.connected === true);
       } catch (error) {
         console.error("ML_STATUS_ERROR", error);
         if (mlParam !== "connected") {
@@ -252,7 +248,72 @@ export default function Integrations() {
       setSavingShopee(false);
   };
 
+  const handleDisconnectMl = async () => {
+    if (!window.confirm("Tem certeza que deseja desconectar sua conta do Mercado Livre?")) return;
+    
+    try {
+      setDisconnectingMl(true);
+      const response = await fetch("/api/integrations/mercadolivre/disconnect", {
+        method: "POST"
+      });
+      
+      const data = await response.json();
+      console.log("ML_DISCONNECT_RESPONSE", data);
+      
+      if (!data.ok) {
+        throw new Error(data.error || "Erro ao desconectar Mercado Livre.");
+      }
+      
+      setMercadoLivreConnected(false);
+      setMlApiStatus(data);
+      
+      const user = auth.currentUser;
+      if (user) {
+         try {
+            await deleteDoc(doc(db, 'users', user.uid, 'integrations', 'mercadolivre'));
+         } catch(e) {}
+      }
+      
+      alert("Mercado Livre desconectado com sucesso.");
+      await checkMlApiStatus();
+    } catch (error) {
+      console.error("ML_DISCONNECT_FRONT_ERROR", error);
+      alert("Não foi possível desconectar o Mercado Livre.");
+    } finally {
+      setDisconnectingMl(false);
+    }
+  };
+
+  const handleSyncMl = async () => {
+    try {
+      setSyncingMl(true);
+      const response = await fetch("/api/integrations/mercadolivre/sync", {
+        method: "POST"
+      });
+      
+      const data = await response.json();
+      console.log("ML_SYNC_RESPONSE", data);
+      
+      if (!data.ok) {
+        throw new Error(data.error || "Erro ao sincronizar Mercado Livre.");
+      }
+      
+      setMlApiStatus(data);
+      alert("Mercado Livre sincronizado com sucesso.");
+    } catch (error) {
+      console.error("ML_SYNC_FRONT_ERROR", error);
+      alert("Não foi possível sincronizar. Reconecte o Mercado Livre.");
+    } finally {
+      setSyncingMl(false);
+    }
+  };
+
   const handleDisconnect = async (id: string, platform?: string) => {
+      if (platform === 'mercadolivre') {
+        await handleDisconnectMl();
+        return;
+      }
+      
       if (!confirm('Deseja realmente desconectar esta integração?')) return;
       try {
           // If we saved ML into users/{uid}/integrations/mercadolivre, we should also delete from there. 
@@ -361,6 +422,10 @@ export default function Integrations() {
                                    <span className="font-semibold">{mlApiStatus.email}</span>
                                 </div>
                               )}
+                              <div className="flex justify-between items-center pt-1 border-t border-gray-200/50 mt-1">
+                                 <span className="text-gray-500">Última Sinc.:</span>
+                                 <span className="font-medium text-[12px]">{mlApiStatus.lastSyncAt ? new Date(mlApiStatus.lastSyncAt).toLocaleString() : 'Nunca'}</span>
+                              </div>
                               <div className="flex justify-between items-center pt-1">
                                  <span className="text-gray-500">Autorizado:</span>
                                  <span className="font-medium text-[12px]">{mlApiStatus.connectedAt ? new Date(mlApiStatus.connectedAt).toLocaleDateString() : 'Desconhecido'}</span>
@@ -377,16 +442,20 @@ export default function Integrations() {
                              </button>
                              <div className="flex flex-col sm:flex-row gap-2">
                                <button 
-                                 onClick={() => {}}
-                                 className="flex-1 bg-indigo-50 text-indigo-600 border border-indigo-100 py-2 rounded-lg text-[13px] font-medium transition-colors hover:bg-indigo-100 flex items-center justify-center gap-2 shadow-sm"
+                                 onClick={handleSyncMl}
+                                 disabled={syncingMl}
+                                 className="flex-1 bg-indigo-50 text-indigo-600 border border-indigo-100 py-2 rounded-lg text-[13px] font-medium transition-colors hover:bg-indigo-100 flex items-center justify-center gap-2 shadow-sm disabled:opacity-50"
                                >
-                                 <RefreshCw className="w-4 h-4" /> Sincronizar
+                                 <RefreshCw className={`w-4 h-4 ${syncingMl ? 'animate-spin' : ''}`} /> 
+                                 {syncingMl ? 'Sincronizando...' : 'Sincronizar'}
                                </button>
                                <button 
-                                 onClick={() => handleDisconnect(mlIntegration?.id || String(mlApiStatus?.mlUserId) || 'mercadolivre', 'mercadolivre')}
-                                 className="flex-1 text-red-600 bg-red-50 border border-red-100 py-2 rounded-lg text-[13px] font-medium transition-colors hover:bg-red-100 flex items-center justify-center gap-2 shadow-sm"
+                                 onClick={handleDisconnectMl}
+                                 disabled={disconnectingMl}
+                                 className="flex-1 text-red-600 bg-red-50 border border-red-100 py-2 rounded-lg text-[13px] font-medium transition-colors hover:bg-red-100 flex items-center justify-center gap-2 shadow-sm disabled:opacity-50"
                                >
-                                 <Trash2 className="w-4 h-4" /> Desconectar
+                                 {disconnectingMl ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                                 {disconnectingMl ? 'Desconectando...' : 'Desconectar'}
                                </button>
                              </div>
                          </div>

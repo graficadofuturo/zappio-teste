@@ -42,10 +42,13 @@ export default async function handler(req, res) {
       doc = await db.collection("integrations").doc("mercadolivre").get();
     }
 
-    if (doc.exists) {
+    if (doc && doc.exists) {
        const data = doc.data() || {};
        
-       const connected = data.connected === true || data.status === "connected" || !!data.access_token;
+       const connected = 
+         data.connected === true && 
+         data.status === "connected" && 
+         !!data.access_token;
 
        console.log("ML_STATUS_CHECK", {
          path: doc.ref.path,
@@ -57,11 +60,12 @@ export default async function handler(req, res) {
        return res.status(200).json({
          ok: true,
          connected,
-         status: connected ? "connected" : "not_connected",
+         status: connected ? "connected" : (data.status || "not_connected"),
          mlUserId: data.ml_user_id || data.seller_id || null,
          nickname: data.ml_nickname || data.nickname || data.account_name || null,
          email: data.ml_email || data.email || null,
-         connectedAt: data.connected_at || null
+         connectedAt: data.connected_at || null,
+         lastSyncAt: data.last_sync_at || null
        });
     }
 
