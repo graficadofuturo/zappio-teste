@@ -9,8 +9,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     });
   }
 
-  const clientId = process.env.ML_CLIENT_ID || process.env.MERCADOLIVRE_CLIENT_ID;
-  const redirectUri = process.env.ML_REDIRECT_URI || process.env.MERCADOLIVRE_REDIRECT_URI;
+  const clientId = process.env.ML_CLIENT_ID;
+  const redirectUri = process.env.ML_REDIRECT_URI;
   const appBaseUrl = process.env.APP_BASE_URL || process.env.NEXT_PUBLIC_APP_URL || "https://zappio-teste.vercel.app";
 
   if (!clientId || !redirectUri) {
@@ -23,10 +23,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const userId = req.query.userId || "unknown";
-  const state = encodeURIComponent(JSON.stringify({
+  
+  const statePayload = {
     uuid: crypto.randomUUID(),
     userId: String(userId)
-  }));
+  };
+  const state = encodeURIComponent(JSON.stringify(statePayload));
+
   const authorizationUrl = new URL("https://auth.mercadolivre.com.br/authorization");
   authorizationUrl.searchParams.set("response_type", "code");
   authorizationUrl.searchParams.set("client_id", clientId);

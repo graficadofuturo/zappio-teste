@@ -8,8 +8,9 @@ function getFirebaseDb() {
     serviceAccount.private_key = serviceAccount.private_key.replace(/\\n/g, "\n");
   }
 
-  const app = getApps().length
-    ? getApps()[0]
+  const apps = getApps();
+  const app = apps.length
+    ? apps[0]
     : initializeApp({
         credential: cert(serviceAccount),
         projectId: serviceAccount.project_id,
@@ -29,9 +30,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (!code) return res.redirect(`${APP_BASE_URL}/integrations?mercadolivre=missing_code`);
     if (!state) return res.redirect(`${APP_BASE_URL}/integrations?mercadolivre=missing_state`);
 
-    const clientId = process.env.ML_CLIENT_ID || process.env.MERCADOLIVRE_CLIENT_ID;
-    const clientSecret = process.env.ML_CLIENT_SECRET || process.env.MERCADOLIVRE_CLIENT_SECRET;
-    const redirectUri = process.env.ML_REDIRECT_URI || process.env.MERCADOLIVRE_REDIRECT_URI;
+    const clientId = process.env.ML_CLIENT_ID;
+    const clientSecret = process.env.ML_CLIENT_SECRET;
+    const redirectUri = process.env.ML_REDIRECT_URI;
 
     if (!clientId || !clientSecret || !redirectUri) {
       return res.redirect(`${APP_BASE_URL}/integrations?mercadolivre=callback_exception`);
@@ -71,7 +72,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const db = getFirebaseDb();
 
-    // recover userId from state or cookie
     let userId = "unknown";
     if (state) {
       try {
@@ -91,7 +91,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     const sellerId = String(mlUser.id || tokenData.user_id || "");
-    const accountName = mlUser.first_name ? `${mlUser.first_name} ${mlUser.last_name || ''}`.trim() : mlUser.nickname;
 
     const data = {
       marketplace: "mercadolivre",
@@ -105,7 +104,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       expiresIn: tokenData.expires_in || null,
       connectedAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
-      status_date: new Date().toISOString(),
       
       user_id: userId,
       platform: "mercadolivre",
@@ -118,25 +116,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       Object.entries(data).filter(([_, value]) => value !== undefined)
     );
 
-    if (!userId || userId === "unknown") {
-      console.error("ML_CALLBACK_SAVE_ERROR", "User ID is unknown, cannot save integration properly.");
-      return res.redirect(`${APP_BASE_URL}/integrations?mercadolivre=save_error`);
-    }
-
     try {
-      console.log("ML_CALLBACK_SAVE_START", { path: `users/${userId}/integrations/mercadolivre` });
-      await db.collection("users").doc(userId).collection("integrations").doc("mercadolivre").set(cleanData, { merge: true });
-      // Keep legacy path temporarily for syncing compatibility
+      if (userId && userId !== "unknown") {
+        await db.collection("users").doc(userId).collection("integrations").doc("mercadolivre").set(cleanData, { merge: true });
+      }
+      // Also save to ecommerce_keys for backward compatibility
       await db.collection("ecommerce_keys").doc(sellerId).set(cleanData, { merge: true });
-      console.log("ML_CALLBACK_SAVE_SUCCESS");
     } catch (dbErr) {
-      console.error("ML_CALLBACK_SAVE_ERROR", dbErr);
       return res.redirect(`${APP_BASE_URL}/integrations?mercadolivre=save_error`);
     }
 
     return res.redirect(`${APP_BASE_URL}/integrations?mercadolivre=connected`);
   } catch (error: any) {
-    console.error("ML_CALLBACK_ERROR", error);
     return res.redirect(`${APP_BASE_URL}/integrations?mercadolivre=callback_exception`);
   }
 }

@@ -1,7 +1,7 @@
 import { getAdminFirestore, removeUndefinedDeep } from '../../api/firebaseAdmin.ts';
 
 export async function getMLAuthUrl(origin: string, state: string, redirectUri: string) {
-    const clientId = process.env.ML_CLIENT_ID || process.env.MERCADOLIVRE_CLIENT_ID;
+    const clientId = process.env.ML_CLIENT_ID;
     if (!clientId) throw new Error("ML_CLIENT_ID not configured");
     return `https://auth.mercadolivre.com.br/authorization?response_type=code&client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${encodeURIComponent(state)}`;
 }
@@ -17,8 +17,8 @@ export async function getMercadoLivreUser(accessToken: string) {
 }
 
 export async function exchangeCodeForToken(code: string, userId: string, redirectUri: string) {
-    const clientId = process.env.ML_CLIENT_ID || process.env.MERCADOLIVRE_CLIENT_ID;
-    const clientSecret = process.env.ML_CLIENT_SECRET || process.env.MERCADOLIVRE_CLIENT_SECRET;
+    const clientId = process.env.ML_CLIENT_ID;
+    const clientSecret = process.env.ML_CLIENT_SECRET;
     if (!clientId || !clientSecret) throw new Error("ML credentials not configured");
 
     const res = await fetch('https://api.mercadolibre.com/oauth/token', {
@@ -137,10 +137,10 @@ export async function syncMLProducts(integrationId: string) {
        headers: { Authorization: `Bearer ${token}` }
     });
     
-    if (!userRes.ok && intg.refresh_token && (intg.api_key || process.env.ML_CLIENT_ID || process.env.MERCADOLIVRE_CLIENT_ID)) {
+    if (!userRes.ok && intg.refresh_token && (intg.api_key || process.env.ML_CLIENT_ID)) {
         // Refresh token
-        const clientId = intg.api_key || process.env.ML_CLIENT_ID || process.env.MERCADOLIVRE_CLIENT_ID;
-        const clientSecret = intg.api_secret || process.env.ML_CLIENT_SECRET || process.env.MERCADOLIVRE_CLIENT_SECRET;
+        const clientId = intg.api_key || process.env.ML_CLIENT_ID;
+        const clientSecret = intg.api_secret || process.env.ML_CLIENT_SECRET;
         
         const refreshRes = await fetch('https://api.mercadolibre.com/oauth/token', {
             method: 'POST',
