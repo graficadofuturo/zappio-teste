@@ -91,7 +91,18 @@ router.get("/ping", (req, res) => {
   res.send("Mercado Livre API OK");
 });
 
-  router.get("/connect-url", async (req, res) => {
+router.get("/debug-config", (req, res) => {
+  const appUrl = process.env.APP_URL || process.env.APP_BASE_URL || `${req.headers['x-forwarded-proto'] || req.protocol}://${req.headers.host}`;
+  res.json({
+    ok: true,
+    hasClientId: !!process.env.ML_CLIENT_ID,
+    hasClientSecret: !!process.env.ML_CLIENT_SECRET,
+    redirectUri: process.env.ML_REDIRECT_URI || `${appUrl}/api/integrations/mercadolivre/callback`,
+    appBaseUrl: appUrl
+  });
+});
+
+router.get("/auth-url", async (req, res) => {
   try {
     const { userId } = req.query;
     const { randomBytes } = await import("crypto");
@@ -101,12 +112,42 @@ router.get("/ping", (req, res) => {
     const appUrl = process.env.APP_URL || process.env.APP_BASE_URL || `${req.headers['x-forwarded-proto'] || req.protocol}://${req.headers.host}`;
     const redirectUri = process.env.ML_REDIRECT_URI || `${appUrl}/api/integrations/mercadolivre/callback`;
     const clientId = process.env.ML_CLIENT_ID || "";
-    const authorizationUrl = `https://auth.mercadolivre.com.br/authorization?response_type=code&client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${state}`;
     
-    res.json({ url: authorizationUrl });
+    console.log("ML_AUTH_URL_START", {
+      hasClientId: !!process.env.ML_CLIENT_ID,
+      hasClientSecret: !!process.env.ML_CLIENT_SECRET,
+      redirectUri: redirectUri,
+      appBaseUrl: appUrl
+    });
+
+    if (!clientId) {
+      return res.json({
+        ok: false,
+        error: "missing_ml_client_id",
+        message: "ML_CLIENT_ID não configurado."
+      });
+    }
+
+    const authorizationUrl = new URL("https://auth.mercadolivre.com.br/authorization");
+    authorizationUrl.searchParams.set("response_type", "code");
+    authorizationUrl.searchParams.set("client_id", clientId);
+    authorizationUrl.searchParams.set("redirect_uri", redirectUri);
+    authorizationUrl.searchParams.set("state", state);
+    
+    console.log("ML_AUTH_URL_CREATED", {
+      authorizationUrl: authorizationUrl.toString()
+    });
+
+    res.json({ 
+      ok: true,
+      authorizationUrl: authorizationUrl.toString(),
+      redirectUri: redirectUri,
+      hasClientId: !!clientId,
+      hasRedirectUri: !!redirectUri
+    });
   } catch (e: any) {
     console.error("[ML OAuth] Connect route error:", e);
-    res.status(500).json({ error: e.message });
+    res.status(500).json({ ok: false, error: "internal_error", message: e.message });
   }
 });
 
@@ -148,31 +189,15 @@ router.get("/callback", async (req, res) => {
     appBaseUrl: process.env.APP_BASE_URL
   });
 
-  const getHtmlFallback = (status: string) => `
-    <html>
-      <body>
-        <script>
-          if (window.opener) {
-            window.opener.postMessage({ type: "ML_AUTH_" + ("${status}" === "connected" ? "SUCCESS" : "ERROR"), error: "${status}" }, "*");
-            window.close();
-          } else {
-            window.location.href = "${appUrl}/integrations?mercadolivre=${status}";
-          }
-        </script>
-        <p>Autenticação processada. Você já pode fechar esta janela.</p>
-      </body>
-    </html>
-  `;
-
   try {
     if (error) {
        console.error("ML_CALLBACK_PROVIDER_ERROR", error);
-       return res.send(getHtmlFallback('invalid_state'));
+       return res.redirect(`${appUrl}/integrations?mercadolivre=invalid_state`);
     }
 
     if (!code) {
        console.error("ML_CALLBACK_MISSING_CODE");
-       return res.send(getHtmlFallback('missing_code'));
+       return res.redirect(`${appUrl}/integrations?mercadolivre=missing_code`);
     }
 
     const clientId = process.env.ML_CLIENT_ID || "";
@@ -180,7 +205,7 @@ router.get("/callback", async (req, res) => {
 
     if (!clientId || !clientSecret) {
         console.error("ML credentials not configured");
-        return res.send(getHtmlFallback('config_error'));
+        return res.redirect(`${appUrl}/integrations?mercadolivre=config_error`);
     }
 
     const controllerToken = new AbortController();
@@ -204,7 +229,7 @@ router.get("/callback", async (req, res) => {
     } catch (e) {
       clearTimeout(timeoutIdToken);
       console.error("ML_TOKEN_FETCH_ERROR", e);
-      return res.send(getHtmlFallback('token_error'));
+      return res.redirect(`${appUrl}/integrations?mercadolivre=token_error`);
     }
 
     console.log("ML_TOKEN_RESPONSE", {
@@ -213,7 +238,7 @@ router.get("/callback", async (req, res) => {
     });
 
     if (!tokenRes.ok) {
-        return res.send(getHtmlFallback('token_error'));
+        return res.redirect(`${appUrl}/integrations?mercadolivre=token_error`);
     }
 
     const tokenData: any = await tokenRes.json();
@@ -231,7 +256,7 @@ router.get("/callback", async (req, res) => {
     } catch (err) {
         clearTimeout(timeoutIdUser);
         console.error("ML_USERS_ME_FETCH_ERROR", err);
-        return res.send(getHtmlFallback('users_me_error'));
+        return res.redirect(`${appUrl}/integrations?mercadolivre=users_me_error`);
     }
 
     console.log("ML_USERS_ME_RESPONSE", {
@@ -240,7 +265,7 @@ router.get("/callback", async (req, res) => {
     });
 
     if (!userRes.ok) {
-        return res.send(getHtmlFallback('users_me_error'));
+        return res.redirect(`${appUrl}/integrations?mercadolivre=users_me_error`);
     }
 
     const mlUser = await userRes.json();
@@ -289,20 +314,20 @@ router.get("/callback", async (req, res) => {
           
     } catch (saveErr: any) {
         console.error("ML_FIRESTORE_SAVE_ERROR", saveErr);
-        return res.send(getHtmlFallback('save_error'));
+        return res.redirect(`${appUrl}/integrations?mercadolivre=save_error`);
     }
 
     console.log("ML_CALLBACK_SUCCESS_REDIRECT", {
       redirectTo: `${appUrl}/integrations?mercadolivre=connected`
     });
 
-    return res.send(getHtmlFallback('connected'));
+    return res.redirect(`${appUrl}/integrations?mercadolivre=connected`);
   } catch (error: any) {
     console.error("ML_CALLBACK_EXCEPTION", {
       message: error.message,
       stack: error.stack
     });
-    return res.send(getHtmlFallback('callback_exception'));
+    return res.redirect(`${appUrl}/integrations?mercadolivre=callback_exception`);
   }
 });
 

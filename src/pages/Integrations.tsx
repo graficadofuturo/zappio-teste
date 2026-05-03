@@ -60,20 +60,19 @@ export default function Integrations() {
 
   const handleConnectML = async () => {
     try {
+        console.log("CONNECT_ML_CLICKED");
         setSyncing('ml');
-        const response = await fetch('/api/integrations/mercadolivre/connect-url?userId=' + (auth.currentUser?.uid || ''));
-        if (!response.ok) throw new Error('Falha ao obter URL de conexão');
-        const { url } = await response.json();
+        const response = await fetch('/api/integrations/mercadolivre/auth-url?userId=' + (auth.currentUser?.uid || ''));
+        const data = await response.json();
         
-        const authWindow = window.open(
-            url,
-            'oauth_popup',
-            'width=600,height=700'
-        );
-        
-        if (!authWindow) {
-            alert('Por favor, permita os pop-ups neste site para conectar sua conta.');
+        console.log("CONNECT_ML_AUTH_URL_RESPONSE", data);
+
+        if (!data.ok || !data.authorizationUrl) {
+            setMessage({ type: 'error', text: data.message || 'Não foi possível iniciar a conexão.' });
+            return;
         }
+        
+        window.location.href = data.authorizationUrl;
     } catch (e) {
         console.error(e);
         setMessage({ type: 'error', text: 'Não foi possível iniciar a conexão.' });
@@ -82,29 +81,7 @@ export default function Integrations() {
     }
   };
 
-  useEffect(() => {
-    const handleMessage = (event: MessageEvent) => {
-      if (event.data?.type === 'ML_AUTH_SUCCESS') {
-         setMessage({ type: 'success', text: 'Mercado Livre conectado com sucesso.' });
-         checkMlApiStatus();
-      } else if (event.data?.type === 'ML_AUTH_ERROR') {
-         const mlStatus = event.data?.error;
-         if (mlStatus === 'missing_code') {
-           setMessage({ type: 'error', text: 'O Mercado Livre não retornou o código de autorização. Tente conectar novamente.' });
-         } else if (mlStatus === 'token_error') {
-           setMessage({ type: 'error', text: 'Erro ao trocar autorização por token. Verifique as configurações do Mercado Livre.' });
-         } else if (mlStatus === 'config_error') {
-           setMessage({ type: 'error', text: 'As configurações do Mercado Livre estão incompletas.' });
-         } else if (mlStatus === 'save_error') {
-           setMessage({ type: 'error', text: 'A conexão funcionou, mas não foi possível salvar a integração.' });
-         } else {
-           setMessage({ type: 'error', text: 'Não foi possível conectar ao Mercado Livre.' });
-         }
-      }
-    };
-    window.addEventListener('message', handleMessage);
-    return () => window.removeEventListener('message', handleMessage);
-  }, []);
+
 
   const loadIntegrations = async () => {
     setLoading(true);
