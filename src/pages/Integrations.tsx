@@ -70,8 +70,7 @@ export default function Integrations() {
     }
 
     if (mlParam) {
-      // Remove param to prevent showing again on reload
-      navigate('/integrations', { replace: true });
+      window.history.replaceState({}, '', '/integrations');
     }
 
     async function checkStatus() {

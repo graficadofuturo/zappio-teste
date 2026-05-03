@@ -33,26 +33,32 @@ router.get("/status", async (req, res) => {
     const qs = await query.get();
 
     if (qs.empty) {
-      return res.status(200).json({ connected: false });
+      return res.status(200).json({ 
+        ok: true,
+        connected: false,
+        marketplace: "mercadolivre" 
+      });
     }
 
     const docData = qs.docs[0].data();
 
     return res.status(200).json({
+      ok: true,
       connected: true,
       marketplace: "mercadolivre",
-      ml_user_id: docData.ml_user_id || docData.seller_id,
       mlUserId: docData.ml_user_id || docData.seller_id,
-      nickname: docData.nickname || "N/A",
+      nickname: docData.nickname || null,
       email: docData.email || null,
-      account_name: docData.account_name || null,
-      site_id: docData.site_id || null,
-      connected_at: docData.connected_at || docData.connectedAt,
-      updated_at: docData.updated_at
+      connectedAt: docData.connected_at || docData.connectedAt,
+      expiresAt: docData.token_expires_at || null
     });
   } catch (error: any) {
     console.error("ML_STATUS_ERROR", error.message);
-    return res.status(200).json({ connected: false, error: error.message });
+    return res.status(200).json({ 
+      ok: false, 
+      connected: false, 
+      error: error.message 
+    });
   }
 });
 
@@ -200,43 +206,42 @@ router.get("/callback", async (req, res) => {
 
     console.log("ML_FIRESTORE_SAVE_START");
     
-    const { initializeApp, getApps, cert } = await import("firebase-admin/app");
-    const { getFirestore } = await import("firebase-admin/firestore");
-
-    const serviceAccount = JSON.parse(FIREBASE_SERVICE_ACCOUNT_KEY);
-    
-    if (serviceAccount.private_key) {
-      serviceAccount.private_key = serviceAccount.private_key.replace(/\\n/g, "\n");
+    // Recover userId from state or cookie if available
+    let userId = "unknown";
+    const stateCookie = req.cookies?.ml_oauth_state;
+    if (stateCookie) {
+        try {
+            const cookieData = JSON.parse(stateCookie);
+            userId = cookieData.userId || "unknown";
+        } catch (e) {}
     }
 
-    const app = getApps().length
-      ? getApps()[0]
-      : initializeApp({
-          credential: cert(serviceAccount),
-          projectId: serviceAccount.project_id,
-        });
-
-    const db = getFirestore(app, FIRESTORE_DATABASE_ID || "(default)");
+    const { getAdminFirestore } = await import("../firebaseAdmin.ts");
+    const db = getAdminFirestore();
 
     const sellerId = String(mlUser.id || tokenData.user_id || "");
     const accountName = mlUser.first_name ? `${mlUser.first_name} ${mlUser.last_name || ''}`.trim() : mlUser.nickname;
 
     const data = {
-      user_id: "unknown",
-      platform: "mercadolivre",
-      seller_id: sellerId,
-      ml_user_id: String(mlUser.id),
-      account_name: accountName,
+      marketplace: "mercadolivre",
+      connected: true,
+      status: "connected", // Keeping for compatibility
+      mlUserId: String(mlUser.id),
       nickname: mlUser.nickname,
-      email: mlUser.email,
-      site_id: mlUser.site_id,
+      email: mlUser.email || null,
+      accessToken: tokenData.access_token,
+      refreshToken: tokenData.refresh_token || null,
+      expiresIn: tokenData.expires_in || null,
+      connectedAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      
+      // Legacy fields keeping for compatibility with existing queries
+      user_id: userId,
+      platform: "mercadolivre",
+      seller_id: String(mlUser.id),
       access_token: tokenData.access_token,
-      refresh_token: tokenData.refresh_token,
-      expires_in: tokenData.expires_in,
-      token_expires_at: tokenData.expires_in ? new Date(Date.now() + tokenData.expires_in * 1000).toISOString() : undefined,
-      status: "connected",
-      connected_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
+      refresh_token: tokenData.refresh_token || null,
+      status_date: new Date().toISOString()
     };
 
     const cleanData = Object.fromEntries(
