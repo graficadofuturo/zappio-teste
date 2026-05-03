@@ -1,35 +1,30 @@
-import { getAdminDb } from "../../lib/firebaseAdmin.js";
+import { Router } from "express";
+import { getAdminDb } from "../firebaseAdmin.ts";
 
-export default async function handler(req, res) {
-  if (req.method !== 'GET') {
-    return res.status(405).json({ error: 'Method not allowed' });
-  }
+const router = Router();
 
+router.get("/connected-marketplaces", async (req, res) => {
   const { userId } = req.query;
   if (!userId) {
     return res.status(400).json({ ok: false, error: 'User ID is required' });
   }
 
   try {
-    const db = getAdminDb();
+    const db = await getAdminDb();
     const marketplaces = [];
 
-    // 1. Check ecommerce_keys for integrations (Shopee, etc)
+    // Check ecommerce_keys for integrations
     const keysSnapshot = await db.collection("ecommerce_keys")
       .where("user_id", "==", userId)
       .where("status", "==", "connected")
       .get();
 
-    const platforms = new Set();
+    const platforms = new Set<string>();
     keysSnapshot.forEach(doc => {
       const data = doc.data();
       platforms.add(data.platform);
     });
 
-    // 2. Extra check for Mercado Livre specifically (as it might have complex status)
-    // For now, if it's in ecommerce_keys with status connected, we count it.
-    // We can add more specific logic if status needs external validation.
-    
     if (platforms.has('mercadolivre') || platforms.has('mercado_livre')) {
       marketplaces.push({
         id: "mercadolivre",
@@ -66,13 +61,14 @@ export default async function handler(req, res) {
       });
     }
 
-    return res.status(200).json({
+    res.status(200).json({
       ok: true,
       marketplaces
     });
-
-  } catch (error) {
+  } catch (error: any) {
     console.error("CONNECTED_MARKETPLACES_ERROR", error);
-    return res.status(500).json({ ok: false, error: error.message });
+    res.status(500).json({ ok: false, error: error.message });
   }
-}
+});
+
+export default router;

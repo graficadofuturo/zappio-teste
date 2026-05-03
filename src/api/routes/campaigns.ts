@@ -1,6 +1,6 @@
 import { Router } from "express";
-import { getFirestore } from "firebase-admin/firestore";
-import { getRandomKeyword, CAMPAIGN_CATEGORIES } from "../campaignService.ts";
+import { getAdminDb } from "../firebaseAdmin.ts";
+import { getRandomKeyword, CAMPAIGN_CATEGORIES, getNextProductForCampaign, recordProductSent } from "../campaignService.ts";
 import { GoogleGenAI } from "@google/genai";
 
 const router = Router();
@@ -13,6 +13,117 @@ async function fetchMLProductsByKeyword(keyword: string): Promise<any[]> {
     const data = await mlRes.json();
     return data.results || [];
 }
+
+router.post("/prepare-message", async (req, res) => {
+  const { campaignId, category, marketplace, userId, template, tone, messageMode } = req.body;
+
+  try {
+    const db = await getAdminDb();
+
+    // Safety Validation: Check if the chosen marketplace is connected
+    const keysSnapshot = await db.collection("ecommerce_keys")
+      .where("user_id", "==", userId)
+      .where("status", "==", "connected")
+      .get();
+
+    const connectedPlatforms = new Set();
+    keysSnapshot.forEach(doc => connectedPlatforms.add(doc.data().platform));
+
+    let finalMessage = template;
+    let finalImage = "";
+    let productId = null;
+
+    if (messageMode === 'auto_offer') {
+      if (connectedPlatforms.size === 0) {
+        return res.status(400).json({ 
+          ok: false, 
+          code: "NO_MARKETPLACE_CONNECTED", 
+          error: 'Conecte pelo menos um marketplace em Integrações para usar ofertas automáticas.' 
+        });
+      }
+
+      if (marketplace !== 'all' && !connectedPlatforms.has(marketplace)) {
+        return res.status(400).json({ 
+          ok: false, 
+          code: "MARKETPLACE_NOT_CONNECTED", 
+          error: 'Este marketplace não está conectado em Integrações.' 
+        });
+      }
+
+      const product = await getNextProductForCampaign(db, campaignId, category, marketplace);
+      
+      if (!product) {
+        return res.status(200).json({ ok: false, noMoreProducts: true });
+      }
+
+      // Final validation: product marketplace MUST be in connectedPlatforms
+      if (!connectedPlatforms.has(product.marketplace)) {
+         return res.status(400).json({ 
+          ok: false, 
+          code: "INCONSISTENT_MARKETPLACE", 
+          error: 'Ocorreu um erro: Produto selecionado pertence a um marketplace não conectado.' 
+        });
+      }
+
+      productId = product.id;
+      finalImage = product.product_image;
+
+      // Formatting according to rules
+      const priceValue = product.product_price || 0;
+      const oldPriceValue = product.product_old_price;
+      
+      const price = `*R$ ${Number(priceValue).toFixed(2).replace('.', ',')}*`;
+      const oldPrice = oldPriceValue ? `~R$ ${Number(oldPriceValue).toFixed(2).replace('.', ',')}~` : "";
+      const discount = product.product_discount || "";
+      const link = product.product_affiliate_link || product.product_original_link;
+      const marketplaceName = product.marketplace || "Mercado Livre";
+
+      // If there's no template, use a default one based on tone
+      if (!template || template.trim() === "") {
+        finalMessage = `🚀 *OFERTA DO DIA* 🚀\n\n` +
+                       `📦 *${product.product_name}*\n` +
+                       `${oldPrice ? `De: ${oldPrice}\n` : ""}` +
+                       `Por apenas: ${price}\n` +
+                       `${discount ? `Economia de: ${discount}\n` : ""}` +
+                       `🛒 *Compre aqui:* ${link}\n\n` +
+                       `Enviado via ${marketplaceName}`;
+      } else {
+        // Replace variables
+        finalMessage = template
+          .replace(/{product_title}/g, product.product_name)
+          .replace(/{product_price}/g, price)
+          .replace(/{product_old_price}/g, oldPrice)
+          .replace(/{product_discount}/g, discount)
+          .replace(/{product_link}/g, link)
+          .replace(/{product_affiliate_link}/g, link)
+          .replace(/{product_category}/g, product.category || "")
+          .replace(/{marketplace}/g, marketplaceName);
+      }
+    }
+
+    res.status(200).json({ 
+      ok: true, 
+      message: finalMessage, 
+      imageUrl: finalImage,
+      productId 
+    });
+  } catch (error: any) {
+    console.error('Error preparing campaign message:', error);
+    res.status(500).json({ ok: false, error: error.message });
+  }
+});
+
+router.post("/mark-sent", async (req, res) => {
+  const { campaignId, productId, userId } = req.body;
+  try {
+    const db = await getAdminDb();
+    await recordProductSent(db, campaignId, productId, userId);
+    res.status(200).json({ ok: true });
+  } catch (error: any) {
+    console.error('Error marking product as sent:', error);
+    res.status(500).json({ ok: false, error: error.message });
+  }
+});
 
 router.get("/:id/preview-offer", async (req, res) => {
     try {

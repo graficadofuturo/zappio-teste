@@ -13,6 +13,8 @@ import campaignRoutes from "./src/api/routes/campaigns.ts";
 import subscriptionRoutes from "./src/api/routes/subscriptions.ts";
 
 import shopeeRouter from "./src/api/routes/shopee.ts";
+import integrationsRouter from "./src/api/routes/integrations.ts";
+import offersRouter from "./src/api/routes/offers.ts";
 
 async function startServer() {
   const app = express();
@@ -28,11 +30,13 @@ async function startServer() {
   app.use("/api/shopee", shopeeRouter);
   app.use("/api", aiRoutes);
   app.use("/api/whatsapp", whatsappRoutes);
+  app.use("/api/integrations", integrationsRouter);
   app.use("/api/integrations/mercadolivre", mercadolivreRoutes);
   app.use("/api/mercadolivre/products", productRoutes);
   app.use("/api/mercadolivre/affiliate-products", productRoutes);
   app.use("/api/webhooks", webhookRoutes);
   app.use("/api/campaigns", campaignRoutes);
+  app.use("/api/offers", offersRouter);
   app.use("/api/subscriptions", subscriptionRoutes);
 
   app.get("/api/debug/firebase-admin", (req, res) => {
