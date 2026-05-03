@@ -1,5 +1,4 @@
-import { getFirestore } from 'firebase-admin/firestore';
-import * as admin from 'firebase-admin';
+import { getAdminDb } from "../../../lib/firebaseAdmin.js";
 
 export default async function handler(req, res) {
   let appBaseUrl = (process.env.APP_BASE_URL || "https://zappio-teste.vercel.app").replace(/\/$/, "");
@@ -129,26 +128,20 @@ export default async function handler(req, res) {
       mlUserId: userData.id
     });
 
-    const accountName = userData.first_name ? `${userData.first_name} ${userData.last_name || ''}`.trim() : userData.nickname;
-
     const integrationData = {
       provider: "mercadolivre",
       status: "connected",
       connected: true,
-      ml_user_id: String(userData.id),
-      seller_id: String(userData.id),
-      account_name: accountName || null,
+      ml_user_id: userData.id || null,
       nickname: userData.nickname || null,
-      site_id: userData.site_id || null,
       email: userData.email || null,
-      access_token: tokenData.access_token,
+      access_token: tokenData.access_token || null,
       refresh_token: tokenData.refresh_token || null,
+      token_type: tokenData.token_type || null,
       expires_in: tokenData.expires_in || null,
-      token_expires_at: tokenData.expires_in
-         ? new Date(Date.now() + tokenData.expires_in * 1000).toISOString()
-         : null,
-      connected_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
+      scope: tokenData.scope || null,
+      updated_at: new Date().toISOString(),
+      connected_at: new Date().toISOString()
     };
 
     Object.keys(integrationData).forEach((key) => {
@@ -158,20 +151,7 @@ export default async function handler(req, res) {
     });
 
     try {
-      const apps = admin.apps || [];
-      if (apps.length === 0) {
-        const serviceAccountBase64 = process.env.FIREBASE_SERVICE_ACCOUNT_BASE64 || "";
-        if (serviceAccountBase64.trim()) {
-          const serviceAccount = JSON.parse(
-            Buffer.from(serviceAccountBase64, 'base64').toString('ascii')
-          );
-          admin.initializeApp({
-            credential: admin.credential.cert(serviceAccount)
-          });
-        } else {
-          admin.initializeApp();
-        }
-      }
+      const db = getAdminDb();
       
       let userId = "unknown";
       if (req.headers.cookie) {
@@ -182,30 +162,33 @@ export default async function handler(req, res) {
         }
       }
 
-      console.log("ML_SAVE_SUCCESS", {
-        path: `users/${userId}/integrations/mercadolivre`,
-        connected: true,
+      console.log("ML_SAVE_START_DB", {
+        userId,
         mlUserId: userData.id
       });
 
-      const db = getFirestore();
-      
-      // Save it explicitly to users/{uid}/integrations/mercadolivre
+      // Save to global integrations path requested
+      await db.collection("integrations").doc("mercadolivre").set(integrationData, { merge: true });
+
+      // Save to user-specific path for multi-user safety
       if (userId && userId !== "unknown") {
         await db.collection("users").doc(userId).collection("integrations").doc("mercadolivre").set(integrationData, { merge: true });
       }
 
-      // Also save to ecommerce_keys as fallback if needed elsewhere
+      // Fallback for other systems
       await db.collection("ecommerce_keys").doc(String(userData.id)).set(integrationData, { merge: true });
+      
+      console.log("ML_CALLBACK_SUCCESS_REDIRECT");
+      return res.redirect(
+        `${appBaseUrl}/integrations?mercadolivre=connected`
+      );
+
     } catch (dbError) {
       console.error("ML_FIRESTORE_SAVE_ERROR", dbError);
+      return res.redirect(
+        `${appBaseUrl}/integrations?mercadolivre=save_error`
+      );
     }
-
-    console.log("ML_CALLBACK_SUCCESS_REDIRECT");
-
-    return res.redirect(
-      `${appBaseUrl}/integrations?mercadolivre=connected`
-    );
   } catch (error) {
     console.error("ML_CALLBACK_EXCEPTION", {
       message: error?.message,

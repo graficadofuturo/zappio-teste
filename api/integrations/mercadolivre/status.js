@@ -1,5 +1,4 @@
-import { getFirestore } from 'firebase-admin/firestore';
-import * as admin from 'firebase-admin';
+import { getAdminDb } from "../../../lib/firebaseAdmin.js";
 
 export default async function handler(req, res) {
   res.setHeader("Content-Type", "application/json");
@@ -30,42 +29,39 @@ export default async function handler(req, res) {
        });
     }
 
-    const apps = admin.apps || [];
-    if (apps.length === 0) {
-      const serviceAccountBase64 = process.env.FIREBASE_SERVICE_ACCOUNT_BASE64 || "";
-      if (serviceAccountBase64.trim()) {
-        const serviceAccount = JSON.parse(
-          Buffer.from(serviceAccountBase64, 'base64').toString('ascii')
-        );
-        admin.initializeApp({
-          credential: admin.credential.cert(serviceAccount)
-        });
-      } else {
-        admin.initializeApp();
-      }
+    const db = getAdminDb();
+    
+    // First try the user-specific path if userId is available
+    let doc = null;
+    if (userId && userId !== "unknown") {
+      doc = await db.collection("users").doc(userId).collection("integrations").doc("mercadolivre").get();
+    }
+    
+    // Fallback to the global integrations/mercadolivre path requested in the latest prompt
+    if (!doc || !doc.exists) {
+      doc = await db.collection("integrations").doc("mercadolivre").get();
     }
 
-    const db = getFirestore();
-    const doc = await db.collection("users").doc(userId).collection("integrations").doc("mercadolivre").get();
-
     if (doc.exists) {
-       const data = doc.data();
+       const data = doc.data() || {};
+       
+       const connected = data.connected === true || data.status === "connected" || !!data.access_token;
 
        console.log("ML_STATUS_CHECK", {
-         path: `users/${userId}/integrations/mercadolivre`,
+         path: doc.ref.path,
          found: true,
-         connected: data?.connected,
+         connected: connected,
          status: data?.status
        });
 
-       return res.json({
+       return res.status(200).json({
          ok: true,
-         connected: data.connected === true || data.status === "connected",
-         status: data.status || "connected",
-         provider: data.provider || "mercadolivre",
-         mlUserId: data.ml_user_id || data.seller_id,
-         nickname: data.nickname || data.account_name,
-         connectedAt: data.connected_at
+         connected,
+         status: connected ? "connected" : "not_connected",
+         mlUserId: data.ml_user_id || data.seller_id || null,
+         nickname: data.nickname || data.account_name || null,
+         email: data.email || null,
+         connectedAt: data.connected_at || null
        });
     }
 

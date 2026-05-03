@@ -1,6 +1,6 @@
 {
-  "name": "",
-  "description": "",
+  "name": "Zappio - Automação WhatsApp",
+  "description": "Plataforma de automação de vendas e envios via WhatsApp integrado com Mercado Livre e Shopee.",
   "requestFramePermissions": [],
   "majorCapabilities": []
 }

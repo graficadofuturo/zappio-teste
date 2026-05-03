@@ -1,5 +1,5 @@
-import admin from 'firebase-admin';
-import { getFirestore } from 'firebase-admin/firestore';
+import { initializeApp, cert, getApps } from 'firebase-admin/app';
+import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import fs from 'fs';
 import { sendMessage } from './whatsappService.ts';
 
@@ -11,15 +11,15 @@ try {
     config = JSON.parse(fs.readFileSync('./firebase-applet-config.json', 'utf8'));
   }
 
-  if (!admin.apps.length) {
+  if (!getApps().length) {
     if (process.env.FIREBASE_SERVICE_ACCOUNT_KEY) {
       try {
         const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY);
         if (serviceAccount.private_key) {
           serviceAccount.private_key = serviceAccount.private_key.replace(/\\n/g, "\n");
         }
-        admin.initializeApp({
-          credential: admin.credential.cert(serviceAccount),
+        initializeApp({
+          credential: cert(serviceAccount),
           projectId: config.projectId,
         });
       } catch (e) {
@@ -31,11 +31,11 @@ try {
     }
   }
 
-  if (admin.apps.length) {
+  if (getApps().length) {
     const dbId = config.firestoreDatabaseId && config.firestoreDatabaseId !== '(default)' 
       ? config.firestoreDatabaseId 
       : undefined;
-    db = getFirestore(admin.apps[0], dbId);
+    db = getFirestore(getApps()[0], dbId);
   }
 } catch (e) {
   console.error('[Scheduler] Initialization failed:', e);
@@ -125,8 +125,8 @@ async function triggerCampaign(campaignDoc: any, camp: any, id: string) {
     try {
         await campaignDoc.ref.update({
           status: 'sending',
-          last_run: admin.firestore.FieldValue.serverTimestamp(),
-          updated_at: admin.firestore.FieldValue.serverTimestamp()
+          last_run: FieldValue.serverTimestamp(),
+          updated_at: FieldValue.serverTimestamp()
         });
 
         const targetList = (camp.targets && camp.targets.length > 0) 
@@ -183,7 +183,7 @@ async function triggerCampaign(campaignDoc: any, camp: any, id: string) {
                await campaignDoc.ref.update({
                   status: 'paused',
                   last_run_message: 'Todos os produtos disponíveis já foram enviados nesta campanha.',
-                  updated_at: admin.firestore.FieldValue.serverTimestamp()
+                  updated_at: FieldValue.serverTimestamp()
                });
                return; // Skip send
             }
@@ -195,7 +195,7 @@ async function triggerCampaign(campaignDoc: any, camp: any, id: string) {
                 campaign_id: id,
                 product_id: matchedProduct.external_product_id || matchedProduct.id,
                 product_title: matchedProduct.product_title,
-                sent_at: admin.firestore.FieldValue.serverTimestamp(),
+                sent_at: FieldValue.serverTimestamp(),
                 status: 'sent'
             });
 
@@ -250,12 +250,12 @@ async function triggerCampaign(campaignDoc: any, camp: any, id: string) {
         if (camp.is_recurring || camp.trigger_type === 'auto') {
           await campaignDoc.ref.update({
             status: 'scheduled',
-            updated_at: admin.firestore.FieldValue.serverTimestamp()
+            updated_at: FieldValue.serverTimestamp()
           });
         } else {
           await campaignDoc.ref.update({
             status: 'sent',
-            updated_at: admin.firestore.FieldValue.serverTimestamp()
+            updated_at: FieldValue.serverTimestamp()
           });
         }
         console.log(`[Scheduler] Success: ${camp.name}`);
@@ -266,7 +266,7 @@ async function triggerCampaign(campaignDoc: any, camp: any, id: string) {
         
         await campaignDoc.ref.update({
           status: isConnectionError ? 'paused' : 'failed',
-          updated_at: admin.firestore.FieldValue.serverTimestamp()
+          updated_at: FieldValue.serverTimestamp()
         });
     }
 }
