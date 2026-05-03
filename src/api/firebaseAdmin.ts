@@ -58,13 +58,6 @@ export function getAdminFirestore(): Firestore {
   }
 
   db = getFirestore(app!, databaseId);
-  
-  try {
-    db.settings({ ignoreUndefinedProperties: true });
-  } catch (e) {
-    // Already initialized settings
-  }
-
   return db;
 }
 

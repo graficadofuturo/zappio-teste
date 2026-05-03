@@ -27,6 +27,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const code = url.searchParams.get("code") || req.query.code;
     const state = url.searchParams.get("state") || req.query.state;
 
+    console.log("ML_CALLBACK_START", { hasCode: !!code, hasState: !!state });
+
     if (!code) return res.redirect(`${APP_BASE_URL}/integrations?mercadolivre=missing_code`);
     if (!state) return res.redirect(`${APP_BASE_URL}/integrations?mercadolivre=missing_state`);
 
@@ -35,6 +37,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const redirectUri = process.env.ML_REDIRECT_URI;
 
     if (!clientId || !clientSecret || !redirectUri) {
+      console.error("ML_ERROR", "Missing ML_CLIENT_ID, ML_CLIENT_SECRET or ML_REDIRECT_URI");
       return res.redirect(`${APP_BASE_URL}/integrations?mercadolivre=callback_exception`);
     }
 
@@ -55,9 +58,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       body: tokenParams.toString()
     });
 
-    if (!tokenRes.ok) return res.redirect(`${APP_BASE_URL}/integrations?mercadolivre=token_error`);
+    if (!tokenRes.ok) {
+        console.error("ML_ERROR", "Token Error:", await tokenRes.text());
+        return res.redirect(`${APP_BASE_URL}/integrations?mercadolivre=error&reason=token_error`);
+    }
 
     const tokenData: any = await tokenRes.json();
+    console.log("ML_TOKEN_RESPONSE", { hasAccessToken: !!tokenData.access_token });
 
     const userRes = await fetch("https://api.mercadolibre.com/users/me", {
       method: "GET",
@@ -66,10 +73,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
     });
 
-    if (!userRes.ok) return res.redirect(`${APP_BASE_URL}/integrations?mercadolivre=user_error`);
+    if (!userRes.ok) {
+        console.error("ML_ERROR", "Users Me Error:", await userRes.text());
+        return res.redirect(`${APP_BASE_URL}/integrations?mercadolivre=error&reason=user_error`);
+    }
 
     const mlUser: any = await userRes.json();
+    console.log("ML_USERS_ME_RESPONSE", { mlUserId: mlUser.id, nickname: mlUser.nickname });
 
+    console.log("ML_FIRESTORE_SAVE_START");
     const db = getFirebaseDb();
 
     let userId = "unknown";
@@ -122,12 +134,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
       // Also save to ecommerce_keys for backward compatibility
       await db.collection("ecommerce_keys").doc(sellerId).set(cleanData, { merge: true });
+      console.log("ML_FIRESTORE_SAVE_SUCCESS");
     } catch (dbErr) {
-      return res.redirect(`${APP_BASE_URL}/integrations?mercadolivre=save_error`);
+      console.error("ML_ERROR", "DB Save Error", dbErr);
+      return res.redirect(`${APP_BASE_URL}/integrations?mercadolivre=error&reason=save_error`);
     }
 
     return res.redirect(`${APP_BASE_URL}/integrations?mercadolivre=connected`);
   } catch (error: any) {
-    return res.redirect(`${APP_BASE_URL}/integrations?mercadolivre=callback_exception`);
+    console.error("ML_ERROR", "Callback Exception", error);
+    return res.redirect(`${APP_BASE_URL}/integrations?mercadolivre=error&reason=callback_exception`);
   }
 }

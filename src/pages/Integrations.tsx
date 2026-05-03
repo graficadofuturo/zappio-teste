@@ -230,7 +230,8 @@ export default function Integrations() {
       setDisconnectingMl(true);
       setShowDisconnectModal(false);
       
-      const response = await fetch("/api/integrations/mercadolivre/disconnect", {
+      const userId = auth.currentUser?.uid;
+      const response = await fetch(`/api/integrations/mercadolivre/disconnect${userId ? `?userId=${userId}` : ''}`, {
         method: "POST"
       });
       
@@ -361,29 +362,29 @@ export default function Integrations() {
                              </button>
                          </div>
                          
-                         {mlApiStatus && mlApiStatus.connected && (
+                         {mlApiStatus && mlApiStatus.connected && mlApiStatus.integration && (
                            <div className="text-[13px] text-gray-700 space-y-2 bg-gray-50 p-4 rounded-xl border border-gray-100">
-                              {mlApiStatus.mlUserId && (
+                              {mlApiStatus.integration.mlUserId && (
                                 <div className="flex justify-between items-center pb-2 border-b border-gray-200/50">
                                    <span className="text-gray-500">User ID:</span>
-                                   <span className="font-semibold">{mlApiStatus.mlUserId}</span>
+                                   <span className="font-semibold">{mlApiStatus.integration.mlUserId}</span>
                                 </div>
                               )}
-                              {mlApiStatus.nickname && (
+                              {mlApiStatus.integration.nickname && (
                                 <div className="flex justify-between items-center py-2 border-b border-gray-200/50">
                                    <span className="text-gray-500">Nickname:</span>
-                                   <span className="font-semibold">{mlApiStatus.nickname}</span>
+                                   <span className="font-semibold">{mlApiStatus.integration.nickname}</span>
                                 </div>
                               )}
-                              {mlApiStatus.email && (
+                              {mlApiStatus.integration.email && (
                                 <div className="flex justify-between items-center py-2 border-b border-gray-200/50">
                                    <span className="text-gray-500">E-mail:</span>
-                                   <span className="font-semibold">{mlApiStatus.email}</span>
+                                   <span className="font-semibold">{mlApiStatus.integration.email}</span>
                                 </div>
                               )}
                               <div className="flex justify-between items-center pt-1">
                                  <span className="text-gray-500">Autorizado:</span>
-                                 <span className="font-medium text-[12px]">{mlApiStatus.connectedAt ? new Date(mlApiStatus.connectedAt).toLocaleDateString() : 'Desconhecido'}</span>
+                                 <span className="font-medium text-[12px]">{mlApiStatus.integration.connectedAt ? new Date(mlApiStatus.integration.connectedAt).toLocaleDateString() : 'Desconhecido'}</span>
                               </div>
                            </div>
                          )}
@@ -405,7 +406,7 @@ export default function Integrations() {
                                  {syncingMl ? 'Sincronizando...' : 'Sincronizar'}
                                </button>
                                <button 
-                                 onClick={handleDisconnectMl}
+                                 onClick={() => setShowDisconnectModal(true)}
                                  disabled={disconnectingMl}
                                  className="flex-1 text-red-600 bg-red-50 border border-red-100 py-2 rounded-lg text-[13px] font-medium transition-colors hover:bg-red-100 flex items-center justify-center gap-2 shadow-sm disabled:opacity-50"
                                >
@@ -526,7 +527,7 @@ export default function Integrations() {
       )}
 
       {/* Manage ML Modal */}
-      {showManageModal && mlApiStatus && (
+      {showManageModal && mlApiStatus && mlApiStatus.integration && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bg-white rounded-2xl w-full max-w-lg p-6 shadow-2xl animate-in zoom-in-95 duration-200 relative">
             <button onClick={() => setShowManageModal(false)} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 p-1">
@@ -549,27 +550,27 @@ export default function Integrations() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="p-4 rounded-xl bg-gray-50 border border-gray-100">
                   <span className="text-[11px] text-gray-500 font-bold uppercase tracking-wider block mb-1">Nickname</span>
-                  <span className="text-[14px] font-semibold text-gray-900">{mlApiStatus.nickname || 'N/A'}</span>
+                  <span className="text-[14px] font-semibold text-gray-900">{mlApiStatus.integration.nickname || 'N/A'}</span>
                 </div>
                 <div className="p-4 rounded-xl bg-gray-50 border border-gray-100">
                   <span className="text-[11px] text-gray-500 font-bold uppercase tracking-wider block mb-1">Seller ID</span>
-                  <span className="text-[14px] font-semibold text-gray-900">{mlApiStatus.mlUserId || 'N/A'}</span>
+                  <span className="text-[14px] font-semibold text-gray-900">{mlApiStatus.integration.mlUserId || 'N/A'}</span>
                 </div>
               </div>
               
               <div className="p-4 rounded-xl bg-gray-50 border border-gray-100">
                 <span className="text-[11px] text-gray-500 font-bold uppercase tracking-wider block mb-1">E-mail da Conta</span>
-                <span className="text-[14px] font-semibold text-gray-900">{mlApiStatus.email || 'Não informado'}</span>
+                <span className="text-[14px] font-semibold text-gray-900">{mlApiStatus.integration.email || 'Não informado'}</span>
               </div>
               
               <div className="grid grid-cols-2 gap-4">
                 <div className="p-4 rounded-xl bg-gray-50 border border-gray-100">
                   <span className="text-[11px] text-gray-500 font-bold uppercase tracking-wider block mb-1">Região (Site)</span>
-                  <span className="text-[14px] font-semibold text-gray-900">{mlApiStatus.site_id || 'MLB'}</span>
+                  <span className="text-[14px] font-semibold text-gray-900">{mlApiStatus.integration.site_id || 'MLB'}</span>
                 </div>
                 <div className="p-4 rounded-xl bg-gray-50 border border-gray-100">
                   <span className="text-[11px] text-gray-500 font-bold uppercase tracking-wider block mb-1">Conectado em</span>
-                  <span className="text-[14px] font-semibold text-gray-900">{mlApiStatus.connectedAt ? new Date(mlApiStatus.connectedAt).toLocaleDateString() : 'N/A'}</span>
+                  <span className="text-[14px] font-semibold text-gray-900">{mlApiStatus.integration.connectedAt ? new Date(mlApiStatus.integration.connectedAt).toLocaleDateString() : 'N/A'}</span>
                 </div>
               </div>
             </div>

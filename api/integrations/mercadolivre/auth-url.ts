@@ -13,12 +13,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const redirectUri = process.env.ML_REDIRECT_URI;
   const appBaseUrl = process.env.APP_BASE_URL || process.env.NEXT_PUBLIC_APP_URL || "https://zappio-teste.vercel.app";
 
+  console.log("ML_AUTH_URL_START", { hasClientId: !!clientId, hasRedirectUri: !!redirectUri });
+
   if (!clientId || !redirectUri) {
+    const missing = [];
+    if (!clientId) missing.push("ML_CLIENT_ID");
+    if (!redirectUri) missing.push("ML_REDIRECT_URI");
     return res.status(500).json({
       ok: false,
-      error: "Missing Mercado Livre OAuth environment variables",
-      hasClientId: !!clientId,
-      hasRedirectUri: !!redirectUri
+      error: "missing_env",
+      missing: missing
     });
   }
 
@@ -35,6 +39,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   authorizationUrl.searchParams.set("client_id", clientId);
   authorizationUrl.searchParams.set("redirect_uri", redirectUri);
   authorizationUrl.searchParams.set("state", state);
+
+  console.log("ML_AUTH_URL_SUCCESS");
 
   return res.status(200).json({
     ok: true,

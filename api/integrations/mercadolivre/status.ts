@@ -67,8 +67,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       });
     }
 
+    console.log("ML_STATUS_SUCCESS", { mlUserId: docData.mlUserId || docData.ml_user_id || docData.seller_id });
+
     return res.status(200).json({
-      ok: true,
       connected: true,
       marketplace: "mercadolivre",
       mlUserId: docData.mlUserId || docData.ml_user_id || docData.seller_id,
@@ -78,8 +79,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       expiresAt: docData.expiresAt || docData.token_expires_at || null
     });
   } catch (error: any) {
+    console.error("ML_ERROR", "ML_STATUS_ERROR", error);
     return res.status(200).json({ 
-      ok: false, 
       connected: false, 
       error: error.message 
     });

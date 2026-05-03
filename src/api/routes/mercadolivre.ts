@@ -36,7 +36,7 @@ router.get("/status", async (req, res) => {
         return res.status(200).json({ 
           ok: true,
           connected: false,
-          marketplace: "mercadolivre" 
+          integration: null 
         });
     }
 
@@ -68,7 +68,7 @@ router.get("/status", async (req, res) => {
       return res.status(200).json({ 
         ok: true,
         connected: false,
-        marketplace: "mercadolivre" 
+        integration: null 
       });
     }
 
@@ -77,18 +77,21 @@ router.get("/status", async (req, res) => {
     return res.status(200).json({
       ok: true,
       connected: true,
-      marketplace: "mercadolivre",
-      mlUserId: docData.mlUserId || docData.ml_user_id || docData.seller_id,
-      nickname: docData.nickname || null,
-      email: docData.email || null,
-      connectedAt: docData.connectedAt || docData.connected_at || null,
-      expiresAt: docData.expiresAt || docData.token_expires_at || null
+      integration: {
+        marketplace: "mercadolivre",
+        mlUserId: docData.mlUserId || docData.ml_user_id || docData.seller_id,
+        nickname: docData.nickname || null,
+        email: docData.email || null,
+        connectedAt: docData.connectedAt || docData.connected_at || null,
+        updatedAt: docData.updatedAt || docData.updated_at || null
+      }
     });
   } catch (error: any) {
     console.error("ML_ERROR", "ML_STATUS_ERROR", error.message);
     return res.status(200).json({ 
-      ok: false, 
-      connected: false, 
+      ok: true, 
+      connected: false,
+      integration: null,
       error: error.message 
     });
   }
@@ -166,9 +169,9 @@ router.get("/callback", async (req, res) => {
   const APP_BASE_URL = process.env.APP_BASE_URL || process.env.NEXT_PUBLIC_APP_URL || `${req.headers['x-forwarded-proto'] || req.protocol}://${req.headers.host}`;
   
   try {
-    const url = new URL(req.originalUrl || req.url, APP_BASE_URL);
-    const code = url.searchParams.get("code") || req.query.code;
-    const state = url.searchParams.get("state") || req.query.state;
+    const requestUrl = new URL(req.url, `https://${req.headers.host}`);
+    const code = requestUrl.searchParams.get("code") || req.query.code;
+    const state = requestUrl.searchParams.get("state") || req.query.state;
 
     console.log("ML_CALLBACK_START");
     console.log("ML_CALLBACK_PARAMS", { hasCode: !!code, hasState: !!state });
@@ -278,6 +281,7 @@ router.get("/callback", async (req, res) => {
       email: mlUser.email || null,
       accessToken: tokenData.access_token,
       refreshToken: tokenData.refresh_token || null,
+      expiresAt: tokenData.expires_in ? new Date(Date.now() + tokenData.expires_in * 1000).toISOString() : null,
       expiresIn: tokenData.expires_in || null,
       connectedAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -292,7 +296,7 @@ router.get("/callback", async (req, res) => {
     };
 
     const cleanData = Object.fromEntries(
-      Object.entries(data).filter(([_, value]) => value !== undefined)
+      Object.entries(data).filter(([_, value]) => value !== undefined && value !== null)
     );
 
     try {
@@ -337,6 +341,7 @@ router.post("/disconnect", async (req, res) => {
       refresh_token: null,
       accessToken: null,
       refreshToken: null,
+      disconnectedAt: new Date().toISOString(),
       updated_at: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     }, { merge: true });
@@ -357,6 +362,7 @@ router.post("/disconnect", async (req, res) => {
           refresh_token: null,
           accessToken: null,
           refreshToken: null,
+          disconnectedAt: new Date().toISOString(),
           updated_at: new Date().toISOString(),
           updatedAt: new Date().toISOString()
         }, { merge: true });
