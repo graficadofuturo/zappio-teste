@@ -2,6 +2,23 @@ import makeWASocket, { DisconnectReason, useMultiFileAuthState, fetchLatestBaile
 import Pino from 'pino';
 import NodeCache from 'node-cache';
 
+// Mute known noisy libsignal/Baileys errors that are handled internally by retries
+if (!(console as any).__libsignalSuppressed) {
+  const originalConsoleError = console.error;
+  console.error = function (...args: any[]) {
+    const msg = typeof args[0] === 'string' ? args[0] : (args[0]?.message || '');
+    if (
+      msg.includes('Failed to decrypt message with any known session') ||
+      msg.includes('Session error:Error: Bad MAC') ||
+      msg.includes('Error: Bad MAC')
+    ) {
+      return;
+    }
+    originalConsoleError.apply(console, args);
+  };
+  (console as any).__libsignalSuppressed = true;
+}
+
 // A simple in-memory store for our instances state
 export const instances = new Map<string, any>();
 export const instanceStatus = new Map<string, { 
