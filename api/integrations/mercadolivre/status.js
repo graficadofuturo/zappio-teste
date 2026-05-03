@@ -2,6 +2,8 @@ import { getFirestore } from 'firebase-admin/firestore';
 import * as admin from 'firebase-admin';
 
 export default async function handler(req, res) {
+  res.setHeader("Content-Type", "application/json");
+  
   try {
     if (req.method !== 'GET') {
       return res.status(405).json({ ok: false, error: 'method_not_allowed' });
@@ -28,7 +30,8 @@ export default async function handler(req, res) {
        });
     }
 
-    if (!admin.apps.length) {
+    const apps = admin.apps || [];
+    if (apps.length === 0) {
       const serviceAccountBase64 = process.env.FIREBASE_SERVICE_ACCOUNT_BASE64 || "";
       if (serviceAccountBase64.trim()) {
         const serviceAccount = JSON.parse(
@@ -78,7 +81,10 @@ export default async function handler(req, res) {
       status: "not_connected"
     });
   } catch (error) {
-    console.error("ML_STATUS_ERROR", error);
-    return res.status(500).json({ ok: false, connected: false, error: "status_exception" });
+    console.error("ML_STATUS_ERROR", {
+      message: error?.message,
+      stack: error?.stack
+    });
+    return res.status(200).json({ ok: false, connected: false, error: error?.message || "status_exception" });
   }
 }

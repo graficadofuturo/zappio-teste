@@ -1,5 +1,6 @@
 import makeWASocket, { DisconnectReason, useMultiFileAuthState, fetchLatestBaileysVersion } from '@whiskeysockets/baileys';
 import Pino from 'pino';
+import NodeCache from 'node-cache';
 
 // A simple in-memory store for our instances state
 export const instances = new Map<string, any>();
@@ -9,6 +10,9 @@ export const instanceStatus = new Map<string, {
   groups?: any[],
   contacts?: any[]
 }>();
+
+// msgRetryCounterCache helps avoid "Bad MAC" errors by keeping track of retry attempts
+const msgRetryCounterCache = new NodeCache();
 
 export async function connectWhatsApp(instanceId: string) {
   if (instances.has(instanceId)) {
@@ -24,6 +28,19 @@ export async function connectWhatsApp(instanceId: string) {
     auth: state,
     version,
     printQRInTerminal: false,
+    getMessage: async (key) => {
+      // Trying to return something that won't trigger a total failure
+      return {
+        conversation: "Mensagem protegida por criptografia de ponta a ponta."
+      };
+    },
+    msgRetryCounterCache,
+    syncFullHistory: false,
+    markOnlineOnConnect: false,
+    defaultQueryTimeoutMs: 60000,
+    connectTimeoutMs: 60000,
+    keepAliveIntervalMs: 30000,
+    browser: ['Zappio', 'Chrome', '1.0.0'],
     logger: Pino({ level: 'silent' }) as any
   });
 
@@ -41,8 +58,15 @@ export async function connectWhatsApp(instanceId: string) {
     }
 
     if (connection === 'close') {
-      const shouldReconnect = (lastDisconnect?.error as any)?.output?.statusCode !== DisconnectReason.loggedOut;
-      console.log(`[Instance ${instanceId}] Connection closed, reconnecting:`, shouldReconnect);
+      const error = lastDisconnect?.error as any;
+      const statusCode = error?.output?.statusCode;
+      const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
+      
+      console.log(`[Instance ${instanceId}] Connection closed. Status: ${statusCode}. Reconnecting: ${shouldReconnect}`);
+      
+      if (error?.message?.includes('Bad MAC')) {
+        console.error(`[Instance ${instanceId}] Critical: Bad MAC error detected. This often requires a session reset if it persists.`);
+      }
       
       instances.delete(instanceId);
       

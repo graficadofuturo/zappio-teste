@@ -158,7 +158,8 @@ export default async function handler(req, res) {
     });
 
     try {
-      if (!admin.apps.length) {
+      const apps = admin.apps || [];
+      if (apps.length === 0) {
         const serviceAccountBase64 = process.env.FIREBASE_SERVICE_ACCOUNT_BASE64 || "";
         if (serviceAccountBase64.trim()) {
           const serviceAccount = JSON.parse(
