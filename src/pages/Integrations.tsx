@@ -81,6 +81,7 @@ export default function Integrations() {
 
         const data = await response.json();
         console.log("ML_STATUS_RESPONSE", data);
+        console.log("ML_USER_ID_FROM_STATUS", data?.mlUserId);
         console.log("ML_CARD_CONNECTED_STATE", data.connected === true || mlParam === "connected");
         
         setMlApiStatus(data);
@@ -313,7 +314,7 @@ export default function Integrations() {
                   <div>
                      <h3 className="text-[16px] font-bold text-gray-900 flex items-center gap-2">Mercado Livre</h3>
                      <p className="text-[13px] text-gray-500 mt-1 leading-relaxed pr-4">
-                       {mercadoLivreConnected ? "Conta Mercado Livre conectada e pronta para importar produtos." : "Importe seus anúncios e produtos de afiliados diretamente."}
+                       {mercadoLivreConnected ? "Conta Mercado Livre conectada e pronta para buscar ofertas." : "Importe seus anúncios e produtos de afiliados diretamente."}
                      </p>
                   </div>
                   <div className="w-12 h-12 rounded-xl bg-yellow-50 flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform">
@@ -342,10 +343,24 @@ export default function Integrations() {
                          
                          {mlApiStatus && mlApiStatus.connected && (
                            <div className="text-[13px] text-gray-700 space-y-2 bg-gray-50 p-4 rounded-xl border border-gray-100">
-                              <div className="flex justify-between items-center pb-2 border-b border-gray-200/50">
-                                 <span className="text-gray-500">Conta:</span>
-                                 <span className="font-semibold">{mlApiStatus.account_name || mlApiStatus.nickname || mlApiStatus.mlUserId || mlApiStatus.seller_id}</span>
-                              </div>
+                              {mlApiStatus.mlUserId && (
+                                <div className="flex justify-between items-center pb-2 border-b border-gray-200/50">
+                                   <span className="text-gray-500">User ID:</span>
+                                   <span className="font-semibold">{mlApiStatus.mlUserId}</span>
+                                </div>
+                              )}
+                              {mlApiStatus.nickname && (
+                                <div className="flex justify-between items-center py-2 border-b border-gray-200/50">
+                                   <span className="text-gray-500">Nickname:</span>
+                                   <span className="font-semibold">{mlApiStatus.nickname}</span>
+                                </div>
+                              )}
+                              {mlApiStatus.email && (
+                                <div className="flex justify-between items-center py-2 border-b border-gray-200/50">
+                                   <span className="text-gray-500">E-mail:</span>
+                                   <span className="font-semibold">{mlApiStatus.email}</span>
+                                </div>
+                              )}
                               <div className="flex justify-between items-center pt-1">
                                  <span className="text-gray-500">Autorizado:</span>
                                  <span className="font-medium text-[12px]">{mlApiStatus.connectedAt ? new Date(mlApiStatus.connectedAt).toLocaleDateString() : 'Desconhecido'}</span>

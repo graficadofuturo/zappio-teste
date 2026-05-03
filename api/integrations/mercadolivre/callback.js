@@ -133,6 +133,8 @@ export default async function handler(req, res) {
       status: "connected",
       connected: true,
       ml_user_id: userData.id || null,
+      ml_nickname: userData.nickname || null,
+      ml_email: userData.email || null,
       nickname: userData.nickname || null,
       email: userData.email || null,
       access_token: tokenData.access_token || null,

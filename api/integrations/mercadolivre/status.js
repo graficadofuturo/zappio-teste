@@ -59,8 +59,8 @@ export default async function handler(req, res) {
          connected,
          status: connected ? "connected" : "not_connected",
          mlUserId: data.ml_user_id || data.seller_id || null,
-         nickname: data.nickname || data.account_name || null,
-         email: data.email || null,
+         nickname: data.ml_nickname || data.nickname || data.account_name || null,
+         email: data.ml_email || data.email || null,
          connectedAt: data.connected_at || null
        });
     }
