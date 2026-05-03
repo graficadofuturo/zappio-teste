@@ -129,14 +129,7 @@ router.get("/auth-url", async (req, res) => {
     
     const state = crypto.randomUUID();
 
-    const params = new URLSearchParams({
-      response_type: "code",
-      client_id: ML_CLIENT_ID!,
-      redirect_uri: ML_REDIRECT_URI!,
-      state: state
-    });
-
-    const authorizationUrl = `https://auth.mercadolivre.com.br/authorization?${params.toString()}`;
+    const authorizationUrl = `https://auth.mercadolivre.com.br/authorization?response_type=code&client_id=${ML_CLIENT_ID!}&redirect_uri=${encodeURIComponent(ML_REDIRECT_URI!)}&state=${state}`;
 
     // Also use cookie as a fallback explicitly if state parsing somehow fails
     res.cookie('ml_oauth_state', JSON.stringify({ uuid: state, userId: userId ? String(userId) : "unknown" }), { 
@@ -170,18 +163,10 @@ router.get("/debug-auth-url", async (req, res) => {
   const ML_REDIRECT_URI = process.env.ML_REDIRECT_URI;
 
   let authUrl = "N/A";
-  let stateLooksDoubleEncoded = false;
 
   if (ML_CLIENT_ID && ML_REDIRECT_URI) {
     const state = crypto.randomUUID();
-    const params = new URLSearchParams({
-      response_type: "code",
-      client_id: ML_CLIENT_ID,
-      redirect_uri: ML_REDIRECT_URI,
-      state: state
-    });
-    authUrl = `https://auth.mercadolivre.com.br/authorization?${params.toString()}`;
-    stateLooksDoubleEncoded = authUrl.includes("%25");
+    authUrl = `https://auth.mercadolivre.com.br/authorization?response_type=code&client_id=${ML_CLIENT_ID}&redirect_uri=${encodeURIComponent(ML_REDIRECT_URI)}&state=${state}`;
   }
 
   res.json({
@@ -189,8 +174,7 @@ router.get("/debug-auth-url", async (req, res) => {
     clientId: ML_CLIENT_ID ? "presente" : "ausente",
     redirectUri: ML_REDIRECT_URI,
     authorizationUrl: authUrl,
-    stateLooksDoubleEncoded,
-    usesCorrectRedirectUri: ML_REDIRECT_URI === "https://zappio-teste.vercel.app/api/integrations/mercadolivre/callback"
+    containsCodeChallenge: false
   });
 });
 

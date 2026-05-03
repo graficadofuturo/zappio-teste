@@ -153,8 +153,9 @@ export default function Integrations() {
       const contentType = response.headers.get("content-type");
       if (!contentType || !contentType.includes("application/json")) {
         const text = await response.text();
-        console.error("ML_AUTH_URL_NON_JSON_RESPONSE", text);
-        throw new Error("A rota de conexão não retornou JSON. Verifique o deploy da API /api/integrations/mercadolivre/auth-url.");
+        console.error("ML_AUTH_URL_NON_JSON_RESPONSE", `Status: ${response.status}, Resposta: ${text}`);
+        const shortText = text.substring(0, 200).replace(/\n/g, " ");
+        throw new Error(`A rota retornou formato inválido (Status: ${response.status}). Resposta: ${shortText}...`);
       }
   
       const data = await response.json();
