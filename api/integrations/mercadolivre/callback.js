@@ -1,35 +1,18 @@
 import { getFirestore } from 'firebase-admin/firestore';
 import * as admin from 'firebase-admin';
 
-// Initialize Firebase Admin if not already initialized
-if (!admin.apps.length) {
-  try {
-    const serviceAccountBase64 = process.env.FIREBASE_SERVICE_ACCOUNT_BASE64;
-    
-    if (serviceAccountBase64) {
-      const serviceAccount = JSON.parse(
-        Buffer.from(serviceAccountBase64, 'base64').toString('ascii')
-      );
-      
-      admin.initializeApp({
-        credential: admin.credential.cert(serviceAccount)
-      });
-    } else {
-      admin.initializeApp();
-    }
-  } catch (error) {
-    console.error('Firebase Admin initialization error:', error);
-  }
-}
-
 export default async function handler(req, res) {
+  let appBaseUrl = (process.env.APP_BASE_URL || "https://zappio-teste.vercel.app").replace(/\/$/, "");
+
   try {
     console.log("ML_CALLBACK_START", {
       method: req.method,
-      hasCode: !!req.query.code,
-      hasState: !!req.query.state,
-      redirectUri: process.env.ML_REDIRECT_URI,
-      appBaseUrl: process.env.APP_BASE_URL
+      hasCode: !!req.query?.code,
+      hasState: !!req.query?.state,
+      hasClientId: !!process.env.ML_CLIENT_ID,
+      hasClientSecret: !!process.env.ML_CLIENT_SECRET,
+      hasRedirectUri: !!process.env.ML_REDIRECT_URI,
+      hasFirebaseServiceAccountKey: !!process.env.FIREBASE_SERVICE_ACCOUNT_BASE64
     });
 
     if (req.method !== "GET") {
@@ -39,11 +22,7 @@ export default async function handler(req, res) {
       });
     }
 
-    const code = req.query.code;
-    const state = req.query.state;
-
-    // Remove trailling slash if exists
-    let appBaseUrl = (process.env.APP_BASE_URL || "https://zappio-teste.vercel.app").replace(/\/$/, "");
+    const code = req.query?.code;
 
     if (!code) {
       return res.redirect(
@@ -51,9 +30,9 @@ export default async function handler(req, res) {
       );
     }
 
-    const clientId = process.env.ML_CLIENT_ID;
-    const clientSecret = process.env.ML_CLIENT_SECRET;
-    const redirectUri = process.env.ML_REDIRECT_URI;
+    const clientId = process.env.ML_CLIENT_ID || "";
+    const clientSecret = process.env.ML_CLIENT_SECRET || "";
+    const redirectUri = process.env.ML_REDIRECT_URI || "";
 
     if (!clientId || !clientSecret || !redirectUri) {
       console.error("ML_CALLBACK_MISSING_ENV", {
@@ -90,17 +69,19 @@ export default async function handler(req, res) {
       bodyPreview: tokenText.slice(0, 300)
     });
 
-    let tokenData;
+    let tokenData = null;
+
     try {
       tokenData = JSON.parse(tokenText);
-    } catch (error) {
+    } catch (jsonError) {
       console.error("ML_TOKEN_JSON_ERROR", tokenText);
+
       return res.redirect(
         `${appBaseUrl}/integrations?mercadolivre=token_json_error`
       );
     }
 
-    if (!tokenResponse.ok || !tokenData.access_token) {
+    if (!tokenResponse.ok || !tokenData?.access_token) {
       console.error("ML_TOKEN_ERROR", tokenData);
 
       return res.redirect(
@@ -124,10 +105,11 @@ export default async function handler(req, res) {
       bodyPreview: userText.slice(0, 300)
     });
 
-    let userData;
+    let userData = null;
+
     try {
       userData = JSON.parse(userText);
-    } catch (error) {
+    } catch (jsonError) {
       console.error("ML_USER_JSON_ERROR", userText);
 
       return res.redirect(
@@ -135,7 +117,7 @@ export default async function handler(req, res) {
       );
     }
 
-    if (!userResponse.ok || !userData.id) {
+    if (!userResponse.ok || !userData?.id) {
       console.error("ML_USER_ERROR", userData);
 
       return res.redirect(
@@ -174,6 +156,20 @@ export default async function handler(req, res) {
     });
 
     try {
+      if (!admin.apps.length) {
+        const serviceAccountBase64 = process.env.FIREBASE_SERVICE_ACCOUNT_BASE64 || "";
+        if (serviceAccountBase64.trim()) {
+          const serviceAccount = JSON.parse(
+            Buffer.from(serviceAccountBase64, 'base64').toString('ascii')
+          );
+          admin.initializeApp({
+            credential: admin.credential.cert(serviceAccount)
+          });
+        } else {
+          admin.initializeApp();
+        }
+      }
+      
       const db = getFirestore();
       await db.collection("ecommerce_keys").doc(String(userData.id)).set(integrationData, { merge: true });
     } catch (dbError) {
@@ -187,11 +183,9 @@ export default async function handler(req, res) {
     );
   } catch (error) {
     console.error("ML_CALLBACK_EXCEPTION", {
-      message: error.message,
-      stack: error.stack
+      message: error?.message,
+      stack: error?.stack
     });
-
-    let appBaseUrl = (process.env.APP_BASE_URL || "https://zappio-teste.vercel.app").replace(/\/$/, "");
 
     return res.redirect(
       `${appBaseUrl}/integrations?mercadolivre=callback_exception`
