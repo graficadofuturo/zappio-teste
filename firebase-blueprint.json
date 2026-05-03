@@ -151,28 +151,30 @@
       "description": "Credentials for affiliate integrations",
       "type": "object",
       "properties": {
-        "user_id": {
-          "type": "string"
-        },
-        "platform": {
-          "type": "string"
-        },
-        "api_key": {
-          "type": "string"
-        },
-        "api_secret": {
-          "type": "string"
-        },
-        "affiliate_id": {
-          "type": "string"
-        }
+        "user_id": { "type": "string" },
+        "platform": { "type": "string" },
+        "status": { "type": "string" },
+        "api_key": { "type": "string" },
+        "api_secret": { "type": "string" },
+        "seller_id": { "type": "string" },
+        "ml_user_id": { "type": "string" },
+        "nickname": { "type": "string" },
+        "account_name": { "type": "string" },
+        "email": { "type": "string" },
+        "access_token": { "type": "string" },
+        "refresh_token": { "type": "string" },
+        "expires_in": { "type": "number" },
+        "token_expires_at": { "type": "string" },
+        "scope": { "type": "string" },
+        "site_id": { "type": "string" },
+        "permalink": { "type": "string" },
+        "connected_at": { "type": "string" },
+        "updated_at": { "type": "string" }
       },
       "required": [
         "user_id",
         "platform",
-        "api_key",
-        "api_secret",
-        "affiliate_id"
+        "status"
       ]
     },
     "AffiliateOffer": {

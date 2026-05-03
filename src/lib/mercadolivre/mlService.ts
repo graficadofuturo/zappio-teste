@@ -1,9 +1,8 @@
 import fetch from 'node-fetch';
-import admin from 'firebase-admin';
-import { getAdminDb } from '../../api/firebaseAdmin.ts';
+import { getAdminFirestore, removeUndefinedDeep } from '../../api/firebaseAdmin.ts';
 
 export async function getMLAuthUrl(origin: string, state: string, redirectUri: string) {
-    const clientId = process.env.ML_CLIENT_ID;
+    const clientId = process.env.ML_CLIENT_ID || process.env.MERCADOLIVRE_CLIENT_ID;
     if (!clientId) throw new Error("ML_CLIENT_ID not configured");
     return `https://auth.mercadolivre.com.br/authorization?response_type=code&client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${encodeURIComponent(state)}`;
 }
@@ -19,8 +18,8 @@ export async function getMercadoLivreUser(accessToken: string) {
 }
 
 export async function exchangeCodeForToken(code: string, userId: string, redirectUri: string) {
-    const clientId = process.env.ML_CLIENT_ID;
-    const clientSecret = process.env.ML_CLIENT_SECRET;
+    const clientId = process.env.ML_CLIENT_ID || process.env.MERCADOLIVRE_CLIENT_ID;
+    const clientSecret = process.env.ML_CLIENT_SECRET || process.env.MERCADOLIVRE_CLIENT_SECRET;
     if (!clientId || !clientSecret) throw new Error("ML credentials not configured");
 
     const res = await fetch('https://api.mercadolibre.com/oauth/token', {
@@ -56,24 +55,10 @@ export async function exchangeCodeForToken(code: string, userId: string, redirec
 }
 
 export async function saveMLIntegration(userId: string, data: any, mlUser: any, manualClientId?: string, manualClientSecret?: string) {
-    if (!admin.apps.length) {
-        if (process.env.FIREBASE_SERVICE_ACCOUNT_KEY) {
-            try {
-                const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY);
-                admin.initializeApp({
-                    credential: admin.credential.cert(serviceAccount)
-                });
-            } catch (e) {
-                console.error('[MLService] Invalid FIREBASE_SERVICE_ACCOUNT_KEY JSON format:', e);
-            }
-        } else {
-             throw new Error("Firebase Admin not initialized and FIREBASE_SERVICE_ACCOUNT_KEY not set");
-        }
-    }
-    const db = await getAdminDb();
+    const db = getAdminFirestore();
     
     // Check if integration already exists
-    let existingDoc: FirebaseFirestore.QueryDocumentSnapshot | null = null;
+    let existingDoc: any = null;
     const qs = await db.collection('ecommerce_keys')
         .where('user_id', '==', userId)
         .where('platform', '==', 'mercadolivre')
@@ -91,23 +76,27 @@ export async function saveMLIntegration(userId: string, data: any, mlUser: any, 
         if (!qs2.empty) existingDoc = qs2.docs[0];
     }
 
-    const token_expires_at = data.expires_in ? new Date(Date.now() + (data.expires_in * 1000)) : admin.firestore.FieldValue.serverTimestamp();
+    const expires_in = Number(data.expires_in) || 21600;
+    const token_expires_at = new Date(Date.now() + (expires_in * 1000)).toISOString();
 
     const payload: any = {
         user_id: userId,
         platform: 'mercadolivre',
         access_token: data.access_token,
         refresh_token: data.refresh_token,
-        seller_id: mlUser.id?.toString() || data.user_id?.toString() || data.seller_id,
-        account_name: mlUser.nickname || '',
-        site_id: mlUser.site_id || '',
-        permalink: mlUser.permalink || '',
-        expires_in: data.expires_in,
+        seller_id: (mlUser.id || data.user_id || data.seller_id)?.toString() || null,
+        ml_user_id: (mlUser.id || data.user_id || data.seller_id)?.toString() || null,
+        account_name: mlUser.nickname || null,
+        nickname: mlUser.nickname || null,
+        site_id: mlUser.site_id || null,
+        email: mlUser.email || null,
+        permalink: mlUser.permalink || null,
+        expires_in: expires_in,
         token_expires_at: token_expires_at,
-        scope: data.scope,
+        scope: data.scope || null,
         status: 'connected',
-        connected_at: admin.firestore.FieldValue.serverTimestamp(),
-        updated_at: admin.firestore.FieldValue.serverTimestamp()
+        connected_at: existingDoc?.data()?.connected_at || new Date().toISOString(),
+        updated_at: new Date().toISOString()
     };
     
     if (manualClientId && manualClientSecret) {
@@ -115,30 +104,18 @@ export async function saveMLIntegration(userId: string, data: any, mlUser: any, 
          payload.api_secret = manualClientSecret;
     }
 
+    const cleanedPayload = removeUndefinedDeep(payload);
+
     if (existingDoc) {
-        await existingDoc.ref.update(payload);
+        await existingDoc.ref.update(cleanedPayload);
     } else {
-        await db.collection('ecommerce_keys').add(payload);
+        await db.collection('ecommerce_keys').add(cleanedPayload);
     }
     return true;
 }
 
 export async function syncMLProducts(integrationId: string) {
-    if (!admin.apps.length) {
-        if (process.env.FIREBASE_SERVICE_ACCOUNT_KEY) {
-            try {
-                const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY);
-                admin.initializeApp({
-                    credential: admin.credential.cert(serviceAccount)
-                });
-            } catch (e) {
-                console.error('[MLService] Invalid FIREBASE_SERVICE_ACCOUNT_KEY JSON format:', e);
-            }
-        } else {
-             throw new Error("Firebase Admin not initialized and FIREBASE_SERVICE_ACCOUNT_KEY not set");
-        }
-    }
-    const db = await getAdminDb();
+    const db = getAdminFirestore();
     const docRef = db.collection('ecommerce_keys').doc(integrationId);
     const docSnap = await docRef.get();
     
@@ -161,18 +138,18 @@ export async function syncMLProducts(integrationId: string) {
        headers: { Authorization: `Bearer ${token}` }
     });
     
-    if (!userRes.ok && intg.refresh_token && (intg.api_key || process.env.ML_CLIENT_ID)) {
+    if (!userRes.ok && intg.refresh_token && (intg.api_key || process.env.ML_CLIENT_ID || process.env.MERCADOLIVRE_CLIENT_ID)) {
         // Refresh token
-        const clientId = intg.api_key || process.env.ML_CLIENT_ID;
-        const clientSecret = intg.api_secret || process.env.ML_CLIENT_SECRET;
+        const clientId = intg.api_key || process.env.ML_CLIENT_ID || process.env.MERCADOLIVRE_CLIENT_ID;
+        const clientSecret = intg.api_secret || process.env.ML_CLIENT_SECRET || process.env.MERCADOLIVRE_CLIENT_SECRET;
         
         const refreshRes = await fetch('https://api.mercadolibre.com/oauth/token', {
             method: 'POST',
             headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Accept': 'application/json' },
             body: new URLSearchParams({
                 grant_type: 'refresh_token',
-                client_id: clientId,
-                client_secret: clientSecret,
+                client_id: clientId || '',
+                client_secret: clientSecret || '',
                 refresh_token: intg.refresh_token
             }).toString()
         });
@@ -183,7 +160,7 @@ export async function syncMLProducts(integrationId: string) {
             await docRef.update({
                 access_token: token,
                 refresh_token: data.refresh_token,
-                updated_at: admin.firestore.FieldValue.serverTimestamp()
+                updated_at: new Date().toISOString()
             });
             userRes = await fetch('https://api.mercadolibre.com/users/me', { headers: { Authorization: `Bearer ${token}` } });
         } else {
@@ -222,10 +199,10 @@ async function syncPublicMLProducts(intg: any, docRef: any, db: any) {
 }
 
 async function fetchAndSaveItemsDetails(itemIds: string[], userId: string, integrationId: string, token: string | undefined, docRef: any, db: any) {
-    if (itemIds.length === 0) {
+    if (!Array.isArray(itemIds) || itemIds.length === 0) {
         await docRef.update({ 
            sync_count: 0, 
-           last_synced_at: admin.firestore.FieldValue.serverTimestamp(),
+           last_synced_at: new Date().toISOString(),
            status: 'connected'
         });
         return 0;
@@ -249,37 +226,39 @@ async function fetchAndSaveItemsDetails(itemIds: string[], userId: string, integ
         
         const itemsData: any = await itemsRes.json();
         
-        for (const itemObj of itemsData) {
-            if (itemObj.code !== 200) continue;
-            const item = itemObj.body;
-            
-            const productRef = db.collection('products').doc(`${integrationId}_${item.id}`);
-            
-            const productData = {
-                user_id: userId,
-                integration_id: integrationId,
-                platform: 'mercadolivre',
-                external_product_id: item.id,
-                product_title: item.title,
-                product_price: item.price,
-                product_old_price: item.original_price || null,
-                product_discount: calculateDiscount(item.original_price, item.price),
-                product_image: item.thumbnail ? item.thumbnail.replace('-I.jpg', '-O.jpg') : null,
-                product_link: item.permalink,
-                product_affiliate_link: '', // to be filled by user
-                product_status: item.status,
-                last_synced_at: admin.firestore.FieldValue.serverTimestamp()
-            };
-            
-            batch.set(productRef, productData, { merge: true });
-            syncCount++;
+        if (Array.isArray(itemsData)) {
+            for (const itemObj of itemsData) {
+                if (!itemObj || itemObj.code !== 200 || !itemObj.body) continue;
+                const item = itemObj.body;
+                
+                const productRef = db.collection('products').doc(`${integrationId}_${item.id}`);
+                
+                const productData = {
+                    user_id: userId,
+                    integration_id: integrationId,
+                    platform: 'mercadolivre',
+                    external_product_id: item.id,
+                    product_title: item.title,
+                    product_price: item.price,
+                    product_old_price: item.original_price || null,
+                    product_discount: calculateDiscount(item.original_price, item.price),
+                    product_image: item.thumbnail ? item.thumbnail.replace('-I.jpg', '-O.jpg') : null,
+                    product_link: item.permalink,
+                    product_affiliate_link: '', 
+                    product_status: item.status,
+                    last_synced_at: new Date().toISOString()
+                };
+                
+                batch.set(productRef, removeUndefinedDeep(productData), { merge: true });
+                syncCount++;
+            }
         }
     }
     
     await batch.commit();
     await docRef.update({ 
        sync_count: syncCount, 
-       last_synced_at: admin.firestore.FieldValue.serverTimestamp(),
+       last_synced_at: new Date().toISOString(),
        status: 'connected'
     });
     
