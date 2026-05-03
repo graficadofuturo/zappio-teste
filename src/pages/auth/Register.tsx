@@ -45,7 +45,7 @@ export default function Register() {
       if (!userDoc.exists()) {
         await setDoc(userRef, { is_admin: false, email: userCredential.user.email });
       }
-      navigate('/dashboard');
+      navigate('/overview');
     } catch (error: any) {
        if (error.code === 'auth/operation-not-allowed') {
         setError('O login por Google não está habilitado. Por favor, ative os provedores de autenticação no Console Firebase.');

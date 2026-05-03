@@ -20,7 +20,7 @@ export default function Login() {
 
     try {
       await signInWithEmailAndPassword(auth, email, password);
-      navigate('/dashboard');
+      navigate('/overview');
     } catch (error: any) {
       if (error.code === 'auth/operation-not-allowed') {
         setError('O login por E-mail/Senha não está habilitado. Por favor, ative os provedores de autenticação no Console Firebase.');
@@ -44,7 +44,7 @@ export default function Login() {
         await setDoc(userRef, { is_admin: false, email: userCredential.user.email });
       }
       
-      navigate('/dashboard');
+      navigate('/overview');
     } catch (error: any) {
        if (error.code === 'auth/operation-not-allowed') {
         setError('O login por Google não está habilitado. Por favor, ative os provedores de autenticação no Console Firebase.');

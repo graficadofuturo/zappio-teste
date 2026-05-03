@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { CreditCard, CheckCircle2, AlertCircle, ArrowUpRight, Zap } from 'lucide-react';
-import { auth } from '../../lib/firebase';
+import { auth } from '../lib/firebase';
 
 export default function Subscription() {
   const [loading, setLoading] = useState(false);

@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
-import { auth, db } from '../../lib/firebase';
+import { auth, db } from '../lib/firebase';
 import { collection, query, where, getDocs, addDoc, onSnapshot, serverTimestamp, orderBy, deleteDoc, doc, updateDoc } from 'firebase/firestore';
-import { handleFirestoreError, OperationType } from '../../lib/firestore-utils';
-import PhonePreview from '../../components/PhonePreview';
+import { handleFirestoreError, OperationType } from '../lib/firestore-utils';
+import PhonePreview from '../components/PhonePreview';
 import { Send, Bot, Loader2, Sparkles, Image as ImageIcon, Plus, Trash2, Calendar, Megaphone, Edit2, Clock, CheckCircle2, AlertCircle, Play, Pause, ChevronDown, ChevronUp } from 'lucide-react';
 
 export default function Campaigns() {

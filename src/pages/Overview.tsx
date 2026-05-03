@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
-import { auth, db } from '../../lib/firebase';
+import { auth, db } from '../lib/firebase';
 import { collection, query, where, getDocs } from 'firebase/firestore';
-import { handleFirestoreError, OperationType } from '../../lib/firestore-utils';
+import { handleFirestoreError, OperationType } from '../lib/firestore-utils';
 import { Calendar, MousePointerClick, Users, ShoppingCart, Tag, AlertCircle, TrendingUp, HelpCircle, Smartphone, Send, CheckCircle2, XCircle, Loader2, Zap } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
@@ -97,7 +97,7 @@ export default function DashboardOverview() {
           Para visualizar métricas da sua operação e começar a automatizar, você precisa conectar suas contas.
         </p>
         <Link 
-          to="/dashboard/integrations" 
+          to="/integrations" 
           className="bg-indigo-600 text-white px-6 py-3 rounded-lg font-bold text-[14px] shadow-sm hover:bg-indigo-700 transition-colors flex items-center gap-2"
         >
           <ShoppingCart className="w-4 h-4"/>

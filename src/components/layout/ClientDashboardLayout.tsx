@@ -16,12 +16,12 @@ export default function ClientDashboardLayout() {
   };
 
   const navItems = [
-    { label: 'Visão Geral', path: '/dashboard', icon: LayoutDashboard },
-    { label: 'Meu WhatsApp', path: '/dashboard/instances', icon: Smartphone },
-    { label: 'Campanhas', path: '/dashboard/campaigns', icon: Megaphone },
-    { label: 'Integrações', path: '/dashboard/integrations', icon: LinkIcon },
-    { label: 'Banco de Ofertas', path: '/dashboard/products', icon: ShoppingCart },
-    { label: 'Assinatura', path: '/dashboard/subscription', icon: CreditCard },
+    { label: 'Visão Geral', path: '/overview', icon: LayoutDashboard },
+    { label: 'Meu WhatsApp', path: '/instances', icon: Smartphone },
+    { label: 'Campanhas', path: '/campaigns', icon: Megaphone },
+    { label: 'Integrações', path: '/integrations', icon: LinkIcon },
+    { label: 'Banco de Ofertas', path: '/products', icon: ShoppingCart },
+    { label: 'Assinatura', path: '/subscription', icon: CreditCard },
   ];
 
   return (
@@ -49,7 +49,7 @@ export default function ClientDashboardLayout() {
         <nav className="flex-1 px-4 space-y-1 overflow-y-auto">
           <div className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-2 mt-4 px-2">Menu Principal</div>
           {navItems.map((item) => {
-            const isActive = location.pathname === item.path || (item.path !== '/dashboard' && location.pathname.startsWith(item.path));
+            const isActive = location.pathname === item.path || (item.path !== '/overview' && location.pathname.startsWith(item.path));
             return (
               <Link
                 key={item.path}
@@ -88,7 +88,7 @@ export default function ClientDashboardLayout() {
                  <Menu className="w-5 h-5" />
               </button>
               <h2 className="text-[14px] font-bold text-gray-900 capitalize hidden sm:block">
-                 {location.pathname.split('/').pop() === 'dashboard' ? 'Visão Geral' : location.pathname.split('/').pop()?.replace('-', ' ')}
+                 {location.pathname.split('/').pop() === 'overview' ? 'Visão Geral' : location.pathname.split('/').pop()?.replace('-', ' ')}
               </h2>
            </div>
            
@@ -145,7 +145,7 @@ export default function ClientDashboardLayout() {
         <nav className="flex-1 px-4 space-y-1 overflow-y-auto">
           <div className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-2 mt-4 px-2">Menu Principal</div>
           {navItems.map((item) => {
-            const isActive = location.pathname === item.path || (item.path !== '/dashboard' && location.pathname.startsWith(item.path));
+            const isActive = location.pathname === item.path || (item.path !== '/overview' && location.pathname.startsWith(item.path));
             return (
               <Link
                 key={item.path}

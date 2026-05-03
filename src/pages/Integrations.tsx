@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { auth, db } from '../../lib/firebase';
+import { auth, db } from '../lib/firebase';
 import { collection, query, where, getDocs, addDoc, updateDoc, doc, deleteDoc } from 'firebase/firestore';
-import { handleFirestoreError, OperationType } from '../../lib/firestore-utils';
+import { handleFirestoreError, OperationType } from '../lib/firestore-utils';
 import { ShoppingBag, Loader2, Sparkles, AlertCircle, Trash2, Key, RefreshCw, ChevronDown, ChevronUp, ExternalLink, CheckCircle2 } from 'lucide-react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 
@@ -54,9 +54,57 @@ export default function Integrations() {
          setMessage({ type: 'error', text: `Erro Mercado Livre: ${mlStatus}` });
       }
       // Remove param to prevent showing again on reload
-      navigate('/dashboard/integrations', { replace: true });
+      navigate('/integrations', { replace: true });
     }
   }, [searchParams, navigate]);
+
+  const handleConnectML = async () => {
+    try {
+        setSyncing('ml');
+        const response = await fetch('/api/integrations/mercadolivre/connect-url?userId=' + (auth.currentUser?.uid || ''));
+        if (!response.ok) throw new Error('Falha ao obter URL de conexão');
+        const { url } = await response.json();
+        
+        const authWindow = window.open(
+            url,
+            'oauth_popup',
+            'width=600,height=700'
+        );
+        
+        if (!authWindow) {
+            alert('Por favor, permita os pop-ups neste site para conectar sua conta.');
+        }
+    } catch (e) {
+        console.error(e);
+        setMessage({ type: 'error', text: 'Não foi possível iniciar a conexão.' });
+    } finally {
+        setSyncing(null);
+    }
+  };
+
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data?.type === 'ML_AUTH_SUCCESS') {
+         setMessage({ type: 'success', text: 'Mercado Livre conectado com sucesso.' });
+         checkMlApiStatus();
+      } else if (event.data?.type === 'ML_AUTH_ERROR') {
+         const mlStatus = event.data?.error;
+         if (mlStatus === 'missing_code') {
+           setMessage({ type: 'error', text: 'O Mercado Livre não retornou o código de autorização. Tente conectar novamente.' });
+         } else if (mlStatus === 'token_error') {
+           setMessage({ type: 'error', text: 'Erro ao trocar autorização por token. Verifique as configurações do Mercado Livre.' });
+         } else if (mlStatus === 'config_error') {
+           setMessage({ type: 'error', text: 'As configurações do Mercado Livre estão incompletas.' });
+         } else if (mlStatus === 'save_error') {
+           setMessage({ type: 'error', text: 'A conexão funcionou, mas não foi possível salvar a integração.' });
+         } else {
+           setMessage({ type: 'error', text: 'Não foi possível conectar ao Mercado Livre.' });
+         }
+      }
+    };
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, []);
 
   const loadIntegrations = async () => {
     setLoading(true);
@@ -225,9 +273,7 @@ export default function Integrations() {
                          <div className="flex flex-col gap-2 pt-2">
                              <div className="flex gap-2">
                                <button 
-                                 onClick={() => {
-                                     window.location.href = "/api/integrations/mercadolivre/connect?userId=" + (auth.currentUser?.uid || '');
-                                 }}
+                                 onClick={handleConnectML}
                                  className="flex-1 bg-white border border-gray-200 text-gray-700 py-2 rounded-lg font-medium text-[13px] flex items-center justify-center gap-2 hover:bg-gray-50 transition-colors shadow-sm"
                                >
                                  Reconectar
@@ -264,9 +310,7 @@ export default function Integrations() {
                          </div>
                          
                          <button 
-                           onClick={() => {
-                               window.location.href = "/api/integrations/mercadolivre/connect?userId=" + (auth.currentUser?.uid || '');
-                           }}
+                           onClick={handleConnectML}
                            className={`w-full bg-[#ffe600] text-[#2d3277] hover:bg-[#f5dd00] py-3 rounded-xl font-bold text-[14px] flex items-center justify-center gap-2 transition-colors shadow-sm ${syncing === 'ml' ? 'pointer-events-none opacity-50' : ''}`}
                          >
                            {syncing === 'ml' ? <Loader2 className="w-4 h-4 animate-spin" /> : <ExternalLink className="w-4 h-4" />}

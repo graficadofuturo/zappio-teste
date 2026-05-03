@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
-import { auth, db } from '../../lib/firebase';
+import { auth, db } from '../lib/firebase';
 import { collection, query, where, getDocs, addDoc, deleteDoc, doc, setDoc, serverTimestamp, orderBy, updateDoc } from 'firebase/firestore';
-import { handleFirestoreError, OperationType } from '../../lib/firestore-utils';
+import { handleFirestoreError, OperationType } from '../lib/firestore-utils';
 import { Smartphone, Plus, QrCode, Trash2, Loader2, RefreshCw, X, MessageSquare, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 

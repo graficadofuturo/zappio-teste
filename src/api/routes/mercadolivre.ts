@@ -91,54 +91,88 @@ router.get("/ping", (req, res) => {
   res.send("Mercado Livre API OK");
 });
 
-  router.get("/connect", async (req, res) => {
+  router.get("/connect-url", async (req, res) => {
   try {
     const { userId } = req.query;
     const { randomBytes } = await import("crypto");
     const state = randomBytes(16).toString("hex");
-    res.cookie('ml_oauth_state', JSON.stringify({ state, userId: userId ? String(userId) : "unknown" }), { httpOnly: true, maxAge: 1000 * 60 * 10, sameSite: 'lax', secure: true });
+    res.cookie('ml_oauth_state', JSON.stringify({ state, userId: userId ? String(userId) : "unknown" }), { httpOnly: true, maxAge: 1000 * 60 * 10, sameSite: 'none', secure: true });
 
-    const redirectUri = process.env.ML_REDIRECT_URI || "https://zappio-teste.vercel.app/api/integrations/mercadolivre/callback";
+    const appUrl = process.env.APP_URL || process.env.APP_BASE_URL || `${req.headers['x-forwarded-proto'] || req.protocol}://${req.headers.host}`;
+    const redirectUri = process.env.ML_REDIRECT_URI || `${appUrl}/api/integrations/mercadolivre/callback`;
     const clientId = process.env.ML_CLIENT_ID || "";
     const authorizationUrl = `https://auth.mercadolivre.com.br/authorization?response_type=code&client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${state}`;
     
-    res.redirect(authorizationUrl);
+    res.json({ url: authorizationUrl });
   } catch (e: any) {
     console.error("[ML OAuth] Connect route error:", e);
-    const APP_BASE_URL = process.env.APP_BASE_URL || "https://zappio-teste.vercel.app";
-    res.redirect(`${APP_BASE_URL}/dashboard/integrations?mercadolivre=error`);
+    res.status(500).json({ error: e.message });
   }
 });
 
-router.get("/callback", async (req, res) => {
-  const APP_BASE_URL = process.env.APP_BASE_URL || "https://zappio-teste.vercel.app";
-  const integrationsPath = "/dashboard/integrations";
-  const redirectUri = process.env.ML_REDIRECT_URI || "https://zappio-teste.vercel.app/api/integrations/mercadolivre/callback";
-  try {
-    const { code, state, error, error_description } = req.query;
+const getHtmlResponse = (type: string, error?: string) => `
+    <html>
+      <body>
+        <script>
+          if (window.opener) {
+            window.opener.postMessage({ type: '${type}', error: '${error || ""}' }, '*');
+            window.close();
+          } else {
+            window.location.href = '/integrations${error ? '?mercadolivre=' + error : '?mercadolivre=connected'}';
+          }
+        </script>
+        <p>Autenticação concluída. Esta janela fechará sozinha.</p>
+      </body>
+    </html>
+`;
 
-    if (error || error_description) {
-       res.redirect(`${APP_BASE_URL}${integrationsPath}?mercadolivre=error`);
-       return;
+router.get("/callback-test", (req, res) => {
+  res.json({
+    ok: true,
+    message: "Callback route is working"
+  });
+});
+
+router.get("/callback", async (req, res) => {
+  const code = req.query.code as string;
+  const state = req.query.state as string;
+  const error = req.query.error;
+  
+  const appUrl = process.env.APP_URL || process.env.APP_BASE_URL || `${req.headers['x-forwarded-proto'] || req.protocol}://${req.headers.host}`;
+  const redirectUri = process.env.ML_REDIRECT_URI || `${appUrl}/api/integrations/mercadolivre/callback`;
+
+  console.log("ML_CALLBACK_START", {
+    hasCode: !!code,
+    hasState: !!state,
+    redirectUri: process.env.ML_REDIRECT_URI,
+    appBaseUrl: process.env.APP_BASE_URL
+  });
+
+  const getHtmlFallback = (status: string) => `
+    <html>
+      <body>
+        <script>
+          if (window.opener) {
+            window.opener.postMessage({ type: "ML_AUTH_" + ("${status}" === "connected" ? "SUCCESS" : "ERROR"), error: "${status}" }, "*");
+            window.close();
+          } else {
+            window.location.href = "${appUrl}/integrations?mercadolivre=${status}";
+          }
+        </script>
+        <p>Autenticação processada. Você já pode fechar esta janela.</p>
+      </body>
+    </html>
+  `;
+
+  try {
+    if (error) {
+       console.error("ML_CALLBACK_PROVIDER_ERROR", error);
+       return res.send(getHtmlFallback('invalid_state'));
     }
 
     if (!code) {
-       res.redirect(`${APP_BASE_URL}${integrationsPath}?mercadolivre=missing_code`);
-       return;
-    }
-
-    const cookieDataStr = req.headers.cookie?.split('; ').find(row => row.startsWith('ml_oauth_state='))?.split('=')[1];
-    let validState = false;
-    let userId: string | null = null;
-    let cookieData: any = {};
-    if (cookieDataStr) {
-        try {
-            cookieData = JSON.parse(decodeURIComponent(cookieDataStr));
-            if (cookieData.state === state) {
-                validState = true;
-                userId = cookieData.userId;
-            }
-        } catch (e) {}
+       console.error("ML_CALLBACK_MISSING_CODE");
+       return res.send(getHtmlFallback('missing_code'));
     }
 
     const clientId = process.env.ML_CLIENT_ID || "";
@@ -146,56 +180,90 @@ router.get("/callback", async (req, res) => {
 
     if (!clientId || !clientSecret) {
         console.error("ML credentials not configured");
-        res.redirect(`${APP_BASE_URL}${integrationsPath}?mercadolivre=config_error`);
-        return;
+        return res.send(getHtmlFallback('config_error'));
     }
 
-    const tokenRes = await fetch('https://api.mercadolibre.com/oauth/token', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Accept': 'application/json' },
-        body: new URLSearchParams({
-            grant_type: 'authorization_code',
-            client_id: clientId,
-            client_secret: clientSecret,
-            code: code as string,
-            redirect_uri: redirectUri
-        }).toString()
+    const controllerToken = new AbortController();
+    const timeoutIdToken = setTimeout(() => controllerToken.abort(), 10000);
+
+    let tokenRes: any;
+    try {
+      tokenRes = await fetch('https://api.mercadolibre.com/oauth/token', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Accept': 'application/json' },
+          body: new URLSearchParams({
+              grant_type: 'authorization_code',
+              client_id: clientId,
+              client_secret: clientSecret,
+              code: code,
+              redirect_uri: redirectUri
+          }).toString(),
+          signal: controllerToken.signal
+      });
+      clearTimeout(timeoutIdToken);
+    } catch (e) {
+      clearTimeout(timeoutIdToken);
+      console.error("ML_TOKEN_FETCH_ERROR", e);
+      return res.send(getHtmlFallback('token_error'));
+    }
+
+    console.log("ML_TOKEN_RESPONSE", {
+      status: tokenRes.status,
+      ok: tokenRes.ok
     });
 
     if (!tokenRes.ok) {
-        console.error("Failed to exchange code. Status:", tokenRes.status);
-        res.redirect(`${APP_BASE_URL}${integrationsPath}?mercadolivre=token_error`);
-        return;
+        return res.send(getHtmlFallback('token_error'));
     }
 
     const tokenData: any = await tokenRes.json();
 
-    let mlUser = {} as any;
+    const controllerUser = new AbortController();
+    const timeoutIdUser = setTimeout(() => controllerUser.abort(), 10000);
+
+    let userRes: any;
     try {
-        const userRes = await fetch('https://api.mercadolibre.com/users/me', {
-            headers: { Authorization: `Bearer ${tokenData.access_token}` }
+        userRes = await fetch('https://api.mercadolibre.com/users/me', {
+            headers: { Authorization: `Bearer ${tokenData.access_token}` },
+            signal: controllerUser.signal
         });
-        if (userRes.ok) mlUser = await userRes.json();
-        else {
-            res.redirect(`${APP_BASE_URL}${integrationsPath}?mercadolivre=user_error`);
-            return;
-        }
+        clearTimeout(timeoutIdUser);
     } catch (err) {
-        res.redirect(`${APP_BASE_URL}${integrationsPath}?mercadolivre=user_error`);
-        return;
+        clearTimeout(timeoutIdUser);
+        console.error("ML_USERS_ME_FETCH_ERROR", err);
+        return res.send(getHtmlFallback('users_me_error'));
     }
 
+    console.log("ML_USERS_ME_RESPONSE", {
+      status: userRes.status,
+      ok: userRes.ok
+    });
+
+    if (!userRes.ok) {
+        return res.send(getHtmlFallback('users_me_error'));
+    }
+
+    const mlUser = await userRes.json();
+
+    console.log("ML_SAVE_START");
     const db = await getAdminDb();
+
+    // Check if we passed userId back from the cookie
+    const cookieDataStr = req.headers.cookie?.split('; ').find(row => row.startsWith('ml_oauth_state='))?.split('=')[1];
+    let userId: string | null = null;
+    if (cookieDataStr) {
+        try {
+            const cookieData = JSON.parse(decodeURIComponent(cookieDataStr));
+            userId = cookieData.userId;
+        } catch (e) {}
+    }
 
     try {
         const sellerId = mlUser.id?.toString() || tokenData.user_id?.toString() || tokenData.seller_id;
         const accountName = mlUser.first_name ? `${mlUser.first_name} ${mlUser.last_name || ''}`.trim() : mlUser.nickname;
         const nickname = mlUser.nickname;
         const siteId = mlUser.site_id;
-        const accessToken = tokenData.access_token;
-        const refreshToken = tokenData.refresh_token;
-        const expiresIn = tokenData.expires_in;
-
+        
         const integrationData = removeUndefinedDeep({
           user_id: userId || 'unknown',
           platform: "mercadolivre",
@@ -203,11 +271,11 @@ router.get("/callback", async (req, res) => {
           account_name: accountName || null,
           nickname: nickname || null,
           site_id: siteId || null,
-          access_token: accessToken || null,
-          refresh_token: refreshToken || null,
-          expires_in: expiresIn || null,
-          token_expires_at: expiresIn
-            ? new Date(Date.now() + expiresIn * 1000).toISOString()
+          access_token: tokenData.access_token || null,
+          refresh_token: tokenData.refresh_token || null,
+          expires_in: tokenData.expires_in || null,
+          token_expires_at: tokenData.expires_in
+            ? new Date(Date.now() + tokenData.expires_in * 1000).toISOString()
             : null,
           status: "connected",
           connected_at: new Date().toISOString(),
@@ -221,14 +289,20 @@ router.get("/callback", async (req, res) => {
           
     } catch (saveErr: any) {
         console.error("ML_FIRESTORE_SAVE_ERROR", saveErr);
-        res.redirect(`${APP_BASE_URL}${integrationsPath}?mercadolivre=save_error`);
-        return;
+        return res.send(getHtmlFallback('save_error'));
     }
 
-    res.redirect(`${APP_BASE_URL}${integrationsPath}?mercadolivre=connected`);
-  } catch (e: any) {
-    console.error("ML_CALLBACK_EXCEPTION", e);
-    res.redirect(`${APP_BASE_URL}${integrationsPath}?mercadolivre=callback_exception`);
+    console.log("ML_CALLBACK_SUCCESS_REDIRECT", {
+      redirectTo: `${appUrl}/integrations?mercadolivre=connected`
+    });
+
+    return res.send(getHtmlFallback('connected'));
+  } catch (error: any) {
+    console.error("ML_CALLBACK_EXCEPTION", {
+      message: error.message,
+      stack: error.stack
+    });
+    return res.send(getHtmlFallback('callback_exception'));
   }
 });
 

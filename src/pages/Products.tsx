@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { auth, db } from '../../lib/firebase';
+import { auth, db } from '../lib/firebase';
 import { updateDoc, doc } from 'firebase/firestore';
-import { handleFirestoreError, OperationType } from '../../lib/firestore-utils';
+import { handleFirestoreError, OperationType } from '../lib/firestore-utils';
 import { Loader2, Package, Link as LinkIcon, RefreshCw, AlertCircle, Search, PlusCircle, CheckCircle2, Wand2, Info } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
@@ -331,7 +331,7 @@ export default function Products() {
               <AlertCircle className="w-4 h-4" />
               {syncStatus.text}
               {syncStatus.text.includes('Integrações') && (
-                  <button onClick={() => navigate('/dashboard/integrations')} className="ml-auto underline font-bold">
+                  <button onClick={() => navigate('/integrations')} className="ml-auto underline font-bold">
                       Ir para Integrações
                   </button>
               )}

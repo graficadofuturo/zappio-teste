@@ -5,12 +5,12 @@ import Register from './pages/auth/Register';
 import Pricing from './pages/Pricing';
 import ClientDashboardLayout from './components/layout/ClientDashboardLayout';
 import AdminDashboardLayout from './components/layout/AdminDashboardLayout';
-import DashboardOverview from './pages/dashboard/Overview';
-import WhatsAppInstances from './pages/dashboard/Instances';
-import Campaigns from './pages/dashboard/Campaigns';
-import Integrations from './pages/dashboard/Integrations';
-import Products from './pages/dashboard/Products';
-import Subscription from './pages/dashboard/Subscription';
+import Overview from './pages/Overview';
+import WhatsAppInstances from './pages/Instances';
+import Campaigns from './pages/Campaigns';
+import Integrations from './pages/Integrations';
+import Products from './pages/Products';
+import Subscription from './pages/Subscription';
 import AdminOverview from './pages/admin/AdminOverview';
 import { useEffect, useState } from 'react';
 import { auth, db } from './lib/firebase';
@@ -63,24 +63,23 @@ function App() {
       <Routes>
         <Route path="/" element={<LandingPage />} />
         <Route path="/pricing" element={<Pricing />} />
-        <Route path="/auth/login" element={!user ? <Login /> : <Navigate to="/dashboard" />} />
-        <Route path="/auth/register" element={!user ? <Register /> : <Navigate to="/dashboard" />} />
+        <Route path="/auth/login" element={!user ? <Login /> : <Navigate to="/overview" />} />
+        <Route path="/auth/register" element={!user ? <Register /> : <Navigate to="/overview" />} />
 
         {/* Rotas Protegidas - App */}
-        <Route path="/dashboard" element={user ? <ClientDashboardLayout /> : <Navigate to="/auth/login" />}>
-          <Route index element={<DashboardOverview />} />
-          <Route path="instances" element={<WhatsAppInstances />} />
-          <Route path="campaigns" element={<Campaigns />} />
-          <Route path="integrations" element={<Integrations />} />
-          <Route path="products" element={<Products />} />
-          <Route path="subscription" element={<Subscription />} />
+        <Route element={user ? <ClientDashboardLayout /> : <Navigate to="/auth/login" />}>
+          <Route path="/overview" element={<Overview />} />
+          <Route path="/instances" element={<WhatsAppInstances />} />
+          <Route path="/campaigns" element={<Campaigns />} />
+          <Route path="/integrations" element={<Integrations />} />
+          <Route path="/products" element={<Products />} />
+          <Route path="/subscription" element={<Subscription />} />
+          {/* Fallback to overview if user was at old dashboard route */}
+          <Route path="/dashboard/*" element={<Navigate to="/overview" replace />} />
         </Route>
         
-        {/* Alias para integrations */}
-        <Route path="/integrations" element={<Navigate to="/dashboard/integrations" replace />} />
-
         {/* Rotas Admin */}
-        <Route path="/admin" element={user && isAdmin ? <AdminDashboardLayout /> : <Navigate to="/dashboard" />}>
+        <Route path="/admin" element={user && isAdmin ? <AdminDashboardLayout /> : <Navigate to="/overview" />}>
           <Route index element={<AdminOverview />} />
         </Route>
       </Routes>
