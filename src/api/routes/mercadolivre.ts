@@ -158,26 +158,6 @@ router.get("/auth-url", async (req, res) => {
   }
 });
 
-router.get("/debug-auth-url", async (req, res) => {
-  const ML_CLIENT_ID = process.env.ML_CLIENT_ID;
-  const ML_REDIRECT_URI = process.env.ML_REDIRECT_URI;
-
-  let authUrl = "N/A";
-
-  if (ML_CLIENT_ID && ML_REDIRECT_URI) {
-    const state = crypto.randomUUID();
-    authUrl = `https://auth.mercadolivre.com.br/authorization?response_type=code&client_id=${ML_CLIENT_ID}&redirect_uri=${encodeURIComponent(ML_REDIRECT_URI)}&state=${state}`;
-  }
-
-  res.json({
-    ok: true,
-    clientId: ML_CLIENT_ID ? "presente" : "ausente",
-    redirectUri: ML_REDIRECT_URI,
-    authorizationUrl: authUrl,
-    containsCodeChallenge: false
-  });
-});
-
 router.get("/callback", async (req, res) => {
   const APP_BASE_URL = process.env.APP_BASE_URL || `${req.headers['x-forwarded-proto'] || req.protocol}://${req.headers.host}`;
   
