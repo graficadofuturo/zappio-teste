@@ -47,6 +47,9 @@ export async function fetchGroupsSafely(instanceId: string, force = false) {
 // msgRetryCounterCache helps avoid "Bad MAC" errors by keeping track of retry attempts
 const msgRetryCounterCache = new NodeCache();
 
+// messageStore helps Baileys retrieve historical messages for retries, crucial for fixing decryption issues
+const messageStore = new NodeCache({ stdTTL: 3600, maxKeys: 1000 });
+
 export async function connectWhatsApp(instanceId: string) {
   try {
     if (instances.has(instanceId)) {
@@ -63,15 +66,21 @@ export async function connectWhatsApp(instanceId: string) {
       auth: state,
       version,
       printQRInTerminal: false,
-      getMessage: async (key) => ({
-        conversation: "Mensagem protegida por criptografia de ponta a ponta."
-      }),
+      getMessage: async (key) => {
+        const msg = messageStore.get(`${instanceId}_${key.id}`);
+        if (msg) return (msg as any).message;
+        
+        return {
+          conversation: "Mensagem protegida por criptografia de ponta a ponta."
+        };
+      },
       msgRetryCounterCache,
       syncFullHistory: false,
       markOnlineOnConnect: false,
       defaultQueryTimeoutMs: 60000,
       connectTimeoutMs: 60000,
       keepAliveIntervalMs: 30000,
+      retryRequestDelayMs: 5000,
       browser: ['Zappio', 'Chrome', '1.0.0'],
       logger: Pino({ level: 'silent' }) as any
     });
@@ -79,6 +88,17 @@ export async function connectWhatsApp(instanceId: string) {
     instances.set(instanceId, sock);
 
     sock.ev.on('creds.update', saveCreds);
+
+    // Store messages for potential retries
+    sock.ev.on('messages.upsert', async (m) => {
+        if (m.type === 'notify') {
+            for (const msg of m.messages) {
+                if (msg.key.id) {
+                    messageStore.set(`${instanceId}_${msg.key.id}`, msg);
+                }
+            }
+        }
+    });
 
     sock.ev.on('connection.update', async (update) => {
       const { connection, lastDisconnect, qr } = update;
