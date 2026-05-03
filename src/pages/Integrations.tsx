@@ -60,41 +60,41 @@ export default function Integrations() {
 
   const handleConnectML = async () => {
     try {
-        setSyncing('ml');
-        setMessage(null);
-
-        console.log("CONNECT_ML_CLICKED");
-
-        const response = await fetch("/api/integrations/mercadolivre/auth-url?userId=" + (auth.currentUser?.uid || ''), {
-          method: "GET",
-          headers: {
-            "Accept": "application/json"
-          }
-        });
-
-        const text = await response.text();
-
-        console.log("CONNECT_ML_RAW_RESPONSE", text);
-
-        let data;
-        try {
-          data = JSON.parse(text);
-        } catch (error) {
-          throw new Error("A rota de conexão não retornou JSON válido. " + text.substring(0, 50));
+      setSyncing('ml');
+      setMessage(null);
+  
+      console.log("CONNECT_ML_CLICKED");
+  
+      const response = await fetch("/api/integrations/mercadolivre/auth-url", {
+        method: "GET",
+        headers: {
+          "Accept": "application/json"
         }
-
-        console.log("CONNECT_ML_AUTH_URL_RESPONSE", data);
-
-        if (!response.ok || !data.ok || !data.authorizationUrl) {
-          throw new Error(data.message || "Não foi possível iniciar a conexão.");
-        }
-
-        window.location.href = data.authorizationUrl;
+      });
+  
+      const text = await response.text();
+  
+      console.log("CONNECT_ML_RAW_RESPONSE", text);
+  
+      let data;
+      try {
+        data = JSON.parse(text);
+      } catch (error) {
+        throw new Error("A rota de conexão não retornou JSON válido. " + text.substring(0, 50));
+      }
+  
+      console.log("CONNECT_ML_AUTH_URL_RESPONSE", data);
+  
+      if (!response.ok || !data.ok || !data.authorizationUrl) {
+        throw new Error(data.message || "Não foi possível iniciar a conexão.");
+      }
+  
+      window.location.href = data.authorizationUrl;
     } catch (e: any) {
-        console.error("CONNECT_ML_ERROR", e);
-        setMessage({ type: 'error', text: e.message || 'Não foi possível iniciar a conexão.' });
+      console.error("CONNECT_ML_ERROR", e);
+      setMessage({ type: 'error', text: e.message || "Não foi possível iniciar a conexão." });
     } finally {
-        setSyncing(null);
+      setSyncing(null);
     }
   };
 
