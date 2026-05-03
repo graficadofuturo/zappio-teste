@@ -71,14 +71,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const db = getFirebaseDb();
 
-    // recover userId from cookie
+    // recover userId from state or cookie
     let userId = "unknown";
-    const stateCookie = req.cookies?.ml_oauth_state;
-    if (stateCookie) {
+    if (state) {
       try {
-        const cookieData = JSON.parse(stateCookie);
-        userId = cookieData.userId || "unknown";
+        const decodedState = JSON.parse(decodeURIComponent(String(state)));
+        if (decodedState.userId) userId = String(decodedState.userId);
       } catch (e) {}
+    }
+    
+    if (userId === "unknown") {
+      const stateCookie = req.cookies?.ml_oauth_state;
+      if (stateCookie) {
+        try {
+          const cookieData = JSON.parse(stateCookie);
+          userId = cookieData.userId || "unknown";
+        } catch (e) {}
+      }
     }
 
     const sellerId = String(mlUser.id || tokenData.user_id || "");
@@ -109,7 +118,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       Object.entries(data).filter(([_, value]) => value !== undefined)
     );
 
-    await db.collection("ecommerce_keys").doc(sellerId).set(cleanData, { merge: true });
+    if (!userId || userId === "unknown") {
+      console.error("ML_CALLBACK_SAVE_ERROR", "User ID is unknown, cannot save integration properly.");
+      return res.redirect(`${APP_BASE_URL}/integrations?mercadolivre=save_error`);
+    }
+
+    try {
+      console.log("ML_CALLBACK_SAVE_START", { path: `users/${userId}/integrations/mercadolivre` });
+      await db.collection("users").doc(userId).collection("integrations").doc("mercadolivre").set(cleanData, { merge: true });
+      // Keep legacy path temporarily for syncing compatibility
+      await db.collection("ecommerce_keys").doc(sellerId).set(cleanData, { merge: true });
+      console.log("ML_CALLBACK_SAVE_SUCCESS");
+    } catch (dbErr) {
+      console.error("ML_CALLBACK_SAVE_ERROR", dbErr);
+      return res.redirect(`${APP_BASE_URL}/integrations?mercadolivre=save_error`);
+    }
 
     return res.redirect(`${APP_BASE_URL}/integrations?mercadolivre=connected`);
   } catch (error: any) {

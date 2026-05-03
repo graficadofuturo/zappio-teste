@@ -30,17 +30,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const db = getFirebaseDb();
     const { userId } = req.query;
 
-    let query = db.collection("ecommerce_keys")
-      .where("platform", "==", "mercadolivre")
-      .where("status", "==", "connected");
-      
-    if (userId && userId !== 'undefined') {
-        query = query.where("user_id", "==", String(userId));
+    console.log("ML_STATUS_START", { userId });
+    
+    if (!userId || userId === 'undefined') {
+        console.log("ML_STATUS_NOT_FOUND", "No user ID provided");
+        return res.status(200).json({ 
+          ok: true,
+          connected: false,
+          marketplace: "mercadolivre" 
+        });
     }
 
-    const qs = await query.get();
+    console.log("ML_STATUS_FIRESTORE_PATH", `users/${userId}/integrations/mercadolivre`);
+    
+    const docRef = db.collection("users").doc(String(userId)).collection("integrations").doc("mercadolivre");
+    const docSnap = await docRef.get();
 
-    if (qs.empty) {
+    if (!docSnap.exists) {
+      console.log("ML_STATUS_NOT_FOUND");
       return res.status(200).json({ 
         ok: true,
         connected: false,
@@ -48,7 +55,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       });
     }
 
-    const docData = qs.docs[0].data();
+    const docData = docSnap.data();
+    
+    if (docData?.connected !== true) {
+      console.log("ML_STATUS_NOT_FOUND", "Docs exists but connected is false");
+      return res.status(200).json({ 
+        ok: true,
+        connected: false,
+        marketplace: "mercadolivre" 
+      });
+    }
+    console.log("ML_STATUS_FOUND", { mlUserId: docData.ml_user_id || docData.seller_id });
 
     return res.status(200).json({
       ok: true,

@@ -30,33 +30,46 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const db = getFirebaseDb();
     const { userId } = req.query;
 
-    let query = db.collection("ecommerce_keys")
-      .where("platform", "==", "mercadolivre")
-      .where("status", "==", "connected");
-      
-    if (userId && userId !== 'undefined') {
-        query = query.where("user_id", "==", String(userId));
+    if (!userId || userId === 'undefined') {
+        return res.status(400).json({ ok: false, error: "Missing user ID" });
     }
 
+    const docRef = db.collection("users").doc(String(userId)).collection("integrations").doc("mercadolivre");
+    
+    // Also disconnect from legacy path if exists
+    const query = db.collection("ecommerce_keys")
+      .where("platform", "==", "mercadolivre")
+      .where("user_id", "==", String(userId));
+      
     const qs = await query.get();
 
-    if (qs.empty) {
-      return res.status(200).json({ ok: true, connected: false });
-    }
-
     const batch = db.batch();
-    qs.docs.forEach(doc => {
-      batch.update(doc.ref, {
-        status: "disconnected",
-        connected: false,
-        access_token: null,
-        refresh_token: null,
-        accessToken: null,
-        refreshToken: null,
-        updated_at: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
+    
+    batch.set(docRef, {
+      status: "disconnected",
+      connected: false,
+      access_token: null,
+      refresh_token: null,
+      accessToken: null,
+      refreshToken: null,
+      updated_at: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    }, { merge: true });
+
+    if (!qs.empty) {
+      qs.docs.forEach(doc => {
+        batch.set(doc.ref, {
+          status: "disconnected",
+          connected: false,
+          access_token: null,
+          refresh_token: null,
+          accessToken: null,
+          refreshToken: null,
+          updated_at: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        }, { merge: true });
       });
-    });
+    }
 
     await batch.commit();
 

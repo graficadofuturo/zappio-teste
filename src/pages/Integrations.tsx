@@ -49,7 +49,6 @@ export default function Integrations() {
     console.log("ML_CONNECTED_FROM_URL", mlParam === "connected");
 
     if (mlParam === "connected") {
-      setMercadoLivreConnected(true);
       showSuccess('Mercado Livre conectado com sucesso.');
     } else if (mlParam === 'missing_code') {
       showError('O Mercado Livre não retornou o código de autorização. Tente conectar novamente.');
@@ -78,24 +77,39 @@ export default function Integrations() {
         setMercadoLivreLoading(true);
         setCheckingApiStatus(true);
         
-        const user = auth.currentUser;
-        const response = await fetch(`/api/integrations/mercadolivre/status${user ? `?userId=${user.uid}` : ''}`, {
-          method: "GET",
-          headers: {
-            "Accept": "application/json"
-          }
-        });
+        // Use auth.onAuthStateChanged if currentUser is not immediately available on mount
+        const fetchStatus = async (uid: string | undefined) => {
+          const response = await fetch(`/api/integrations/mercadolivre/status${uid ? `?userId=${uid}` : ''}`, {
+            method: "GET",
+            headers: {
+              "Accept": "application/json"
+            }
+          });
 
-        const data = await response.json();
-        console.log("ML_STATUS_RESPONSE", data);
-        
-        setMlApiStatus(data);
-        setMercadoLivreConnected(data.connected === true);
+          const data = await response.json();
+          console.log("ML_STATUS_RESPONSE", data);
+          
+          setMlApiStatus(data);
+          setMercadoLivreConnected(data.connected === true);
+        };
+
+        if (auth.currentUser) {
+          await fetchStatus(auth.currentUser.uid);
+        } else {
+          // If not loaded yet, wait for it
+          const unsubscribe = auth.onAuthStateChanged(async (user) => {
+            if (user) {
+               await fetchStatus(user.uid);
+            } else {
+               await fetchStatus(undefined);
+            }
+            unsubscribe();
+          });
+        }
+
       } catch (error) {
         console.error("ML_STATUS_ERROR", error);
-        if (mlParam !== "connected") {
-          setMercadoLivreConnected(false);
-        }
+        setMercadoLivreConnected(false);
       } finally {
         setMercadoLivreLoading(false);
         setCheckingApiStatus(false);
@@ -112,7 +126,8 @@ export default function Integrations() {
   
       console.log("CONNECT_ML_CLICKED");
   
-      const response = await fetch("/api/integrations/mercadolivre/auth-url", {
+      const userId = auth.currentUser?.uid;
+      const response = await fetch(`/api/integrations/mercadolivre/auth-url${userId ? `?userId=${userId}` : ''}`, {
         method: "GET",
         headers: {
           "Accept": "application/json"

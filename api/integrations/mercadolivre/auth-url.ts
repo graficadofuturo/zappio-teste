@@ -22,7 +22,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     });
   }
 
-  const state = crypto.randomUUID();
+  const userId = req.query.userId || "unknown";
+  const state = encodeURIComponent(JSON.stringify({
+    uuid: crypto.randomUUID(),
+    userId: String(userId)
+  }));
   const authorizationUrl = new URL("https://auth.mercadolivre.com.br/authorization");
   authorizationUrl.searchParams.set("response_type", "code");
   authorizationUrl.searchParams.set("client_id", clientId);
