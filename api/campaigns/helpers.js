@@ -1,30 +1,28 @@
 import { collection, query, where, getDocs, limit, orderBy, addDoc, serverTimestamp, doc, updateDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 
-export async function getNextProductForCampaign(campaignId, category, userId) {
+export async function getNextProductForCampaign(campaignId, category, marketplace, userId) {
   // 1. Get history of sent products for this campaign
   const historyRef = collection(db, 'campaign_product_history');
   const historyQuery = query(historyRef, where('campaign_id', '==', campaignId));
   const historySnapshot = await getDocs(historyQuery);
   const sentProductIds = historySnapshot.docs.map(doc => doc.data().product_id);
 
-  // 2. Fetch active offers
-  let offersQuery;
+  // 2. Fetch active offers with filters
+  let constraints = [
+    where('status', 'in', ['active', 'affiliate_ready']),
+    orderBy('updated_at', 'desc')
+  ];
+
   if (category && category !== 'Todos') {
-    offersQuery = query(
-      collection(db, 'affiliate_offers'),
-      where('status', '==', 'active'),
-      where('category', '==', category),
-      orderBy('updated_at', 'desc')
-    );
-  } else {
-    offersQuery = query(
-      collection(db, 'affiliate_offers'),
-      where('status', '==', 'active'),
-      orderBy('updated_at', 'desc')
-    );
+    constraints.push(where('category', '==', category));
   }
 
+  if (marketplace && marketplace !== 'all') {
+    constraints.push(where('marketplace', '==', marketplace));
+  }
+
+  const offersQuery = query(collection(db, 'affiliate_offers'), ...constraints);
   const offersSnapshot = await getDocs(offersQuery);
   const offers = offersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 

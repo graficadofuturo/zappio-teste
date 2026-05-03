@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { auth, db } from '../lib/firebase';
 import { collection, query, where, getDocs, addDoc, onSnapshot, serverTimestamp, orderBy, deleteDoc, doc, updateDoc, limit } from 'firebase/firestore';
 import { handleFirestoreError, OperationType } from '../lib/firestore-utils';
@@ -9,6 +9,7 @@ import { generateCopy, generateVariations } from '../services/gemini';
 
 export default function Campaigns() {
   const location = useLocation();
+  const navigate = useNavigate();
   const [isCreating, setIsCreating] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [campaignsList, setCampaignsList] = useState<any[]>([]);
@@ -105,6 +106,9 @@ export default function Campaigns() {
   const [aiObjective, setAiObjective] = useState('vender_produto');
   const [aiTone, setAiTone] = useState('Amigável');
   const [offerCategory, setOfferCategory] = useState('Todos');
+  const [offerMarketplace, setOfferMarketplace] = useState('all');
+  const [marketplaces, setMarketplaces] = useState<any[]>([]);
+  const [loadingMarketplaces, setLoadingMarketplaces] = useState(false);
   const [previewProduct, setPreviewProduct] = useState<any>(null);
   const [loadingPreview, setLoadingPreview] = useState(false);
   const [categories, setCategories] = useState<string[]>([]);
@@ -115,6 +119,27 @@ export default function Campaigns() {
       .then(data => setCategories(data.categories || []))
       .catch(console.error);
   }, []);
+
+  useEffect(() => {
+    const user = auth.currentUser;
+    if (!user || messageMode !== 'auto_offer') return;
+
+    setLoadingMarketplaces(true);
+    fetch(`/api/integrations/connected-marketplaces?userId=${user.uid}`)
+      .then(res => res.json())
+      .then(data => {
+        if (data.ok) {
+          setMarketplaces(data.marketplaces || []);
+          if (data.marketplaces.length === 1) {
+            setOfferMarketplace(data.marketplaces[0].id);
+          } else if (data.marketplaces.length >= 2) {
+            setOfferMarketplace('all');
+          }
+        }
+      })
+      .catch(console.error)
+      .finally(() => setLoadingMarketplaces(false));
+  }, [messageMode]);
 
   const handleAICalling = async (instruction: string) => {
     if (!message && instruction.includes('texto')) {
@@ -241,6 +266,8 @@ export default function Campaigns() {
           message_mode: messageMode,
           instruction_ia: instructionIA,
           offer_category: offerCategory,
+          offer_marketplace: offerMarketplace,
+          allowed_offer_marketplaces: marketplaces.map(m => m.id),
           ai_tone: aiTone,
           image_url: imageUrl || '',
           use_ml_products: messageMode === 'auto_offer',
@@ -329,6 +356,7 @@ export default function Campaigns() {
     setMessageMode(camp.message_mode || (camp.use_ml_products ? 'auto_offer' : 'manual'));
     setInstructionIA(camp.instruction_ia || '');
     setOfferCategory(camp.offer_category || 'Todos');
+    setOfferMarketplace(camp.offer_marketplace || 'all');
     setAiTone(camp.ai_tone || 'Amigável');
     setPreviewProduct(null); 
     setMessage(camp.message || '');
@@ -378,6 +406,7 @@ export default function Campaigns() {
         body: JSON.stringify({
           campaignId: id,
           category: camp.offer_category,
+          marketplace: camp.offer_marketplace || 'all',
           userId: user.uid,
           template: camp.message,
           tone: camp.ai_tone,
@@ -1031,40 +1060,77 @@ export default function Campaigns() {
                  <h3 className="text-[14px] font-bold text-indigo-900">Configuração de Oferta Automática</h3>
                </div>
 
-               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-[11px] font-bold uppercase text-gray-500 mb-2">Categoria das Ofertas</label>
-                    <select 
-                      value={offerCategory}
-                      onChange={(e) => setOfferCategory(e.target.value)}
-                      className="w-full p-2.5 border border-gray-200 rounded-lg text-[13px] bg-white focus:outline-none focus:border-indigo-500 shadow-sm"
-                    >
-                      {categories.length > 0 ? categories.map(cat => (
-                        <option key={cat} value={cat}>{cat}</option>
-                      )) : (
-                        <option value="Todos">Todos</option>
-                      )}
-                    </select>
-                  </div>
-                  <div>
-                     <label className="block text-[11px] font-bold uppercase text-gray-500 mb-2">Tom das Mensagens</label>
-                     <select 
-                        value={aiTone}
-                        onChange={(e) => setAiTone(e.target.value)}
-                        className="w-full p-2.5 border border-gray-200 rounded-lg text-[13px] bg-white focus:outline-none focus:border-indigo-500 shadow-sm"
-                      >
-                        <option value="Oferta agressiva">🔥 Oferta agressiva</option>
-                        <option value="Urgência">⏳ Urgência</option>
-                        <option value="Amigável">😊 Amigável</option>
-                        <option value="Direto ao ponto">🎯 Direto ao ponto</option>
-                        <option value="Premium">💎 Premium</option>
-                        <option value="Engraçado">🥳 Engraçado</option>
-                      </select>
-                  </div>
-               </div>
-               <p className="text-[11px] text-indigo-600/70 mt-4 leading-relaxed bg-white/60 p-3 rounded-lg border border-indigo-100/50">
-                O sistema selecionará automaticamente ofertas da categoria <strong>{offerCategory}</strong> e enviará uma mensagem formatada. Nunca repetirá o mesmo produto na mesma campanha.
-               </p>
+               {loadingMarketplaces ? (
+                 <div className="flex items-center gap-2 py-4">
+                   <Loader2 className="w-4 h-4 animate-spin text-indigo-600" />
+                   <span className="text-[13px] text-indigo-600 font-medium">Carregando marketplaces conectados...</span>
+                 </div>
+               ) : marketplaces.length === 0 ? (
+                 <div className="bg-white border border-red-100 p-4 rounded-xl flex flex-col items-center text-center">
+                   <AlertCircle className="w-8 h-8 text-red-500 mb-2" />
+                   <p className="text-[13px] text-gray-700 font-medium mb-3">Conecte pelo menos um marketplace em Integrações para usar Oferta Automática.</p>
+                   <button 
+                     onClick={() => navigate('/integrations')}
+                     className="bg-indigo-600 text-white px-4 py-2 rounded-lg text-[12px] font-bold hover:bg-indigo-700 transition-colors"
+                   >
+                     Ir para Integrações
+                   </button>
+                 </div>
+               ) : (
+                 <div className="space-y-4">
+                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                     <div>
+                       <label className="block text-[11px] font-bold uppercase text-gray-500 mb-2">Marketplace da Oferta</label>
+                       <select 
+                         value={offerMarketplace}
+                         onChange={(e) => setOfferMarketplace(e.target.value)}
+                         className="w-full p-2.5 border border-gray-200 rounded-lg text-[13px] bg-white focus:outline-none focus:border-indigo-500 shadow-sm"
+                       >
+                         {marketplaces.length >= 2 && <option value="all">Todos (Marketplaces Conectados)</option>}
+                         {marketplaces.map(mp => (
+                           <option key={mp.id} value={mp.id}>{mp.name}</option>
+                         ))}
+                       </select>
+                     </div>
+                     <div>
+                       <label className="block text-[11px] font-bold uppercase text-gray-500 mb-2">Categoria das Ofertas</label>
+                       <select 
+                         value={offerCategory}
+                         onChange={(e) => setOfferCategory(e.target.value)}
+                         className="w-full p-2.5 border border-gray-200 rounded-lg text-[13px] bg-white focus:outline-none focus:border-indigo-500 shadow-sm"
+                       >
+                         {categories.length > 0 ? categories.map(cat => (
+                           <option key={cat} value={cat}>{cat}</option>
+                         )) : (
+                           <option value="Todos">Todos</option>
+                         )}
+                       </select>
+                     </div>
+                   </div>
+                   
+                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                     <div>
+                       <label className="block text-[11px] font-bold uppercase text-gray-500 mb-2">Tom das Mensagens</label>
+                       <select 
+                         value={aiTone}
+                         onChange={(e) => setAiTone(e.target.value)}
+                         className="w-full p-2.5 border border-gray-200 rounded-lg text-[13px] bg-white focus:outline-none focus:border-indigo-500 shadow-sm"
+                       >
+                         <option value="Oferta agressiva">🔥 Oferta agressiva</option>
+                         <option value="Urgência">⏳ Urgência</option>
+                         <option value="Amigável">😊 Amigável</option>
+                         <option value="Direto ao ponto">🎯 Direto ao ponto</option>
+                         <option value="Premium">💎 Premium</option>
+                         <option value="Engraçado">🥳 Engraçado</option>
+                       </select>
+                     </div>
+                   </div>
+                   
+                   <p className="text-[11px] text-indigo-600/70 mt-2 leading-relaxed bg-white/60 p-3 rounded-lg border border-indigo-100/50">
+                    O sistema selecionará automaticamente ofertas de <strong>{offerMarketplace === 'all' ? 'todos os marketplaces conectados' : marketplaces.find(m => m.id === offerMarketplace)?.name}</strong> na categoria <strong>{offerCategory}</strong>.
+                   </p>
+                 </div>
+               )}
             </div>
           )}
 

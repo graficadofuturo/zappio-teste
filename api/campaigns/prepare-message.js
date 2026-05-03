@@ -1,20 +1,57 @@
 import { getNextProductForCampaign, recordProductSent } from './helpers';
+import { getAdminDb } from '../../lib/firebaseAdmin.js';
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  const { campaignId, category, userId, template, tone, messageMode } = req.body;
+  const { campaignId, category, marketplace, userId, template, tone, messageMode } = req.body;
 
   try {
+    const adminDb = getAdminDb();
+
+    // Safety Validation: Check if the chosen marketplace is connected
+    const keysSnapshot = await adminDb.collection("ecommerce_keys")
+      .where("user_id", "==", userId)
+      .where("status", "==", "connected")
+      .get();
+
+    const connectedPlatforms = new Set();
+    keysSnapshot.forEach(doc => connectedPlatforms.add(doc.data().platform));
+
     let finalMessage = template;
     let finalImage = "";
     let productId = null;
 
     if (messageMode === 'auto_offer') {
-      const product = await getNextProductForCampaign(campaignId, category, userId);
+      if (connectedPlatforms.size === 0) {
+        return res.status(400).json({ 
+          ok: false, 
+          code: "NO_MARKETPLACE_CONNECTED", 
+          error: 'Conecte pelo menos um marketplace em Integrações para usar ofertas automáticas.' 
+        });
+      }
+
+      if (marketplace !== 'all' && !connectedPlatforms.has(marketplace)) {
+        return res.status(400).json({ 
+          ok: false, 
+          code: "MARKETPLACE_NOT_CONNECTED", 
+          error: 'Este marketplace não está conectado em Integrações.' 
+        });
+      }
+
+      const product = await getNextProductForCampaign(campaignId, category, marketplace, userId);
       
       if (!product) {
         return res.status(200).json({ ok: false, noMoreProducts: true });
+      }
+
+      // Final validation: product marketplace MUST be in connectedPlatforms
+      if (!connectedPlatforms.has(product.marketplace)) {
+         return res.status(400).json({ 
+          ok: false, 
+          code: "INCONSISTENT_MARKETPLACE", 
+          error: 'Ocorreu um erro: Produto selecionado pertence a um marketplace não conectado.' 
+        });
       }
 
       productId = product.id;
