@@ -1,5 +1,6 @@
 import "dotenv/config";
 import express from "express";
+import cookieParser from "cookie-parser";
 import { createServer as createViteServer } from "vite";
 import path from "path";
 
@@ -21,6 +22,7 @@ async function startServer() {
   const PORT = 3000;
 
   app.use(express.json());
+  app.use(cookieParser());
 
   app.get("/api/debug-env", (req, res) => {
     res.json({ key: process.env.GEMINI_API_KEY });
@@ -30,8 +32,8 @@ async function startServer() {
   app.use("/api/shopee", shopeeRouter);
   app.use("/api/ai", aiRoutes);
   app.use("/api/whatsapp", whatsappRoutes);
-  app.use("/api/integrations", integrationsRouter);
   app.use("/api/integrations/mercadolivre", mercadolivreRoutes);
+  app.use("/api/integrations", integrationsRouter);
   app.use("/api/mercadolivre/products", productRoutes);
   app.use("/api/mercadolivre/affiliate-products", productRoutes);
   app.use("/api/webhooks", webhookRoutes);

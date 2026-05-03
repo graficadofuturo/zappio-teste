@@ -376,7 +376,7 @@ export default function Integrations() {
                          
                          <div className="flex flex-col gap-2 pt-2">
                              <button 
-                               onClick={() => {}}
+                               onClick={() => setShowManageModal(true)}
                                className="w-full bg-white border border-gray-200 text-gray-700 py-2 rounded-lg font-medium text-[13px] flex items-center justify-center gap-2 hover:bg-gray-50 transition-colors shadow-sm"
                              >
                                Gerenciar Mercado Livre
