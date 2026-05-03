@@ -132,8 +132,10 @@ export default async function handler(req, res) {
     const accountName = userData.first_name ? `${userData.first_name} ${userData.last_name || ''}`.trim() : userData.nickname;
 
     const integrationData = {
-      platform: "mercadolivre",
+      provider: "mercadolivre",
       status: "connected",
+      connected: true,
+      ml_user_id: String(userData.id),
       seller_id: String(userData.id),
       account_name: accountName || null,
       nickname: userData.nickname || null,
@@ -170,7 +172,29 @@ export default async function handler(req, res) {
         }
       }
       
+      let userId = "unknown";
+      if (req.headers.cookie) {
+        const cookies = req.headers.cookie.split(';').map(c => c.trim());
+        const mlUserIdCookie = cookies.find(c => c.startsWith('ml_oauth_userId='));
+        if (mlUserIdCookie) {
+          userId = mlUserIdCookie.split('=')[1];
+        }
+      }
+
+      console.log("ML_SAVE_SUCCESS", {
+        path: `users/${userId}/integrations/mercadolivre`,
+        connected: true,
+        mlUserId: userData.id
+      });
+
       const db = getFirestore();
+      
+      // Save it explicitly to users/{uid}/integrations/mercadolivre
+      if (userId && userId !== "unknown") {
+        await db.collection("users").doc(userId).collection("integrations").doc("mercadolivre").set(integrationData, { merge: true });
+      }
+
+      // Also save to ecommerce_keys as fallback if needed elsewhere
       await db.collection("ecommerce_keys").doc(String(userData.id)).set(integrationData, { merge: true });
     } catch (dbError) {
       console.error("ML_FIRESTORE_SAVE_ERROR", dbError);

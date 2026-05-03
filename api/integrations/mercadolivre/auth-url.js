@@ -51,6 +51,9 @@ export default async function handler(req, res) {
       authorizationUrl: authorizationUrl.toString()
     });
 
+    const userId = req.query?.userId || "unknown";
+    res.setHeader('Set-Cookie', `ml_oauth_userId=${userId}; HttpOnly; Max-Age=3600; Path=/; SameSite=Lax; Secure`);
+
     return res.status(200).json({
       ok: true,
       authorizationUrl: authorizationUrl.toString(),

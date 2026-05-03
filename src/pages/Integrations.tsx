@@ -118,7 +118,8 @@ export default function Integrations() {
   const checkMlApiStatus = async () => {
     setCheckingApiStatus(true);
     try {
-      const res = await fetch('/api/integrations/mercadolivre/status');
+      const user = auth.currentUser;
+      const res = await fetch(`/api/integrations/mercadolivre/status${user ? `?userId=${user.uid}` : ''}`);
       const data = await res.json();
       setMlApiStatus(data);
     } catch (e) {
@@ -194,10 +195,26 @@ export default function Integrations() {
       setSavingShopee(false);
   };
 
-  const handleDisconnect = async (id: string) => {
+  const handleDisconnect = async (id: string, platform?: string) => {
       if (!confirm('Deseja realmente desconectar esta integração?')) return;
       try {
-          await deleteDoc(doc(db, 'ecommerce_keys', id));
+          // If we saved ML into users/{uid}/integrations/mercadolivre, we should also delete from there. 
+          // The manual or legacy ones are in `ecommerce_keys`. We will try deleting both to be safe.
+          try {
+            await deleteDoc(doc(db, 'ecommerce_keys', id));
+          } catch(e) {}
+          
+          if (platform === 'mercadolivre') {
+            const user = auth.currentUser;
+            if (user) {
+               try {
+                  await deleteDoc(doc(db, 'users', user.uid, 'integrations', 'mercadolivre'));
+               } catch(e) {}
+            }
+            setMlApiStatus(null);
+            checkMlApiStatus();
+          }
+
           await loadIntegrations();
           setMessage({ type: 'success', text: 'Integração desconectada com sucesso.' });
           setTimeout(() => setMessage(null), 5000);
@@ -281,9 +298,9 @@ export default function Integrations() {
                                  Atualizar
                                </button>
                              </div>
-                             {mlIntegration && (
+                             {mlApiStatus?.connected && (
                                <button 
-                                 onClick={() => handleDisconnect(mlIntegration.id)}
+                                 onClick={() => handleDisconnect(mlIntegration?.id || String(mlApiStatus.mlUserId) || 'mercadolivre', 'mercadolivre')}
                                  className="w-full text-red-600 bg-red-50 border border-red-100 py-2 rounded-lg text-[13px] font-medium transition-colors hover:bg-red-100 flex items-center justify-center gap-2 mt-2"
                                >
                                  <Trash2 className="w-4 h-4" /> Desconectar conta
@@ -295,7 +312,7 @@ export default function Integrations() {
                      <div className="space-y-5">
                          <div className="flex items-center justify-between">
                              <div className="flex items-center gap-2 px-2.5 py-1 bg-gray-100 text-gray-600 text-[11px] font-bold uppercase tracking-wider rounded border border-gray-200 w-max">
-                                 Não Conectado
+                                 {checkingApiStatus && !mlApiStatus ? 'Verificando...' : 'Não Conectado'}
                              </div>
                              <button onClick={checkMlApiStatus} disabled={checkingApiStatus} className="text-[12px] text-gray-500 hover:text-indigo-600 flex items-center gap-1 font-medium transition-colors">
                                  {checkingApiStatus ? <Loader2 className="w-3 h-3 animate-spin"/> : <RefreshCw className="w-3 h-3"/>}
