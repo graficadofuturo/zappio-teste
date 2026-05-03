@@ -4,11 +4,14 @@ import { getAdminDb, removeUndefinedDeep } from "../firebaseAdmin.ts";
 const router = Router();
 
 router.get("/debug-config", (req, res) => {
+  const appUrl = process.env.APP_URL || process.env.APP_BASE_URL || `${req.headers['x-forwarded-proto'] || req.protocol}://${req.headers.host}`;
   res.json({
+    ok: true,
     hasClientId: !!process.env.ML_CLIENT_ID,
     hasClientSecret: !!process.env.ML_CLIENT_SECRET,
+    hasMlRedirectUri: !!process.env.ML_REDIRECT_URI,
     redirectUri: process.env.ML_REDIRECT_URI,
-    appBaseUrl: process.env.APP_BASE_URL,
+    appBaseUrl: appUrl,
     webhookUrl: process.env.ML_WEBHOOK_URL
   });
 });
@@ -21,6 +24,16 @@ router.get("/debug-auth-url", (req, res) => {
     clientId: !clientId,
     redirectUri: !redirectUri,
   };
+
+  const appUrl = process.env.APP_URL || process.env.APP_BASE_URL || `${req.headers['x-forwarded-proto'] || req.protocol}://${req.headers.host}`;
+
+  console.log("ML_DEBUG_AUTH_URL_LOG", {
+    hasMlRedirectUri: !!process.env.ML_REDIRECT_URI,
+    redirectUri: process.env.ML_REDIRECT_URI,
+    appBaseUrl: appUrl,
+    hasClientId: !!process.env.ML_CLIENT_ID,
+    hasClientSecret: !!process.env.ML_CLIENT_SECRET
+  });
 
   if (!clientId || !redirectUri) {
     res.status(500).json({
@@ -103,42 +116,30 @@ router.get("/debug-config", (req, res) => {
 });
 
 router.get("/auth-url", async (req, res) => {
+  const appUrl = process.env.APP_URL || process.env.APP_BASE_URL || `${req.headers['x-forwarded-proto'] || req.protocol}://${req.headers.host}`;
+  console.log("ML_AUTH_URL_START", {
+     hasMlRedirectUri: !!process.env.ML_REDIRECT_URI,
+     redirectUri: process.env.ML_REDIRECT_URI,
+     appBaseUrl: appUrl,
+     hasClientId: !!process.env.ML_CLIENT_ID,
+     hasClientSecret: !!process.env.ML_CLIENT_SECRET
+  });
+
   try {
-    console.log("ML_AUTH_URL_START", {
-      method: req.method,
-      hasClientId: !!process.env.ML_CLIENT_ID,
-      hasClientSecret: !!process.env.ML_CLIENT_SECRET,
-      redirectUri: process.env.ML_REDIRECT_URI,
-      appBaseUrl: process.env.APP_BASE_URL
-    });
-
-    if (req.method !== "GET") {
-      return res.status(405).json({
-        ok: false,
-        error: "method_not_allowed",
-        message: "Método não permitido."
-      });
-    }
-
-    const appUrl = process.env.APP_URL || process.env.APP_BASE_URL || `${req.headers['x-forwarded-proto'] || req.protocol}://${req.headers.host}`;
-    
-    // We should use appUrl if ML_REDIRECT_URI is not set, but the request wants us to strictly enforce it's presence if possible. Let's provide fallback for seamless AI Studio test
     const clientId = process.env.ML_CLIENT_ID;
-    const redirectUri = process.env.ML_REDIRECT_URI || `${appUrl}/api/integrations/mercadolivre/callback`;
+    const redirectUri = process.env.ML_REDIRECT_URI;
 
-    if (!clientId) {
-      return res.status(500).json({
-        ok: false,
-        error: "missing_ml_client_id",
-        message: "ML_CLIENT_ID não configurado."
-      });
-    }
-
-    if (!redirectUri) {
-      return res.status(500).json({
+    if (!clientId || !redirectUri) {
+      const missing = [];
+      if (!clientId) missing.push("ML_CLIENT_ID");
+      if (!redirectUri) missing.push("ML_REDIRECT_URI");
+      
+      console.error("ML_AUTH_URL_ERROR", "Missing environment variables", missing);
+      return res.status(200).json({
         ok: false,
         error: "missing_ml_redirect_uri",
-        message: "ML_REDIRECT_URI não configurado."
+        message: "A variável ML_REDIRECT_URI ou ML_CLIENT_ID não está configurada no ambiente.",
+        missing
       });
     }
 
@@ -152,26 +153,23 @@ router.get("/auth-url", async (req, res) => {
     authorizationUrl.searchParams.set("state", state);
 
     console.log("ML_AUTH_URL_CREATED", {
-      authorizationUrl: authorizationUrl.toString(),
-      redirectUri
+      authorizationUrl: authorizationUrl.toString()
     });
 
     const { userId } = req.query;
-    res.cookie('ml_oauth_state', JSON.stringify({ state, userId: userId ? String(userId) : "unknown" }), { httpOnly: true, maxAge: 1000 * 60 * 10, sameSite: 'lax', secure: true });
+    res.cookie('ml_oauth_state', JSON.stringify({ state, userId: userId ? String(userId) : "unknown" }), { 
+      httpOnly: true, 
+      maxAge: 1000 * 60 * 10, 
+      sameSite: 'lax', 
+      secure: true 
+    });
 
     return res.status(200).json({
       ok: true,
-      authorizationUrl: authorizationUrl.toString(),
-      redirectUri,
-      hasClientId: true,
-      hasRedirectUri: true
+      authorizationUrl: authorizationUrl.toString()
     });
   } catch (error: any) {
-    console.error("ML_AUTH_URL_EXCEPTION", {
-      message: error.message,
-      stack: error.stack
-    });
-
+    console.error("ML_AUTH_URL_ERROR", error.message);
     return res.status(500).json({
       ok: false,
       error: "auth_url_exception",
@@ -231,9 +229,14 @@ router.get("/callback", async (req, res) => {
 
     const clientId = process.env.ML_CLIENT_ID || "";
     const clientSecret = process.env.ML_CLIENT_SECRET || "";
+    const redirectUriUsed = process.env.ML_REDIRECT_URI || "";
 
-    if (!clientId || !clientSecret) {
-        console.error("ML credentials not configured");
+    if (!clientId || !clientSecret || !redirectUriUsed) {
+        console.error("ML credentials or redirect URI not configured", {
+            hasClientId: !!clientId,
+            hasClientSecret: !!clientSecret,
+            hasRedirectUri: !!redirectUriUsed
+        });
         return res.redirect(`${appUrl}/integrations?mercadolivre=config_error`);
     }
 
@@ -250,7 +253,7 @@ router.get("/callback", async (req, res) => {
               client_id: clientId,
               client_secret: clientSecret,
               code: code,
-              redirect_uri: redirectUri
+              redirect_uri: redirectUriUsed
           }).toString(),
           signal: controllerToken.signal
       });

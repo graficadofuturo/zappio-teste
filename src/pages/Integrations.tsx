@@ -120,27 +120,24 @@ export default function Integrations() {
         }
       });
   
-      const text = await response.text();
-  
-      console.log("CONNECT_ML_RAW_RESPONSE", text);
-  
-      let data;
-      try {
-        data = JSON.parse(text);
-      } catch (error) {
-        throw new Error("A rota de conexão não retornou JSON válido. " + text.substring(0, 50));
+      const contentType = response.headers.get("content-type");
+      if (!contentType || !contentType.includes("application/json")) {
+        const text = await response.text();
+        console.error("ML_AUTH_URL_NON_JSON_RESPONSE", text);
+        throw new Error("A rota de conexão retornou HTML em vez de JSON. Verifique se a API /api/integrations/mercadolivre/auth-url existe na Vercel.");
       }
   
+      const data = await response.json();
       console.log("CONNECT_ML_AUTH_URL_RESPONSE", data);
   
       if (!response.ok || !data.ok || !data.authorizationUrl) {
-        throw new Error(data.message || "Não foi possível iniciar a conexão.");
+        throw new Error(data.message || data.error || "Não foi possível iniciar a conexão.");
       }
   
       window.location.href = data.authorizationUrl;
     } catch (e: any) {
       console.error("CONNECT_ML_ERROR", e);
-      setMessage({ type: 'error', text: e.message || "Não foi possível iniciar a conexão." });
+      showError(e.message || "Não foi possível iniciar a conexão.");
     } finally {
       setSyncing(null);
     }

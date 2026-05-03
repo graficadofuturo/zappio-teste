@@ -15,19 +15,14 @@ router.get("/status", async (req, res) => {
 router.get("/sync", async (req, res) => {
   const { instanceId } = req.query;
   if (!instanceId || typeof instanceId !== 'string') return res.status(400).json({ error: "instanceId is required" });
-  const { instanceStatus, instances } = await import("../../../whatsappService.ts");
+  const { instanceStatus } = await import("../../../whatsappService.ts");
   const status = instanceStatus.get(instanceId);
   if (!status) return res.status(404).json({ error: "not found" });
   
   // Actively fetch groups if connected
-  const sock = instances.get(instanceId);
-  if (sock && status.status === 'connected') {
-      try {
-         const groups = await sock.groupFetchAllParticipating();
-         status.groups = Object.values(groups);
-      } catch (e) {
-         console.error("Error active fetching groups:", e);
-      }
+  const { fetchGroupsSafely } = await import("../../../whatsappService.ts");
+  if (status.status === 'connected') {
+      await fetchGroupsSafely(instanceId);
   }
   
   res.json({

@@ -8,105 +8,137 @@ export const instanceStatus = new Map<string, {
   status: string, 
   qr?: string,
   groups?: any[],
-  contacts?: any[]
+  contacts?: any[],
+  lastGroupFetch?: number
 }>();
+
+// Helper to fetch groups safely
+export async function fetchGroupsSafely(instanceId: string, force = false) {
+  const sock = instances.get(instanceId);
+  const status = instanceStatus.get(instanceId);
+  
+  if (!sock || !status || status.status !== 'connected') return;
+
+  const now = Date.now();
+  const MIN_INTERVAL = 5 * 60 * 1000; // 5 minutes
+
+  if (!force && status.lastGroupFetch && (now - status.lastGroupFetch < MIN_INTERVAL)) {
+    console.log(`[Instance ${instanceId}] Skipping group fetch, too soon (last fetch was ${Math.round((now - status.lastGroupFetch) / 1000)}s ago)`);
+    return;
+  }
+
+  try {
+    console.log(`[Instance ${instanceId}] Fetching groups...`);
+    const groups = await sock.groupFetchAllParticipating();
+    status.groups = Object.values(groups);
+    status.lastGroupFetch = Date.now();
+    console.log(`[Instance ${instanceId}] Fetched ${status.groups.length} groups.`);
+  } catch (e: any) {
+    if (e?.message?.includes('rate-overlimit')) {
+      console.warn(`[Instance ${instanceId}] Rate overlimit for group fetching. Waiting before next attempt.`);
+      // Set the last fetch to now even if failed with rate limit to prevent immediate retry
+      status.lastGroupFetch = Date.now(); 
+    } else {
+      console.error(`[Instance ${instanceId}] Error fetching groups:`, e);
+    }
+  }
+}
 
 // msgRetryCounterCache helps avoid "Bad MAC" errors by keeping track of retry attempts
 const msgRetryCounterCache = new NodeCache();
 
 export async function connectWhatsApp(instanceId: string) {
-  if (instances.has(instanceId)) {
-    return instanceStatus.get(instanceId);
-  }
+  try {
+    if (instances.has(instanceId)) {
+      return instanceStatus.get(instanceId);
+    }
 
-  instanceStatus.set(instanceId, { status: 'initializing', groups: [], contacts: [] });
+    instanceStatus.set(instanceId, { status: 'initializing', groups: [], contacts: [] });
 
-  const { state, saveCreds } = await useMultiFileAuthState(`baileys_auth_info_${instanceId}`);
-  const { version, isLatest } = await fetchLatestBaileysVersion();
-  
-  const sock = makeWASocket({
-    auth: state,
-    version,
-    printQRInTerminal: false,
-    getMessage: async (key) => {
-      // Trying to return something that won't trigger a total failure
-      return {
-        conversation: "Mensagem protegida por criptografia de ponta a ponta."
-      };
-    },
-    msgRetryCounterCache,
-    syncFullHistory: false,
-    markOnlineOnConnect: false,
-    defaultQueryTimeoutMs: 60000,
-    connectTimeoutMs: 60000,
-    keepAliveIntervalMs: 30000,
-    browser: ['Zappio', 'Chrome', '1.0.0'],
-    logger: Pino({ level: 'silent' }) as any
-  });
-
-  instances.set(instanceId, sock);
-
-  sock.ev.on('creds.update', saveCreds);
-
-  sock.ev.on('connection.update', async (update) => {
-    const { connection, lastDisconnect, qr } = update;
+    // Ensure session directory exists or just let Baileys handle it
+    const { state, saveCreds } = await useMultiFileAuthState(`baileys_auth_info_${instanceId}`);
+    const { version } = await fetchLatestBaileysVersion();
     
-    if (qr) {
-      console.log(`[Instance ${instanceId}] QR Code generated.`);
-      const current = instanceStatus.get(instanceId) || { status: 'initializing' };
-      instanceStatus.set(instanceId, { ...current, status: 'qrcode', qr });
-    }
+    const sock = makeWASocket({
+      auth: state,
+      version,
+      printQRInTerminal: false,
+      getMessage: async (key) => ({
+        conversation: "Mensagem protegida por criptografia de ponta a ponta."
+      }),
+      msgRetryCounterCache,
+      syncFullHistory: false,
+      markOnlineOnConnect: false,
+      defaultQueryTimeoutMs: 60000,
+      connectTimeoutMs: 60000,
+      keepAliveIntervalMs: 30000,
+      browser: ['Zappio', 'Chrome', '1.0.0'],
+      logger: Pino({ level: 'silent' }) as any
+    });
 
-    if (connection === 'close') {
-      const error = lastDisconnect?.error as any;
-      const statusCode = error?.output?.statusCode;
-      const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
+    instances.set(instanceId, sock);
+
+    sock.ev.on('creds.update', saveCreds);
+
+    sock.ev.on('connection.update', async (update) => {
+      const { connection, lastDisconnect, qr } = update;
       
-      console.log(`[Instance ${instanceId}] Connection closed. Status: ${statusCode}. Reconnecting: ${shouldReconnect}`);
-      
-      if (error?.message?.includes('Bad MAC')) {
-        console.error(`[Instance ${instanceId}] Critical: Bad MAC error detected. This often requires a session reset if it persists.`);
-      }
-      
-      instances.delete(instanceId);
-      
-      if (shouldReconnect) {
-        connectWhatsApp(instanceId); // Auto reconnect
-      } else {
+      if (qr) {
+        console.log(`[Instance ${instanceId}] QR Code generated.`);
         const current = instanceStatus.get(instanceId) || { status: 'initializing' };
-        instanceStatus.set(instanceId, { ...current, status: 'disconnected' });
+        instanceStatus.set(instanceId, { ...current, status: 'qrcode', qr });
       }
-    } else if (connection === 'open') {
-      console.log(`[Instance ${instanceId}] Connected!`);
-      const current = instanceStatus.get(instanceId) || { status: 'initializing' };
-      instanceStatus.set(instanceId, { ...current, status: 'connected' });
-      
-      try {
-        const groups = await sock.groupFetchAllParticipating();
-        const cur = instanceStatus.get(instanceId);
-        if (cur) {
-          cur.groups = Object.values(groups);
-          console.log(`[Instance ${instanceId}] Fetched ${cur.groups.length} groups.`);
+
+      if (connection === 'close') {
+        const error = lastDisconnect?.error as any;
+        const statusCode = error?.output?.statusCode;
+        const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
+        
+        console.log(`[Instance ${instanceId}] Connection closed. Status: ${statusCode}. Reconnecting: ${shouldReconnect}`);
+        
+        instances.delete(instanceId);
+        
+        if (shouldReconnect) {
+          // Reconnect with a slight delay
+          setTimeout(() => {
+            connectWhatsApp(instanceId).catch(err => console.error(`[Instance ${instanceId}] Reconnect failed:`, err));
+          }, 5000);
+        } else {
+          const current = instanceStatus.get(instanceId) || { status: 'initializing' };
+          instanceStatus.set(instanceId, { ...current, status: 'disconnected' });
         }
-      } catch (e) {
-        console.error(`[Instance ${instanceId}] Error fetching groups:`, e);
+      } else if (connection === 'open') {
+        console.log(`[Instance ${instanceId}] Connected!`);
+        const current = instanceStatus.get(instanceId) || { status: 'initializing' };
+        instanceStatus.set(instanceId, { ...current, status: 'connected' });
+        
+        // Delay group fetch after connection to avoid immediate rate limit
+        setTimeout(() => {
+          fetchGroupsSafely(instanceId);
+        }, 10000);
       }
-    }
-  });
+    });
 
-  sock.ev.on('contacts.upsert', async (contacts) => {
-    console.log(`[Instance ${instanceId}] Received ${contacts.length} contacts.`);
-    const cur = instanceStatus.get(instanceId);
-    if (cur) {
-       if (!cur.contacts) cur.contacts = [];
-       for (const c of contacts) {
-          if (!c.id || c.id.endsWith('@g.us')) continue;
-          cur.contacts.push(c);
-       }
-    }
-  });
+    sock.ev.on('contacts.upsert', async (contacts) => {
+      const cur = instanceStatus.get(instanceId);
+      if (cur) {
+         if (!cur.contacts) cur.contacts = [];
+         for (const c of contacts) {
+            if (!c.id || c.id.endsWith('@g.us')) continue;
+            // Check if contact already exists
+            if (!cur.contacts.find(item => item.id === c.id)) {
+              cur.contacts.push(c);
+            }
+         }
+      }
+    });
 
-  return instanceStatus.get(instanceId);
+    return instanceStatus.get(instanceId);
+  } catch (error: any) {
+    console.error(`[Instance ${instanceId}] Connection initialization error:`, error);
+    instanceStatus.set(instanceId, { status: 'error', groups: [], contacts: [] });
+    return { status: 'error', error: error.message };
+  }
 }
 
 export async function disconnectWhatsApp(instanceId: string) {
