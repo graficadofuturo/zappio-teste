@@ -119,6 +119,22 @@ export default function Integrations() {
     checkStatus();
   }, [searchParams, navigate]);
 
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      const origin = event.origin;
+      if (!origin.endsWith('.run.app') && !origin.includes('localhost')) {
+        return;
+      }
+      if (event.data?.type === 'OAUTH_AUTH_SUCCESS') {
+        checkMlApiStatus();
+        setMessage({ type: 'success', text: 'Mercado Livre conectado com sucesso.' });
+        setTimeout(() => setMessage(null), 5000);
+      }
+    };
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, []);
+
   const handleConnectML = async () => {
     try {
       setSyncing('ml');
@@ -138,7 +154,7 @@ export default function Integrations() {
       if (!contentType || !contentType.includes("application/json")) {
         const text = await response.text();
         console.error("ML_AUTH_URL_NON_JSON_RESPONSE", text);
-        throw new Error("A rota de conexão retornou HTML em vez de JSON. Verifique se a API /api/integrations/mercadolivre/auth-url existe na Vercel.");
+        throw new Error("A rota de conexão não retornou JSON. Verifique o deploy da API /api/integrations/mercadolivre/auth-url.");
       }
   
       const data = await response.json();
@@ -148,7 +164,15 @@ export default function Integrations() {
         throw new Error(data.message || data.error || "Não foi possível iniciar a conexão.");
       }
   
-      window.location.href = data.authorizationUrl;
+      const authWindow = window.open(
+        data.authorizationUrl,
+        'oauth_popup',
+        'width=600,height=700'
+      );
+
+      if (!authWindow) {
+        throw new Error("O navegador bloqueou o pop-up de conexão. Permita pop-ups para este site.");
+      }
     } catch (e: any) {
       console.error("CONNECT_ML_ERROR", e);
       showError(e.message || "Não foi possível iniciar a conexão.");
