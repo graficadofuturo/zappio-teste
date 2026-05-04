@@ -80,8 +80,8 @@ export default function Integrations() {
         setCheckingApiStatus(true);
         
         // Use auth.onAuthStateChanged if currentUser is not immediately available on mount
-        const fetchStatus = async (uid: string | undefined) => {
-          const response = await fetch(`/api/integrations/mercadolivre/status${uid ? `?uid=${uid}` : ''}`, {
+        const fetchStatus = async () => {
+          const response = await fetch(`/api/integrations/mercadolivre/status`, {
             method: "GET",
             headers: {
               "Accept": "application/json"
@@ -114,7 +114,7 @@ export default function Integrations() {
         };
 
         if (auth.currentUser) {
-          await fetchStatus(auth.currentUser.uid);
+          await fetchStatus();
           setMercadoLivreLoading(false);
           setCheckingApiStatus(false);
         } else {
@@ -122,9 +122,9 @@ export default function Integrations() {
           const unsubscribe = auth.onAuthStateChanged(async (user) => {
             try {
               if (user) {
-                await fetchStatus(user.uid);
+                await fetchStatus();
               } else {
-                await fetchStatus(undefined);
+                await fetchStatus();
               }
             } finally {
               setMercadoLivreLoading(false);
@@ -168,8 +168,7 @@ export default function Integrations() {
   
       console.log("CONNECT_ML_CLICKED");
   
-      const userId = auth.currentUser?.uid;
-      const response = await fetch(`/api/integrations/mercadolivre/auth-url${userId ? `?uid=${userId}` : ''}`, {
+      const response = await fetch(`/api/integrations/mercadolivre/auth-url`, {
         method: "GET",
         headers: {
           "Accept": "application/json"
@@ -218,8 +217,7 @@ export default function Integrations() {
     setCheckingApiStatus(true);
     setMercadoLivreLoading(true);
     try {
-      const user = auth.currentUser;
-      const res = await fetch(`/api/integrations/mercadolivre/status${user ? `?uid=${user.uid}` : ''}`);
+      const res = await fetch(`/api/integrations/mercadolivre/status`);
       const data = await res.json();
       console.log("ML_STATUS_FRONTEND_RESPONSE", data);
       setMlApiStatus(data);
@@ -273,8 +271,7 @@ export default function Integrations() {
       setDisconnectingMl(true);
       setShowDisconnectModal(false);
       
-      const userId = auth.currentUser?.uid;
-      const response = await fetch(`/api/integrations/mercadolivre/disconnect${userId ? `?uid=${userId}` : ''}`, {
+      const response = await fetch(`/api/integrations/mercadolivre/disconnect`, {
         method: "POST"
       });
       
@@ -398,24 +395,24 @@ export default function Integrations() {
                              </button>
                          </div>
                          
-                         {mlApiStatus && mlApiStatus.connected && mlApiStatus.integration && (
+                         {mlApiStatus && mlApiStatus.connected && (
                            <div className="text-[13px] text-gray-700 space-y-2 bg-gray-50 p-4 rounded-xl border border-gray-100">
-                              {mlApiStatus.integration.mlUserId && (
+                              {mlApiStatus.mlUserId && (
                                 <div className="flex justify-between items-center pb-2 border-b border-gray-200/50">
                                    <span className="text-gray-500">User ID:</span>
-                                   <span className="font-semibold">{mlApiStatus.integration.mlUserId}</span>
+                                   <span className="font-semibold">{mlApiStatus.mlUserId}</span>
                                 </div>
                               )}
-                              {mlApiStatus.integration.nickname && (
+                              {mlApiStatus.nickname && (
                                 <div className="flex justify-between items-center py-2 border-b border-gray-200/50">
                                    <span className="text-gray-500">Nickname:</span>
-                                   <span className="font-semibold">{mlApiStatus.integration.nickname}</span>
+                                   <span className="font-semibold">{mlApiStatus.nickname}</span>
                                 </div>
                               )}
-                              {mlApiStatus.integration.email && (
+                              {mlApiStatus.email && (
                                 <div className="flex justify-between items-center py-2 border-b border-gray-200/50">
                                    <span className="text-gray-500">E-mail:</span>
-                                   <span className="font-semibold">{mlApiStatus.integration.email}</span>
+                                   <span className="font-semibold">{mlApiStatus.email}</span>
                                 </div>
                               )}
                            </div>

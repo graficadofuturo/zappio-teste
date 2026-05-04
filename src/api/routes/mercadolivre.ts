@@ -39,10 +39,15 @@ router.get("/status", async (req, res) => {
       });
     }
 
+    console.log("ML_STATUS_UID", uid);
     const db = getAdminDb();
-    const docRef = db.doc(`users/${uid}/integrations/mercadolivre`);
+    const path = `users/${uid}/integrations/mercadolivre`;
+    console.log("ML_STATUS_READ_PATH", path);
+    const docRef = db.doc(path);
     const docSnap = await docRef.get();
     
+    console.log("ML_STATUS_DOC_EXISTS", docSnap.exists);
+
     if (!docSnap.exists) {
       return res.status(200).json({
         ok: true,
@@ -52,6 +57,11 @@ router.get("/status", async (req, res) => {
     }
 
     const docData = docSnap.data();
+    
+    const safeData = { ...docData };
+    if (safeData.accessToken) safeData.accessToken = "***";
+    if (safeData.refreshToken) safeData.refreshToken = "***";
+    console.log("ML_STATUS_DOC_DATA", safeData);
 
     if (!docData || docData.connected !== true) {
       return res.status(200).json({
@@ -163,14 +173,15 @@ router.get("/auth-url", async (req, res) => {
       });
     }
 
+    console.log("ML_AUTH_URL_UID", uid);
+
     const stateBase = crypto.randomUUID();
         
-    const stateObj = { uid: String(uid), nonce: stateBase };
+    const stateObj = { uid: String(uid), nonce: stateBase, createdAt: Date.now() };
+    console.log("ML_AUTH_URL_STATE_CREATED", stateObj);
     const stateStr = JSON.stringify(stateObj);
-    const encodedState = encodeURIComponent(Buffer.from(stateStr).toString('base64'));
+    const encodedState = encodeURIComponent(Buffer.from(stateStr).toString('base64url'));
     
-    console.log("ML_AUTH_STATE_CREATED", { hasUid: !!uid, uid: String(uid) });
-
     const authorizationUrl = `https://auth.mercadolivre.com.br/authorization?response_type=code&client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${encodedState}`;
 
     return res.status(200).json({
@@ -246,6 +257,38 @@ router.get("/callback", async (req, res) => {
       return sendHtml("error", "Credenciais Ausentes");
     }
 
+    let parsedState: any = null;
+    let userId = "unknown";
+    if (state) {
+      try {
+        const decodedStr = Buffer.from(String(state), 'base64url').toString('utf8');
+        parsedState = JSON.parse(decodedStr);
+        if (parsedState && parsedState.uid) {
+          userId = parsedState.uid;
+        }
+      } catch (e) {
+        // Fallback for previous formats
+        if (typeof state === "string" && state.includes("__")) {
+          userId = state.split("__")[1];
+        } else {
+          try {
+             const decodedStr = Buffer.from(String(state), 'base64').toString('utf8');
+             parsedState = JSON.parse(decodedStr);
+             if (parsedState && parsedState.uid) {
+               userId = parsedState.uid;
+             }
+          } catch(e2) {}
+        }
+      }
+    }
+
+    console.log("ML_CALLBACK_STATE_DECODED", parsedState || { uid: userId });
+    console.log("ML_CALLBACK_UID", userId);
+
+    if (userId === "unknown" || !userId || userId === "undefined") {
+       return sendHtml("missing_uid", "Usuário Firebase não identificado no retorno do OAuth");
+    }
+
     const tokenParams = new URLSearchParams({
       grant_type: "authorization_code",
       client_id: ML_CLIENT_ID,
@@ -263,12 +306,13 @@ router.get("/callback", async (req, res) => {
       body: tokenParams.toString(),
     });
 
+    console.log("ML_CALLBACK_TOKEN_OK", { ok: tokenRes.ok, status: tokenRes.status });
+
     if (!tokenRes.ok) {
       return sendHtml("error", "Falha ao trocar código por token");
     }
 
     const tokenData: any = await tokenRes.json();
-    console.log("ML_TOKEN_OK", { hasAccessToken: !!tokenData.access_token });
 
     const userRes = await fetch("https://api.mercadolibre.com/users/me", {
       method: "GET",
@@ -277,49 +321,20 @@ router.get("/callback", async (req, res) => {
       },
     });
 
+    console.log("ML_CALLBACK_USER_ME_OK", { ok: userRes.ok, status: userRes.status });
+
     if (!userRes.ok) {
       return sendHtml("error", "Falha ao buscar usuário no Mercado Livre");
     }
 
     const usersMe: any = await userRes.json();
-    console.log("ML_USERS_ME_OK", { mlUserId: usersMe.id, nickname: usersMe.nickname });
-
-    let userId = "unknown";
-    if (state) {
-      try {
-        const decodedStr = Buffer.from(String(state), 'base64').toString('utf8');
-        const decoded = JSON.parse(decodedStr);
-        if (decoded && decoded.uid) {
-          userId = decoded.uid;
-        }
-      } catch (e) {
-        // Fallback for previous formats
-        if (typeof state === "string" && state.includes("__")) {
-          userId = state.split("__")[1];
-        } else {
-          try {
-             const decodedStr = Buffer.from(String(state), 'base64url').toString('utf8');
-             const decoded = JSON.parse(decodedStr);
-             if (decoded && decoded.uid) {
-               userId = decoded.uid;
-             }
-          } catch(e2) {}
-        }
-      }
-    }
-
-    console.log("ML_CALLBACK_STATE_DECODED", { uid: userId, hasUid: !!userId && userId !== "unknown" });
-
-    if (userId === "unknown" || !userId || userId === "undefined") {
-       console.error("ML_CALLBACK_SAVE_ERROR", "User ID not found in state");
-       return sendHtml("missing_uid", "Usuário Firebase não identificado no retorno do OAuth");
-    }
 
     const db = getAdminDb();
 
     const data: any = {
       marketplace: "mercadolivre",
       connected: true,
+      status: "connected",
       uid: userId,
       mlUserId: usersMe.id,
       nickname: usersMe.nickname || null,
@@ -330,25 +345,45 @@ router.get("/callback", async (req, res) => {
       refreshToken: tokenData.refresh_token || null,
       tokenType: tokenData.token_type || null,
       expiresIn: tokenData.expires_in || null,
+      expiresAt: tokenData.expires_in ? Date.now() + tokenData.expires_in * 1000 : null,
       scope: tokenData.scope || null,
       connectedAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };
 
     const path = `users/${userId}/integrations/mercadolivre`;
-    console.log("ML_FIRESTORE_SAVE_START", { path });
+    console.log("ML_CALLBACK_SAVE_PATH", path);
+    console.log("ML_CALLBACK_SAVE_PAYLOAD_KEYS", Object.keys(data));
 
     try {
-      // Save directly with getAdminDb()
       await db.doc(path).set(data);
-      console.log("ML_FIRESTORE_SAVE_SUCCESS", { path });
+      console.log("ML_CALLBACK_SAVE_OK", true);
+      
+      console.log("ML_CALLBACK_VERIFY_READ_PATH", path);
+      const verifySnap = await db.doc(path).get();
+      console.log("ML_CALLBACK_VERIFY_READ_EXISTS", verifySnap.exists);
+      
+      if (verifySnap.exists) {
+        const verifyData = verifySnap.data() || {};
+        const safeVerify = { ...verifyData };
+        if (safeVerify.accessToken) safeVerify.accessToken = "***";
+        if (safeVerify.refreshToken) safeVerify.refreshToken = "***";
+        console.log("ML_CALLBACK_VERIFY_READ_DATA", safeVerify);
+        
+        if (verifyData.connected !== true) {
+           throw new Error("Connected field was not saved correctly");
+        }
+      } else {
+        throw new Error("Document could not be read back after saving");
+      }
+      
     } catch (dbErr: any) {
       console.error("ML_FIRESTORE_SAVE_ERROR", { 
         message: dbErr?.message, 
         code: dbErr?.code,
         stack: dbErr?.stack, 
         uid: userId,
-        path: userId ? `users/${userId}/integrations/mercadolivre` : null
+        path: path
       });
       return sendHtml("save_error", dbErr?.message || "Erro desconhecido ao salvar");
     }
@@ -373,7 +408,10 @@ router.post("/disconnect", async (req, res) => {
       return res.status(400).json({ ok: false, error: "MISSING_UID" });
     }
 
+    console.log("ML_DISCONNECT_UID", uid);
     const docPath = `users/${uid}/integrations/mercadolivre`;
+    console.log("ML_DISCONNECT_PATH", docPath);
+    
     const docRef = db.doc(docPath);
     await docRef.set(
       {

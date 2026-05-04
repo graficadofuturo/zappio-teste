@@ -27,15 +27,15 @@ export default async function handler(req, res) {
       });
     }
 
-    const state = typeof randomUUID === 'function' ? randomUUID() : `ml-${Date.now()}-${Math.random()}`;
+    const state = randomUUID();
 
     const authorizationUrl = `https://auth.mercadolivre.com.br/authorization?response_type=code&client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${state}`;
 
     return res.status(200).json({
       ok: true,
-      authorizationUrl: authorizationUrl,
-      redirectUri: redirectUri,
-      state: state
+      authorizationUrl,
+      redirectUri,
+      state
     });
 
   } catch (error) {
