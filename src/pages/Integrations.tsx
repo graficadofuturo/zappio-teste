@@ -373,29 +373,29 @@ export default function Integrations() {
                              </button>
                          </div>
                          
-                         {mlApiStatus && mlApiStatus.connected && mlApiStatus.integration && (
+                         {mlApiStatus && mlApiStatus.connected && mlApiStatus.account && (
                            <div className="text-[13px] text-gray-700 space-y-2 bg-gray-50 p-4 rounded-xl border border-gray-100">
-                              {mlApiStatus.integration.mlUserId && (
+                              {mlApiStatus.account.mlUserId && (
                                 <div className="flex justify-between items-center pb-2 border-b border-gray-200/50">
                                    <span className="text-gray-500">User ID:</span>
-                                   <span className="font-semibold">{mlApiStatus.integration.mlUserId}</span>
+                                   <span className="font-semibold">{mlApiStatus.account.mlUserId}</span>
                                 </div>
                               )}
-                              {mlApiStatus.integration.nickname && (
+                              {mlApiStatus.account.nickname && (
                                 <div className="flex justify-between items-center py-2 border-b border-gray-200/50">
                                    <span className="text-gray-500">Nickname:</span>
-                                   <span className="font-semibold">{mlApiStatus.integration.nickname}</span>
+                                   <span className="font-semibold">{mlApiStatus.account.nickname}</span>
                                 </div>
                               )}
-                              {mlApiStatus.integration.email && (
+                              {mlApiStatus.account.email && (
                                 <div className="flex justify-between items-center py-2 border-b border-gray-200/50">
                                    <span className="text-gray-500">E-mail:</span>
-                                   <span className="font-semibold">{mlApiStatus.integration.email}</span>
+                                   <span className="font-semibold">{mlApiStatus.account.email}</span>
                                 </div>
                               )}
                               <div className="flex justify-between items-center pt-1">
                                  <span className="text-gray-500">Autorizado:</span>
-                                 <span className="font-medium text-[12px]">{mlApiStatus.integration.connectedAt ? new Date(mlApiStatus.integration.connectedAt).toLocaleDateString() : 'Desconhecido'}</span>
+                                 <span className="font-medium text-[12px]">{mlApiStatus.updatedAt ? new Date(mlApiStatus.updatedAt).toLocaleDateString() : 'Desconhecido'}</span>
                               </div>
                            </div>
                          )}
@@ -561,27 +561,27 @@ export default function Integrations() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="p-4 rounded-xl bg-gray-50 border border-gray-100">
                   <span className="text-[11px] text-gray-500 font-bold uppercase tracking-wider block mb-1">Nickname</span>
-                  <span className="text-[14px] font-semibold text-gray-900">{mlApiStatus.nickname || 'N/A'}</span>
+                  <span className="text-[14px] font-semibold text-gray-900">{mlApiStatus.account?.nickname || 'N/A'}</span>
                 </div>
                 <div className="p-4 rounded-xl bg-gray-50 border border-gray-100">
                   <span className="text-[11px] text-gray-500 font-bold uppercase tracking-wider block mb-1">Seller ID</span>
-                  <span className="text-[14px] font-semibold text-gray-900">{mlApiStatus.mlUserId || 'N/A'}</span>
+                  <span className="text-[14px] font-semibold text-gray-900">{mlApiStatus.account?.mlUserId || 'N/A'}</span>
                 </div>
               </div>
               
               <div className="p-4 rounded-xl bg-gray-50 border border-gray-100">
                 <span className="text-[11px] text-gray-500 font-bold uppercase tracking-wider block mb-1">E-mail da Conta</span>
-                <span className="text-[14px] font-semibold text-gray-900">{mlApiStatus.email || 'Não informado'}</span>
+                <span className="text-[14px] font-semibold text-gray-900">{mlApiStatus.account?.email || 'Não informado'}</span>
               </div>
               
               <div className="grid grid-cols-2 gap-4">
                 <div className="p-4 rounded-xl bg-gray-50 border border-gray-100">
                   <span className="text-[11px] text-gray-500 font-bold uppercase tracking-wider block mb-1">Região (Site)</span>
-                  <span className="text-[14px] font-semibold text-gray-900">{mlApiStatus.site_id || 'MLB'}</span>
+                  <span className="text-[14px] font-semibold text-gray-900">MLB</span>
                 </div>
                 <div className="p-4 rounded-xl bg-gray-50 border border-gray-100">
                   <span className="text-[11px] text-gray-500 font-bold uppercase tracking-wider block mb-1">Conectado em</span>
-                  <span className="text-[14px] font-semibold text-gray-900">{mlApiStatus.connectedAt ? new Date(mlApiStatus.connectedAt).toLocaleDateString() : 'N/A'}</span>
+                  <span className="text-[14px] font-semibold text-gray-900">{mlApiStatus.updatedAt ? new Date(mlApiStatus.updatedAt).toLocaleDateString() : 'N/A'}</span>
                 </div>
               </div>
             </div>
