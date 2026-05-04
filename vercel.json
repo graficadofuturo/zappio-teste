@@ -11,7 +11,7 @@
   ],
   "crons": [
     {
-      "path": "/api/offers/collector/run",
+      "path": "/api/cron/collect-offers",
       "schedule": "0 6 * * *"
     }
   ]

@@ -1,274 +1,201 @@
 import * as cheerio from 'cheerio';
 import { getAdminDb } from './firebase-admin.js';
 
-const ML_SEARCH_URL = "https://api.mercadolibre.com/sites/MLB/search";
-const ML_ITEM_URL = "https://api.mercadolibre.com/items/";
-const ML_HTML_SEARCH_BASE = "https://lista.mercadolivre.com.br/";
-
-export const CATEGORY_TERMS = {
-  tecnologia: ["smartphone", "notebook", "smart tv", "fone bluetooth", "monitor"],
-  casa_moveis: ["mesa", "cadeira", "sofá", "guarda roupa", "colchão"],
-  eletrodomesticos: ["air fryer", "microondas", "geladeira", "cooktop", "aspirador"],
-  esporte_fitness: ["whey protein", "creatina", "bicicleta", "esteira", "halter"],
-  ferramentas: ["furadeira", "parafusadeira", "kit ferramentas", "esmerilhadeira", "compressor"],
-  moda: ["tênis", "mochila", "camiseta", "relógio", "óculos"],
-  beleza: ["secador cabelo", "escova secadora", "perfume", "barbeador", "chapinha"],
-  automotivo: ["pneu", "suporte celular carro", "câmera de ré", "multimídia carro", "aspirador carro"]
-};
-
 /**
- * Standardize an offer payload for Firestore
+ * Standardize and VALIDATE an offer payload for Firestore
+ * Returns null if the offer is invalid.
  */
-export function normalizeOffer(item, source = 'api_search', category = 'todos') {
-  const originalPrice = item.original_price ?? item.originalPrice ?? null;
-  const price = item.price ?? null;
+export function normalizeOffer(item, source = 'auto_collector', category = 'todos') {
+  const originalPrice = Number(item.original_price ?? item.originalPrice ?? null);
+  const price = Number(item.price ?? null);
+  
+  // REQUIRED FIELDS VALIDATION
+  if (!item.title || item.title.includes("Produto Mercado Livre") || item.title.length < 5) {
+     return null;
+  }
+  
+  if (!Number.isFinite(price) || price <= 0) {
+     return null;
+  }
+
+  const productId = String(item.id || item.marketplaceProductId || item.productId);
+  if (!productId || productId.startsWith("url_")) {
+     return null;
+  }
+
+  const productUrl = item.permalink || item.productUrl || null;
+  if (!productUrl || !productUrl.startsWith("http")) {
+     return null;
+  }
+
+  const thumbnail = item.thumbnail || item.image || item.imageUrl || null;
+  if (!thumbnail) {
+     return null;
+  }
+
+  // Use higher resolution if possible
+  const imageUrl = thumbnail.replace("-I.jpg", "-O.jpg");
+
   let discountPercent = null;
   if (originalPrice && price && originalPrice > price) {
     discountPercent = Math.round(((originalPrice - price) / originalPrice) * 100);
   }
 
-  const thumbnail = item.thumbnail || item.image || null;
-  const image = thumbnail ? thumbnail.replace("-I.jpg", "-O.jpg") : null;
+  let cleanTitle = item.title.trim();
+  const half = Math.floor(cleanTitle.length / 2);
+  if (cleanTitle.length > 20 && cleanTitle.slice(0, half) === cleanTitle.slice(half)) {
+    cleanTitle = cleanTitle.slice(0, half).trim();
+  }
 
   const offer = {
     marketplace: "mercadolivre",
-    marketplaceProductId: String(item.id || item.marketplaceProductId),
-    title: item.title || null,
+    productId: productId,
+    title: cleanTitle,
     price: price,
-    originalPrice: originalPrice,
-    currencyId: item.currency_id || item.currencyId || "BRL",
-    thumbnail: thumbnail,
-    image: image,
-    productUrl: item.permalink || item.productUrl || null,
+    originalPrice: Number.isFinite(originalPrice) ? originalPrice : null,
+    discountPercent: item.discountPercent ?? discountPercent,
+    imageUrl: imageUrl,
+    productUrl: productUrl,
     affiliateUrl: item.affiliateUrl || null,
     category: category,
-    sellerId: item.seller?.id ? String(item.seller.id) : (item.sellerId ? String(item.sellerId) : null),
-    sellerNickname: item.seller?.nickname || item.sellerNickname || null,
-    condition: item.condition || null,
-    availableQuantity: item.available_quantity ?? item.availableQuantity ?? null,
-    soldQuantity: item.sold_quantity ?? item.soldQuantity ?? null,
-    discountPercent: item.discountPercent ?? discountPercent,
+    status: "active",
     source: source,
     collectedAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-    isActive: true
+    updatedAt: new Date().toISOString()
   };
 
-  // Remove null/undefined values
+  // Final check: filter out undefined/null except for allowed nulls
   return Object.fromEntries(
-    Object.entries(offer).filter(([_, v]) => v !== undefined && v !== null)
+    Object.entries(offer).filter(([k, v]) => {
+      if (k === 'originalPrice' || k === 'discountPercent' || k === 'affiliateUrl' || k === 'category') return true;
+      return v !== undefined && v !== null;
+    })
   );
 }
 
 /**
- * Get ML Access Token from Firestore
+ * Scrape a single product page for real data
  */
-async function getMLAccessToken() {
+async function scrapeProductPage(idOrUrl, category = 'todos') {
+  const url = idOrUrl.startsWith('http') ? idOrUrl : `https://www.mercadolivre.com.br/p/${idOrUrl}`;
+  
   try {
-    const db = getAdminDb();
-    // Assuming integration is stored in a generic way or specific to ML
-    // Try to find any ML integration
-    const snap = await db.collection("integrations")
-      .where("marketplace", "==", "mercadolivre")
-      .limit(1)
-      .get();
+    const res = await fetch(url, {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.0.0 Safari/537.36",
+        "Accept-Language": "pt-BR,pt;q=0.9"
+      }
+    });
+    
+    if (!res.ok) return null;
+    
+    const html = await res.text();
+    const $ = cheerio.load(html);
+    
+    // Extract using meta tags (very reliable)
+    const title = $('meta[property="og:title"]').attr('content') || $('h1').first().text().trim();
+    const imageUrl = $('meta[property="og:image"]').attr('content');
+    const priceText = $('meta[property="product:price:amount"]').attr('content') || 
+                      $('.andes-money-amount__fraction').first().text().replace(/\./g, '');
+    const price = parseFloat(priceText);
+    
+    const productIdMatch = url.match(/MLB-?(\d+)/);
+    const productId = productIdMatch ? `MLB${productIdMatch[1]}` : idOrUrl;
 
-    if (!snap.empty) {
-      return snap.docs[0].data().accessToken;
+    if (title && price > 0 && imageUrl) {
+      return normalizeOffer({
+        id: productId,
+        title,
+        price,
+        permalink: url,
+        thumbnail: imageUrl
+      }, "auto_collector_scrape", category);
     }
   } catch (e) {
-    console.error("Error getting ML access token:", e);
+    console.error(`ML_OFFERS_SCRAPE_ERROR: ${url}`, e.message);
   }
   return null;
 }
 
 /**
- * Try searching via API
+ * Fetch and Enrich: Extracts data directly from HTML results to avoid per-item blocks
  */
-export async function searchByAPI(query, limit = 10, category = 'tecnologia') {
-  const accessToken = await getMLAccessToken();
-  const headers = {
-    "Accept": "application/json",
-    "User-Agent": "Mozilla/5.0 (compatible; ZappioBot/1.0; +https://zappio-bot.com)",
-    "Origin": "https://mercadolivre.com.br",
-    "Referer": "https://mercadolivre.com.br/"
-  };
-
-  if (accessToken) {
-    headers["Authorization"] = `Bearer ${accessToken}`;
-  }
-
-  const url = `${ML_SEARCH_URL}?q=${encodeURIComponent(query)}&limit=${limit}`;
-  const res = await fetch(url, { headers });
+export async function collectAutomated(query, category = 'todos') {
+  console.log(`ML_OFFERS_COLLECT_START: category=${category}, query=${query}`);
   
-  if (!res.ok) {
-    const errorText = await res.text();
-    throw { status: res.status, body: errorText };
-  }
+  const enrichedOffers = [];
+  const urls = [
+    `https://www.mercadolivre.com.br/ofertas?q=${encodeURIComponent(query)}`,
+    `https://lista.mercadolivre.com.br/${encodeURIComponent(query.replace(/\s+/g, '-'))}`
+  ];
 
-  const data = await res.json();
-  const results = data.results || [];
-  
-  return results.map(item => normalizeOffer(item, "mercadolivre_api_search", category));
-}
-
-/**
- * Try searching via HTML Scraping
- */
-export async function searchByHTML(query, category = 'todos') {
-  // Try standard the list page first
-  const searchUrl = `${ML_HTML_SEARCH_BASE}${encodeURIComponent(query.replace(/\s+/g, '-'))}`;
-  const offersUrl = `https://www.mercadolivre.com.br/ofertas?q=${encodeURIComponent(query)}`;
-  
-  let html = "";
-  let usedUrl = searchUrl;
-
-  try {
-    const res = await fetch(searchUrl, {
-      headers: {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.0.0 Safari/537.36"
-      }
-    });
-    html = await res.text();
-    
-    if (html.includes("suspicious-traffic-frontend")) {
-      console.log(`[ML] Search page blocked for "${query}", trying offers page fallback...`);
-      const resFallback = await fetch(offersUrl, {
-        headers: {
-          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.0.0 Safari/537.36"
-        }
+  for (const url of urls) {
+    try {
+      const res = await fetch(url, {
+        headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.0.0 Safari/537.36" }
       });
-      html = await resFallback.text();
-      usedUrl = offersUrl;
-    }
-  } catch (e) {
-    console.error(`[ML] HTML search failed for ${searchUrl}`, e);
-    // Try fallback anyway
-    const resFallback = await fetch(offersUrl, {
-      headers: {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.0.0 Safari/537.36"
+      if (res.ok) {
+        const html = await res.text();
+        const $ = cheerio.load(html);
+        
+        // ML search results usually have items in these containers
+        $('.ui-search-result, .promotion-item, [class*="poly-card"]').each((i, el) => {
+          const title = $(el).find('h2, h3, [class*="title"]').text().trim();
+          const productUrl = $(el).find('a').attr('href');
+          const imageUrl = $(el).find('img').attr('data-src') || $(el).find('img').attr('src');
+          
+          // Price matching is tricky: look for the fraction part
+          const priceText = $(el).find('.andes-money-amount__fraction, .price-tag-fraction').first().text().replace(/\./g, '');
+          const price = parseFloat(priceText);
+          
+          if (title && price > 0 && productUrl && imageUrl) {
+            const idMatch = productUrl.match(/MLB-?(\d+)/);
+            const productId = idMatch ? `MLB${idMatch[1]}` : null;
+            
+            if (productId) {
+              const offer = normalizeOffer({
+                id: productId,
+                title,
+                price,
+                permalink: productUrl,
+                thumbnail: imageUrl
+              }, "auto_collector_search_list", category);
+              
+              if (offer) {
+                enrichedOffers.push(offer);
+              }
+            }
+          }
+        });
       }
-    });
-    html = await resFallback.text();
-    usedUrl = offersUrl;
+    } catch (e) {
+      console.error(`ML_OFFERS_COLLECT_ERROR: Failed to fetch ${url}`, e.message);
+    }
+    if (enrichedOffers.length >= 10) break;
   }
 
-  const $ = cheerio.load(html);
-  const products = [];
-
-  // Parse HTML
-  // Selector for standard search
-  $('.ui-search-result__wrapper, .promotion-item, [class*="polycard"]').each((i, el) => {
-    const title = $(el).find('.ui-search-item__title, .promotion-item__title, [class*="title"]').text().trim();
-    const link = $(el).find('a.ui-search-link, a.promotion-item__link-container, a[href*="MLB"]').attr('href');
-    const img = $(el).find('img').attr('data-src') || $(el).find('img').attr('src');
-    
-    // Price extraction is tricky across different pages
-    const priceText = $(el).find('.price-tag-fraction, .promotion-item__price, [class*="price"]').first().text().replace(/\./g, '').replace(/[^\d]/g, '');
-    const price = parseFloat(priceText) || 0;
-
-    if (link && title) {
-       products.push({
-         title,
-         permalink: link,
-         thumbnail: img,
-         price,
-         id: link.match(/MLB-?(\d+)/)?.[1] ? `MLB${link.match(/MLB-?(\d+)/)[1]}` : `url_${Buffer.from(link).toString('hex').slice(0, 16)}`
-       });
-    }
-  });
-
-  // If no products and we have MLB IDs in HTML, let's try to at least get links
-  if (products.length === 0) {
-    const mlbMatches = html.match(/href=\"([^\"]*MLB[^\"]*)\"/g) || [];
-    const uniqueLinks = [...new Set(mlbMatches.map(m => m.match(/href=\"([^\"]+)\"/)[1]))];
-    
-    for (const link of uniqueLinks.slice(0, 10)) {
-       const idMatch = link.match(/MLB-?(\d+)/);
-       if (idMatch) {
-          products.push({
-            permalink: link,
-            id: `MLB${idMatch[1]}`,
-            title: "Produto Mercado Livre" // Placeholder until item fetch
-          });
-       }
-    }
-  }
-
-  return products.map(p => normalizeOffer(p, "html_public_pages", category));
+  console.log(`ML_OFFERS_NORMALIZED_COUNT: ${enrichedOffers.length} valid offers extracted`);
+  return enrichedOffers;
 }
 
 /**
- * Fetch a single item by ID or URL
- */
-export async function fetchItemInfo(itemIdOrUrl, category = 'tecnologia') {
-  let itemId = itemIdOrUrl;
-  if (itemIdOrUrl.includes('http')) {
-    const match = itemIdOrUrl.match(/MLB-?(\d+)/);
-    if (match) {
-      itemId = `MLB${match[1]}`;
-    } else {
-      // It's a link but not a standard MLB ID one, try scraping the link directly
-      return await scrapeDirectLink(itemIdOrUrl, category);
-    }
-  }
-
-  // Try API first
-  try {
-    const res = await fetch(`${ML_ITEM_URL}${itemId}`);
-    if (res.ok) {
-      const data = await res.json();
-      return normalizeOffer(data, "mercadolivre_api_item", category);
-    }
-  } catch (e) {
-    console.error(`API fetch failed for item ${itemId}, trying HTML...`);
-  }
-
-  // Fallback to scraping if it's a URL or if we can construct one
-  const url = itemIdOrUrl.includes('http') ? itemIdOrUrl : `https://www.mercadolivre.com.br/p/${itemId}`;
-  return await scrapeDirectLink(url, category);
-}
-
-async function scrapeDirectLink(url, category = 'tecnologia') {
-  const res = await fetch(url, {
-    headers: {
-      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
-    }
-  });
-
-  if (!res.ok) throw new Error(`Scraping failed for ${url}`);
-
-  const html = await res.text();
-  const $ = cheerio.load(html);
-
-  const title = $('meta[property="og:title"]').attr('content') || $('h1').text();
-  const image = $('meta[property="og:image"]').attr('content');
-  const price = parseFloat($('meta[property="product:price:amount"]').attr('content')) || 0;
-  const itemId = url.match(/MLB-?(\d+)/)?.[1] ? `MLB${url.match(/MLB-?(\d+)/)[1]}` : `url_${Buffer.from(url).toString('hex').slice(0, 16)}`;
-
-  return normalizeOffer({
-    id: itemId,
-    title,
-    permalink: url,
-    thumbnail: image,
-    price
-  }, "mercadolivre_manual_import", category);
-}
-
-/**
- * Save multiple offers to Firestore
+ * Save valid offers to Firestore
  */
 export async function saveOffers(offers) {
+  if (!offers || offers.length === 0) return 0;
+  
   const db = getAdminDb();
-  let savedCount = 0;
+  console.log(`ML_OFFERS_FIRESTORE_SAVE_START: Saving ${offers.length} items`);
   const batch = db.batch();
+  let savedCount = 0;
 
   for (const offer of offers) {
-    const docRef = db.collection("offer_bank").doc(`mercadolivre_${offer.marketplaceProductId}`);
+    const docRef = db.collection("offer_bank").doc(`mercadolivre_${offer.productId}`);
     batch.set(docRef, offer, { merge: true });
     savedCount++;
   }
 
   await batch.commit();
+  console.log(`ML_OFFERS_FIRESTORE_SAVE_SUCCESS: ${savedCount} items saved`);
   return savedCount;
 }

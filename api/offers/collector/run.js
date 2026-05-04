@@ -1,61 +1,60 @@
-import { searchByAPI, searchByHTML, saveOffers, CATEGORY_TERMS } from "../../_lib/ml-utils.js";
+import { collectAutomated, saveOffers } from "../../_lib/ml-utils.js";
+
+const CATEGORY_KEYWORDS = {
+  tecnologia: ["smartphone", "notebook", "smart tv", "fone bluetooth", "monitor gamer", "placa de vídeo", "tablet"],
+  casa_moveis: ["mesa escritorio", "cadeira gamer", "sofa retratil", "guarda roupa casal", "colchao queen"],
+  eletrodomesticos: ["air fryer philips", "geladeira frost free", "cooktop 5 bocas", "aspirador robo", "maquina de lavar"],
+  esporte_fitness: ["whey protein isolado", "creatina monoidratada", "bicicleta aro 29", "esteira eletrica", "tenis corrida"],
+  ferramentas: ["furadeira martelete", "parafusadeira bosch", "kit ferramentas stanley", "lavadora alta pressao"],
+  moda: ["tenis nike", "mochila notebook", "relogio masculino", "oculos ray ban", "jaqueta corta vento"],
+  beleza: ["secador taiff", "perfume importado", "barbeador eletrico", "chapinha profissional", "maquiagem kit"],
+  automotivo: ["pneu aro 14", "multimidia android", "lampada led carro", "oleo 5w30 motul", "bateria carro"]
+};
 
 export default async function handler(req, res) {
   res.setHeader("Content-Type", "application/json; charset=utf-8");
 
   const { marketplace = "mercadolivre", category, limit = 50 } = req.query;
 
+  console.log("ML_OFFERS_COLLECT_START: Request received", { category, limit });
+
   try {
     let totalSaved = 0;
-    const sourcesUsed = [];
-    let apiSearchBlocked = false;
-    const errors = [];
-    const categoriesToProcess = category && category !== "todos" 
-      ? { [category]: CATEGORY_TERMS[category] } 
-      : CATEGORY_TERMS;
+    const categoriesToProcess = category && category !== "todos" && CATEGORY_KEYWORDS[category]
+      ? { [category]: CATEGORY_KEYWORDS[category] } 
+      : CATEGORY_KEYWORDS;
+
+    const allErrors = [];
 
     for (const [catName, terms] of Object.entries(categoriesToProcess)) {
-      // Pick first term for each category to keep it efficient in a single run
-      const queryTerm = terms[0];
-      let offers = [];
-
-      // Layer 1: API Search
+      // Pick a random term from each category to vary the results
+      const queryTerm = terms[Math.floor(Math.random() * terms.length)];
+      
       try {
-        offers = await searchByAPI(queryTerm, 15, catName);
-        if (!sourcesUsed.includes("api_search")) sourcesUsed.push("api_search");
-      } catch (e) {
-        console.error(`API Search failed for ${catName}:`, e);
-        apiSearchBlocked = true;
-        errors.push({ category: catName, source: "api_search", status: e.status, message: e.body || e.message });
+        const validOffers = await collectAutomated(queryTerm, catName);
         
-        // Layer 2: HTML Search (Public Pages)
-        try {
-          offers = await searchByHTML(queryTerm, catName);
-          if (!sourcesUsed.includes("html_public_pages")) sourcesUsed.push("html_public_pages");
-        } catch (htmlError) {
-          console.error(`HTML Search failed for ${catName}:`, htmlError);
-          errors.push({ category: catName, source: "html_public_pages", message: htmlError.message });
+        if (validOffers.length > 0) {
+          const savedCount = await saveOffers(validOffers);
+          totalSaved += savedCount;
         }
-      }
-
-      if (offers.length > 0) {
-        const saved = await saveOffers(offers);
-        totalSaved += saved;
+      } catch (err) {
+        console.error(`ML_OFFERS_COLLECT_ERROR: Failed for category ${catName}`, err.message);
+        allErrors.push({ category: catName, error: err.message });
       }
     }
+
+    console.log(`ML_OFFERS_COLLECT_FINISH: Total saved: ${totalSaved}`);
 
     return res.status(200).json({
       ok: true,
       marketplace,
-      totalCollected: totalSaved, // approximation
       totalSaved,
-      sourcesUsed,
-      apiSearchBlocked,
-      errors: errors.length > 0 ? errors : undefined
+      categoriesProcessed: Object.keys(categoriesToProcess).length,
+      errors: allErrors.length > 0 ? allErrors : undefined
     });
 
   } catch (error) {
-    console.error("COLLECTOR_RUN_ERR", error);
+    console.error("ML_OFFERS_COLLECT_ERROR: Critical failure", error);
     return res.status(500).json({ ok: false, error: error.message });
   }
 }

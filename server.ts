@@ -18,6 +18,7 @@ import integrationsRouter from "./src/api/routes/integrations.ts";
 import offersRouter from "./src/api/routes/offers.ts";
 
 import collectorRunHandler from "./api/offers/collector/run.js";
+import collectorCheckHandler from "./api/cron/collect-offers.js";
 import collectorStatusHandler from "./api/offers/collector/status.js";
 import offersListHandler from "./api/offers/list.js";
 import offersDebugHandler from "./api/offers/debug.js";
@@ -41,6 +42,7 @@ async function startServer() {
     // Mount Vercel-style API Routes directly
     // NEW AUTOMATED ROUTES
     app.all("/api/offers/collector/run", collectorRunHandler);
+    app.all("/api/cron/collect-offers", collectorCheckHandler);
     app.all("/api/offers/collector/status", collectorStatusHandler);
     app.all("/api/offers/list", offersListHandler);
     app.all("/api/offers/debug", offersDebugHandler);

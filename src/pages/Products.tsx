@@ -91,9 +91,18 @@ export default function Products() {
     return null;
   };
 
+  const formatCurrency = (value: any) => {
+    const number = Number(value);
+    if (!Number.isFinite(number) || number <= 0) return null;
+    return number.toLocaleString("pt-BR", {
+      style: "currency",
+      currency: "BRL"
+    });
+  };
+
   const renderProductCard = (p: any) => {
       const title = p.title;
-      const image = p.image || p.thumbnail;
+      const image = p.imageUrl || p.image || p.thumbnail;
       const price = p.price;
       const oldPrice = p.originalPrice;
       const discount = p.discountPercent ? `${p.discountPercent}% OFF` : null;
@@ -101,19 +110,18 @@ export default function Products() {
       const affiliateLink = p.affiliateUrl;
       const category = p.category || "Geral";
 
+      const formattedPrice = formatCurrency(price);
+      if (!formattedPrice) return null;
+
       return (
-        <div key={p.id || p.marketplaceProductId} className="bg-white flex flex-col border border-gray-200 rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-all hover:-translate-y-0.5 group">
+        <div key={p.id || p.productId || p.marketplaceProductId} className="bg-white flex flex-col border border-gray-200 rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-all hover:-translate-y-0.5 group">
             <div className="bg-white h-[200px] flex items-center justify-center border-b border-gray-100 p-4 relative group-hover:bg-gray-50 transition-colors">
                 <div className="absolute top-3 left-3 z-10">
                     <span className="px-2 py-1 bg-white/90 backdrop-blur-sm border border-gray-100 rounded-md text-[10px] font-bold text-gray-500 uppercase shadow-sm capitalize inline-block truncate max-w-[150px]">
                         {category.replace('_', ' e ')}
                     </span>
                 </div>
-                {image ? (
-                    <img src={image} alt={title} className="w-full h-full object-contain mix-blend-multiply drop-shadow-sm" />
-                ) : (
-                    <Package className="w-10 h-10 text-gray-300" />
-                )}
+                <img src={image} alt={title} className="w-full h-full object-contain mix-blend-multiply drop-shadow-sm" />
                 {marketplaceLogo("Mercado Livre")}
             </div>
             
@@ -126,11 +134,11 @@ export default function Products() {
                 
                 <div className="flex items-end gap-2 mb-4">
                     <span className="text-[20px] font-extrabold text-gray-900 leading-none pb-0.5">
-                        R$ {Number(price).toFixed(2).replace('.', ',')}
+                        {formattedPrice}
                     </span>
                     {oldPrice && oldPrice > price && (
                         <span className="text-[12px] text-gray-400 line-through mb-1">
-                            R$ {Number(oldPrice).toFixed(2).replace('.', ',')}
+                            {formatCurrency(oldPrice)}
                         </span>
                     )}
                     {discount && (
@@ -142,14 +150,14 @@ export default function Products() {
 
                 <div className="mt-auto pt-4 border-t border-gray-100 space-y-2">
                     <div className="flex items-center gap-2 mb-2">
-                      <span className={`w-2 h-2 rounded-full ${affiliateLink ? 'bg-green-500' : 'bg-yellow-500'}`}></span>
+                      <span className={`w-2 h-2 rounded-full ${affiliateLink ? 'bg-green-500' : 'bg-blue-500'}`}></span>
                       <span className="text-[11px] font-medium text-gray-500">
-                        {affiliateLink ? 'Link Afiliado Pronto' : 'Aguardando Link'}
+                        {affiliateLink ? 'Link Afiliado Pronto' : 'Link Original Disponível'}
                       </span>
                     </div>
                     
                     <button 
-                        onClick={() => navigate('/campaigns', { state: { offerId: p.marketplaceProductId, type: 'auto_offer', marketplace: 'mercadolivre' } })}
+                        onClick={() => navigate('/campaigns', { state: { offerId: p.productId || p.marketplaceProductId, type: 'auto_offer', marketplace: 'mercadolivre' } })}
                         className="w-full py-3 bg-indigo-600 text-white rounded-xl font-bold text-[13px] flex items-center justify-center gap-2 hover:bg-indigo-700 transition-all shadow-sm"
                     >
                         <Sparkles className="w-4 h-4"/> Usar em campanha
@@ -171,6 +179,11 @@ export default function Products() {
       );
   };
   const filteredProducts = products.filter(p => {
+    // Front-end strict filter
+    if (!p || !p.title || !p.productUrl || p.title === "Produto Mercado Livre") return false;
+    const pPrice = Number(p.price);
+    if (!Number.isFinite(pPrice) || pPrice <= 0) return false;
+
     if (searchQuery && !p.title?.toLowerCase().includes(searchQuery.toLowerCase())) return false;
     if (filterMarketplace && p.marketplace !== filterMarketplace) return false;
     if (filterCategory && p.category !== filterCategory) return false;
@@ -181,11 +194,11 @@ export default function Products() {
       return (parseInt(b.discountPercent) || 0) - (parseInt(a.discountPercent) || 0);
     }
     if (sortBy === 'price_asc') {
-      return (a.price || 0) - (b.price || 0);
+      return (Number(a.price) || 0) - (Number(b.price) || 0);
     }
     // recent
-    const timeA = a.fetchedAt || a.updatedAt || 0;
-    const timeB = b.fetchedAt || b.updatedAt || 0;
+    const timeA = new Date(a.collectedAt || a.updatedAt || 0).getTime();
+    const timeB = new Date(b.collectedAt || b.updatedAt || 0).getTime();
     return timeB - timeA;
   });
 

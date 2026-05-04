@@ -22,10 +22,19 @@ export default async function handler(req, res) {
     let offers = [];
     snapshot.forEach(doc => {
       const data = doc.data();
-      offers.push({
-        id: doc.id,
-        ...data
-      });
+      
+      // Strict server-side filter for valid items
+      const hasTitle = data.title && data.title !== "Produto Mercado Livre";
+      const hasPrice = data.price && Number(data.price) > 0;
+      const hasImage = data.imageUrl || data.image;
+      const hasLink = data.productUrl;
+
+      if (hasTitle && hasPrice && hasImage && hasLink) {
+        offers.push({
+          id: doc.id,
+          ...data
+        });
+      }
     });
 
     return res.status(200).json({
