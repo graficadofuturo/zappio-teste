@@ -92,9 +92,23 @@ export default function Products() {
     return null;
   };
 
-  const formatCurrency = (value: any) => {
-    const number = Number(value);
-    if (!Number.isFinite(number) || number <= 0) return null;
+  // -- SAFETY HELPERS AS REQUESTED --
+  const toNumberSafe = (value: any): number | null => {
+    if (typeof value === "number" && Number.isFinite(value)) return value;
+    if (typeof value === "string") {
+      const normalized = value
+        .replace(/[^\d,.-]/g, "")
+        .replace(/\./g, "")
+        .replace(",", ".");
+      const parsed = Number(normalized);
+      return Number.isFinite(parsed) ? parsed : null;
+    }
+    return null;
+  };
+
+  const formatBRL = (value: any) => {
+    const number = toNumberSafe(value);
+    if (number === null) return "Preço indisponível";
     return number.toLocaleString("pt-BR", {
       style: "currency",
       currency: "BRL",
@@ -103,133 +117,204 @@ export default function Products() {
     });
   };
 
-  const renderProductCard = (p: any) => {
-      const originalTitle = p.titleOriginal || p.title;
-      const displayTitle = p.titleShort || p.title;
-      const image = p.imageUrl || p.image || p.thumbnail;
-      
-      const price = Number(p.price);
-      let oldPrice = p.originalPrice ? Number(p.originalPrice) : null;
-      let discount = p.discountPercentage || p.discountPercent || p.discount;
-      
-      // Safety check: only show oldPrice if it is actually greater than current price
-      if (oldPrice && oldPrice <= price) {
-          oldPrice = null;
-      }
-
-      // Format discount string
-      let discountBadge = null;
-      if (discount) {
-          const discountStr = String(discount);
-          discountBadge = discountStr.includes('%') ? discountStr : `${discountStr}% OFF`;
-      } else if (oldPrice && price && oldPrice > price) {
-          const perc = Math.round(((oldPrice - price) / oldPrice) * 100);
-          if (perc > 0) discountBadge = `${perc}% OFF`;
-      }
-
-      const link = p.productUrl;
-      const category = p.category || "Geral";
-      const formattedPrice = formatCurrency(price);
-      if (!formattedPrice) return null;
-
-      return (
-        <div key={p.id || p.productId || p.marketplaceProductId} className="bg-white flex flex-col border border-gray-200 rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-all hover:-translate-y-0.5 group">
-            <div className="bg-white h-[200px] flex items-center justify-center border-b border-gray-100 p-4 relative group-hover:bg-gray-50 transition-colors">
-                <div className="absolute top-3 left-3 z-10">
-                    <span className="px-2 py-1 bg-white/90 backdrop-blur-sm border border-gray-100 rounded-md text-[10px] font-bold text-gray-500 uppercase shadow-sm capitalize inline-block truncate max-w-[150px]">
-                        {category.replace('_', ' e ')}
-                    </span>
-                </div>
-                <img src={image} alt={displayTitle} className="w-full h-full object-contain mix-blend-multiply drop-shadow-sm" />
-                {marketplaceLogo("Mercado Livre")}
-            </div>
-            
-            <div className="p-5 flex-1 flex flex-col">
-                <div className="flex justify-between items-start mb-2 gap-2 h-[2.5rem]">
-                     <a 
-                        href={link} 
-                        target="_blank" 
-                        rel="noopener noreferrer" 
-                        className="text-[14px] font-bold text-gray-900 line-clamp-2 hover:text-[#2d3277] transition-colors relative z-10 block mb-1 leading-snug"
-                        title={originalTitle}
-                      >
-                        {displayTitle}
-                     </a>
-                </div>
-                
-                <div className="flex flex-col mb-4">
-                    {oldPrice && (
-                        <span className="text-[11px] text-gray-400 line-through leading-none mb-1.5">
-                            De: {formatCurrency(oldPrice)}
-                        </span>
-                    )}
-                    <div className="flex items-baseline gap-2">
-                        <span className="text-[22px] font-extrabold text-gray-900 leading-none">
-                            {oldPrice ? (
-                                <span className="text-[14px] font-medium text-gray-500 mr-1 italic">Por:</span>
-                            ) : null}
-                            {formattedPrice}
-                        </span>
-                        {discountBadge && (
-                            <span className="text-[12px] font-bold text-green-600 bg-green-50 px-1.5 py-0.5 rounded border border-green-100">
-                                {discountBadge}
-                            </span>
-                        )}
-                    </div>
-                </div>
-
-                <div className="mt-auto pt-4 border-t border-gray-100 space-y-2">
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className={`w-2 h-2 rounded-full ${affiliateLink ? 'bg-green-500' : 'bg-blue-500'}`}></span>
-                      <span className="text-[11px] font-medium text-gray-500">
-                        {affiliateLink ? 'Link Afiliado Pronto' : 'Link Original Disponível'}
-                      </span>
-                    </div>
-                    
-                    <button 
-                        onClick={() => navigate('/campaigns', { state: { offerId: p.productId || p.marketplaceProductId, type: 'auto_offer', marketplace: 'mercadolivre' } })}
-                        className="w-full py-3 bg-indigo-600 text-white rounded-xl font-bold text-[13px] flex items-center justify-center gap-2 hover:bg-indigo-700 transition-all shadow-sm"
-                    >
-                        <Sparkles className="w-4 h-4"/> Usar em campanha
-                    </button>
-                    
-                    <div className="flex gap-2">
-                      <a 
-                        href={link} 
-                        target="_blank" 
-                        rel="noopener noreferrer"
-                        className="flex-1 py-2 bg-gray-50 text-gray-700 border border-gray-200 rounded-lg text-[12px] font-bold text-center hover:bg-gray-100 transition-colors"
-                      >
-                        Ver produto
-                      </a>
-                    </div>
-                </div>
-            </div>
-        </div>
-      );
+  const hasValidDiscount = (p: any) => {
+    const price = toNumberSafe(p?.price);
+    const originalPrice = toNumberSafe(p?.originalPrice);
+    return (
+      price !== null &&
+      originalPrice !== null &&
+      originalPrice > price
+    );
   };
-  const filteredProducts = products.filter(p => {
-    // Front-end strict filter
-    if (!p || !p.title || !p.productUrl || p.title === "Produto Mercado Livre") return false;
-    const pPrice = Number(p.price);
-    if (!Number.isFinite(pPrice) || pPrice <= 0) return false;
 
-    if (searchQuery && !p.title?.toLowerCase().includes(searchQuery.toLowerCase())) return false;
-    if (filterMarketplace && p.marketplace !== filterMarketplace) return false;
-    if (filterCategory && p.category !== filterCategory) return false;
-    if (filterDiscount && (!p.discountPercent || parseInt(p.discountPercent) <= 0)) return false;
+  const getDiscountPercentageSafe = (p: any) => {
+    const price = toNumberSafe(p?.price);
+    const originalPrice = toNumberSafe(p?.originalPrice);
+
+    if (price === null || originalPrice === null || originalPrice <= price) {
+      return null;
+    }
+
+    const discount = Math.round(((originalPrice - price) / originalPrice) * 100);
+    return Number.isFinite(discount) && discount > 0 ? discount : null;
+  };
+
+  const getOfferTitle = (p: any) => {
+    return String(p?.titleShort || p?.title || "Produto sem título");
+  };
+
+  const getOfferImage = (p: any) => {
+    return p?.imageUrl || p?.image || p?.thumbnail || "";
+  };
+
+  const getOfferUrl = (p: any) => {
+    return p?.affiliateUrl || p?.productUrl || p?.product_link || p?.link || "";
+  };
+
+  const renderProductCard = (p: any) => {
+      try {
+        if (!p) return null;
+        
+        const originalTitle = p.titleOriginal || p.title || "Produto";
+        const displayTitle = getOfferTitle(p);
+        const image = getOfferImage(p);
+        
+        const price = toNumberSafe(p.price);
+        let oldPrice = toNumberSafe(p.originalPrice);
+        
+        // Safety check: only show oldPrice if it is actually greater than current price
+        if (price !== null && oldPrice !== null && oldPrice <= price) {
+            oldPrice = null;
+        }
+
+        // Format discount string
+        let discountBadge = null;
+        const discountPercentage = p.discountPercentage || getDiscountPercentageSafe(p);
+        
+        if (discountPercentage) {
+          discountBadge = `${discountPercentage}% OFF`;
+        } else if (p.discountPercent || p.discount) {
+          const discountStr = String(p.discountPercent || p.discount);
+          discountBadge = discountStr.includes('%') ? discountStr : `${discountStr}% OFF`;
+        }
+
+        const link = getOfferUrl(p);
+        const category = String(p.category || "Geral");
+        const formattedPrice = formatBRL(price);
+        const affiliateLink = p.affiliateUrl || p.affiliate_link || null;
+        
+        // If price is completely missing, we still show the card but with warning
+        const isPriceAvailable = price !== null;
+
+        return (
+          <div key={p.id || p.productId || Math.random()} className="bg-white flex flex-col border border-gray-200 rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-all hover:-translate-y-0.5 group">
+              <div className="bg-white h-[200px] flex items-center justify-center border-b border-gray-100 p-4 relative group-hover:bg-gray-50 transition-colors">
+                  <div className="absolute top-3 left-3 z-10">
+                      <span className="px-2 py-1 bg-white/90 backdrop-blur-sm border border-gray-100 rounded-md text-[10px] font-bold text-gray-500 uppercase shadow-sm capitalize inline-block truncate max-w-[150px]">
+                          {category.replace('_', ' e ')}
+                      </span>
+                  </div>
+                  {image ? (
+                    <img src={image} alt={displayTitle} className="w-full h-full object-contain mix-blend-multiply drop-shadow-sm" />
+                  ) : (
+                    <div className="w-full h-full flex flex-col items-center justify-center bg-gray-50 text-gray-400">
+                      <Package className="w-8 h-8 mb-2 opacity-20" />
+                      <span className="text-[10px] font-medium">Sem imagem</span>
+                    </div>
+                  )}
+                  {marketplaceLogo("Mercado Livre")}
+              </div>
+              
+              <div className="p-5 flex-1 flex flex-col">
+                  <div className="flex justify-between items-start mb-2 gap-2 h-[2.5rem]">
+                       <a 
+                          href={link || '#'} 
+                          target="_blank" 
+                          rel="noopener noreferrer" 
+                          className="text-[14px] font-bold text-gray-900 line-clamp-2 hover:text-[#2d3277] transition-colors relative z-10 block mb-1 leading-snug"
+                          title={originalTitle}
+                        >
+                          {displayTitle}
+                       </a>
+                  </div>
+                  
+                  <div className="flex flex-col mb-4">
+                      {oldPrice !== null && price !== null && oldPrice > price && (
+                          <span className="text-[11px] text-gray-400 line-through leading-none mb-1.5">
+                              De: {formatBRL(oldPrice)}
+                          </span>
+                      )}
+                      <div className="flex items-baseline gap-2">
+                          <span className="text-[22px] font-extrabold text-gray-900 leading-none">
+                              {oldPrice !== null && price !== null && oldPrice > price ? (
+                                  <span className="text-[14px] font-medium text-gray-500 mr-1 italic">Por:</span>
+                              ) : null}
+                              {formattedPrice}
+                          </span>
+                          {discountBadge && (
+                              <span className="text-[12px] font-bold text-green-600 bg-green-50 px-1.5 py-0.5 rounded border border-green-100">
+                                  {discountBadge}
+                              </span>
+                          )}
+                      </div>
+                  </div>
+
+                  <div className="mt-auto pt-4 border-t border-gray-100 space-y-2">
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className={`w-2 h-2 rounded-full ${affiliateLink ? 'bg-green-500' : 'bg-blue-500'}`}></span>
+                        <span className="text-[11px] font-medium text-gray-500">
+                          {affiliateLink ? 'Link Afiliado Pronto' : 'Link Original Disponível'}
+                        </span>
+                      </div>
+                      
+                      <button 
+                          onClick={() => navigate('/campaigns', { state: { offerId: p.id || p.productId || p.marketplaceProductId, type: 'auto_offer', marketplace: 'mercadolivre' } })}
+                          className="w-full py-3 bg-indigo-600 text-white rounded-xl font-bold text-[13px] flex items-center justify-center gap-2 hover:bg-indigo-700 transition-all shadow-sm"
+                      >
+                          <Sparkles className="w-4 h-4"/> Usar em campanha
+                      </button>
+                      
+                      <div className="flex gap-2">
+                        <a 
+                          href={link || '#'} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="flex-1 py-2 bg-gray-50 text-gray-700 border border-gray-200 rounded-lg text-[12px] font-bold text-center hover:bg-gray-100 transition-colors"
+                        >
+                          Ver produto
+                        </a>
+                      </div>
+                  </div>
+              </div>
+          </div>
+        );
+      } catch (err) {
+        console.error("Error rendering product card:", err, p);
+        return null;
+      }
+  };
+
+  const filteredProducts = (Array.isArray(products) ? products : []).filter(p => {
+    // Front-end strict filter
+    if (!p) return false;
+    const title = getOfferTitle(p);
+    const link = getOfferUrl(p);
+    if (!title || !link || title === "Produto Mercado Livre") return false;
+    
+    const pPrice = toNumberSafe(p.price);
+    if (pPrice === null) return false;
+
+    if (searchQuery && !title.toLowerCase().includes(String(searchQuery).toLowerCase())) return false;
+    if (filterMarketplace && String(p.marketplace || "").toLowerCase() !== String(filterMarketplace).toLowerCase()) return false;
+    if (filterCategory && String(p.category || "").toLowerCase() !== String(filterCategory).toLowerCase()) return false;
+    
+    if (filterDiscount) {
+      const discounted = hasValidDiscount(p);
+      if (!discounted) return false;
+    }
     return true;
   }).sort((a, b) => {
     if (sortBy === 'discount') {
-      return (parseInt(b.discountPercent) || 0) - (parseInt(a.discountPercent) || 0);
+      const discA = getDiscountPercentageSafe(a) || 0;
+      const discB = getDiscountPercentageSafe(b) || 0;
+      return discB - discA;
     }
     if (sortBy === 'price_asc') {
-      return (Number(a.price) || 0) - (Number(b.price) || 0);
+      const priceA = toNumberSafe(a.price) || 0;
+      const priceB = toNumberSafe(b.price) || 0;
+      return priceA - priceB;
     }
     // recent
-    const timeA = new Date(a.collectedAt || a.updatedAt || 0).getTime();
-    const timeB = new Date(b.collectedAt || b.updatedAt || 0).getTime();
-    return timeB - timeA;
+    const timeA = new Date(a.collectedAt || a.updatedAt || 0).getTime() || 0;
+    const timeB = new Date(b.collectedAt || b.updatedAt || 0).getTime() || 0;
+    return (Number.isFinite(timeB) ? timeB : 0) - (Number.isFinite(timeA) ? timeA : 0);
+  });
+
+  console.log("OFFERS_PAGE_DEBUG", {
+    offersIsArray: Array.isArray(products),
+    offersCount: Array.isArray(products) ? products.length : 0,
+    filteredCount: filteredProducts.length,
+    firstOffer: filteredProducts.length > 0 ? filteredProducts[0] : null
   });
 
   return (
