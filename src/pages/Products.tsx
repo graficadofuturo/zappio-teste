@@ -30,7 +30,7 @@ export default function Products() {
     setLoading(true);
     setSyncStatus(null);
     try {
-      const response = await fetch(`/api/offers?action=list&category=todos&limit=100`);
+      const response = await fetch(`/api/offers/list?category=todos&limit=50`);
       const data = await response.json();
       
       if (response.ok && data.ok) {
@@ -50,7 +50,7 @@ export default function Products() {
       setSyncing(true);
       setSyncStatus(null);
       try {
-          const res = await fetch('/api/offers?action=collect&marketplace=mercadolivre&category=todos');
+          const res = await fetch('/api/offers/collector/run?marketplace=mercadolivre&category=todos&limit=100');
           const data = await res.json();
           
           if (!res.ok || !data.ok) {
@@ -126,37 +126,31 @@ export default function Products() {
                 <img src={image} alt={displayTitle} className="w-full h-full object-contain mix-blend-multiply drop-shadow-sm" />
                 {marketplaceLogo("Mercado Livre")}
             </div>
+            
             <div className="p-5 flex-1 flex flex-col">
-                <div className="mb-2 h-[3rem] overflow-hidden">
+                <div className="flex justify-between items-start mb-2 gap-2 h-[2.5rem]">
                      <a 
                         href={link} 
                         target="_blank" 
                         rel="noopener noreferrer" 
-                        className="text-[14px] font-bold text-gray-900 line-clamp-2 hover:text-[#2d3277] transition-colors relative z-10 block leading-tight"
-                        style={{
-                            display: '-webkit-box',
-                            WebkitLineClamp: 2,
-                            WebkitBoxOrient: 'vertical',
-                            overflow: 'hidden',
-                            height: '2.5rem'
-                        }}
+                        className="text-[14px] font-bold text-gray-900 line-clamp-2 hover:text-[#2d3277] transition-colors relative z-10 block mb-1 leading-snug"
                         title={originalTitle}
                       >
-                        {p.titleShort || simplifyProductTitle(originalTitle)}
-                      </a>
+                        {displayTitle}
+                     </a>
                 </div>
                 
-                <div className="flex items-baseline gap-2 mb-3 h-7">
-                    <span className="text-[20px] font-extrabold text-gray-900 leading-none">
-                        {formattedPrice !== "Preço indisponível" ? formattedPrice : "Consulte"}
+                <div className="flex items-end gap-2 mb-4">
+                    <span className="text-[20px] font-extrabold text-gray-900 leading-none pb-0.5">
+                        {formattedPrice}
                     </span>
                     {oldPrice && oldPrice > price && (
-                        <span className="text-[12px] text-gray-400 line-through mb-0.5 truncate max-w-[80px]">
+                        <span className="text-[12px] text-gray-400 line-through mb-1">
                             {formatCurrency(oldPrice)}
                         </span>
                     )}
                     {discount && (
-                        <span className="text-[11px] font-bold text-green-600 ml-auto bg-green-50 px-1.5 py-0.5 rounded whitespace-nowrap">
+                        <span className="text-[11px] font-bold text-green-600 mb-1 ml-1 bg-green-50 px-1.5 py-0.5 rounded text-center">
                             {discount}
                         </span>
                     )}

@@ -17,6 +17,12 @@ import shopeeRouter from "./src/api/routes/shopee.ts";
 import integrationsRouter from "./src/api/routes/integrations.ts";
 import offersRouter from "./src/api/routes/offers.ts";
 
+import collectorRunHandler from "./api/offers/collector/run.js";
+import collectorCheckHandler from "./api/cron/collect-offers.js";
+import collectorStatusHandler from "./api/offers/collector/status.js";
+import offersListHandler from "./api/offers/list.js";
+import offersDebugHandler from "./api/offers/debug.js";
+
 async function startServer() {
   try {
     const app = express();
@@ -32,6 +38,14 @@ async function startServer() {
     app.get("/api/debug-env", (req, res) => {
       res.json({ key: process.env.GEMINI_API_KEY ? "Set" : "Not Set" });
     });
+
+    // Mount Vercel-style API Routes directly
+    // NEW AUTOMATED ROUTES
+    app.all("/api/offers/collector/run", collectorRunHandler);
+    app.all("/api/cron/collect-offers", collectorCheckHandler);
+    app.all("/api/offers/collector/status", collectorStatusHandler);
+    app.all("/api/offers/list", offersListHandler);
+    app.all("/api/offers/debug", offersDebugHandler);
 
     /**
      * VERCEL CRON CONFIGURATION (Add this to vercel.json in root if missing)
@@ -50,25 +64,13 @@ async function startServer() {
     app.use("/api/shopee", shopeeRouter);
     app.use("/api/ai", aiRoutes);
     app.use("/api/whatsapp", whatsappRoutes);
-    
-    // Mercado Livre Consistently
-    app.use("/api/mercadolivre", mercadolivreRoutes);
-    app.use("/api/integrations/mercadolivre", mercadolivreRoutes); // Legacy compatibility
-    
+    app.use("/api/integrations/mercadolivre", mercadolivreRoutes);
     app.use("/api/integrations", integrationsRouter);
     app.use("/api/mercadolivre/products", productRoutes);
     app.use("/api/mercadolivre/affiliate-products", productRoutes);
     app.use("/api/webhooks", webhookRoutes);
     app.use("/api/campaigns", campaignRoutes);
-    
-    // Offers Consistently
     app.use("/api/offers", offersRouter);
-    app.use("/api/cron/collect-offers", async (req, res) => {
-        // Trigger collection via the offers router logic
-        req.query.action = 'collect';
-        return req.app._router.handle({ method: 'GET', url: '/api/offers', query: req.query }, req, res);
-    });
-    
     app.use("/api/subscriptions", subscriptionRoutes);
     
     console.log("[Server] Routes mounted");
