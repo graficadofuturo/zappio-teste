@@ -17,6 +17,11 @@ import shopeeRouter from "./src/api/routes/shopee.ts";
 import integrationsRouter from "./src/api/routes/integrations.ts";
 import offersRouter from "./src/api/routes/offers.ts";
 
+import fetchHandler from "./api/mercadolivre/offers/fetch.js";
+import listHandler from "./api/mercadolivre/offers/list.js";
+import syncHandler from "./api/mercadolivre/offers/sync.js";
+import debugHandler from "./api/mercadolivre/offers/debug.js";
+
 async function startServer() {
   try {
     const app = express();
@@ -32,6 +37,12 @@ async function startServer() {
     app.get("/api/debug-env", (req, res) => {
       res.json({ key: process.env.GEMINI_API_KEY ? "Set" : "Not Set" });
     });
+
+    // Mount Vercel-style API Routes directly
+    app.all("/api/mercadolivre/offers/fetch", fetchHandler);
+    app.all("/api/mercadolivre/offers/list", listHandler);
+    app.all("/api/mercadolivre/offers/sync", syncHandler);
+    app.all("/api/mercadolivre/offers/debug", debugHandler);
 
     // Mount API Routes
     console.log("[Server] Mounting routes...");

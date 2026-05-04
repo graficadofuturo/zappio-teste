@@ -138,45 +138,31 @@ async function triggerCampaign(campaignDoc: any, camp: any, id: string) {
         let finalImageUrl = camp.image_url || '';
 
         // Real Product Handling
-        if (camp.use_ml_products && (messageText.includes('{') || finalImageUrl.includes('{product_image}'))) {
+        if (camp.use_ml_products || camp.offer_category) {
             let allProds: any[] = [];
             
-            if (camp.offer_category) {
-                // Fetch dynamically using category
-                const { getRandomKeyword, fetchMLProductsByKeyword } = await import('./src/api/campaignService.ts');
-                const keyword = getRandomKeyword(camp.offer_category);
-                const mlResults = await fetchMLProductsByKeyword(keyword);
-                allProds = mlResults.map((mlItem: any) => ({
-                    id: mlItem.id,
-                    external_product_id: mlItem.id,
-                    product_title: mlItem.title,
-                    product_price: mlItem.price,
-                    product_old_price: mlItem.original_price,
-                    product_discount: mlItem.original_price && mlItem.price < mlItem.original_price ? Math.round((1 - (mlItem.price / mlItem.original_price)) * 100) + '%' : null,
-                    product_link: mlItem.permalink,
-                    product_image: mlItem.thumbnail?.replace('-I.jpg', '-O.jpg').replace('-I.webp', '-O.webp') || null,
-                    product_category: camp.offer_category
-                }));
-            } else {
-                // Backward compatibility: fetch from DB
-                let query = db.collection('products').where('user_id', '==', camp.user_id);
-                const prodsSnap = await query.get();
-                allProds = prodsSnap.docs.map((d: any) => ({ id: d.id, ...d.data() }));
-
-                if (camp.ml_product_ids && camp.ml_product_ids !== 'ALL') {
-                    const allowedIds = new Set(camp.ml_product_ids);
-                    allProds = allProds.filter((p: any) => allowedIds.has(p.id));
-                }
+            // Fetch directly from offer_bank based on category and marketplace
+            const marketplace = camp.offer_marketplace && camp.offer_marketplace !== 'all' ? camp.offer_marketplace : 'mercadolivre';
+            let query = db.collection('offer_bank').where('marketplace', '==', marketplace);
+            
+            if (camp.offer_category && camp.offer_category !== 'todos') {
+                query = query.where('category', '==', camp.offer_category);
             }
+            
+            const prodsSnap = await query.get();
+            allProds = prodsSnap.docs.map((d: any) => ({
+                id: d.id,
+                ...d.data()
+            }));
 
             // Get Sent History for this campaign
-            const historySnap = await db.collection('campaign_product_history')
-                                     .where('campaign_id', '==', id)
-                                     .get();
-            const sentProductIds = new Set(historySnap.docs.map((d: any) => d.data().product_id));
+            const sentHistorySnap = await db.collection('campaign_sent_products')
+                                            .where('campaignId', '==', id)
+                                            .get();
+            const sentProductIds = new Set(sentHistorySnap.docs.map((d: any) => d.data().marketplaceProductId));
 
             // Select unsent product
-            const availableProds = allProds.filter((p: any) => !sentProductIds.has(p.external_product_id || p.id));
+            const availableProds = allProds.filter((p: any) => !sentProductIds.has(p.marketplaceProductId));
 
             if (availableProds.length === 0) {
                console.log(`[Scheduler] Campaign ${id} exhausted all products.`);
@@ -191,39 +177,49 @@ async function triggerCampaign(campaignDoc: any, camp: any, id: string) {
             matchedProduct = availableProds[Math.floor(Math.random() * availableProds.length)];
 
             // Record reservation immediately
-            await db.collection('campaign_product_history').add({
-                campaign_id: id,
-                product_id: matchedProduct.external_product_id || matchedProduct.id,
-                product_title: matchedProduct.product_title,
-                sent_at: FieldValue.serverTimestamp(),
+            await db.doc(`campaign_sent_products/${id}_${matchedProduct.marketplaceProductId}`).set({
+                campaignId: id,
+                marketplace: matchedProduct.marketplace,
+                marketplaceProductId: matchedProduct.marketplaceProductId,
+                title: matchedProduct.title,
+                productUrl: matchedProduct.productUrl,
+                affiliateUrl: matchedProduct.affiliateUrl,
+                sentAt: FieldValue.serverTimestamp(),
+                recipientId: targetList[0]?.group_id || 'unknown',
                 status: 'sent'
             });
 
-            // Replace standard ML variables
+            // Replace standard variables
             const prod = matchedProduct;
-            messageText = messageText.replace(/{product_title}/g, prod.product_title || '');
-            messageText = messageText.replace(/{product_price}/g, prod.product_price ? `R$ ${Number(prod.product_price).toFixed(2).replace('.', ',')}` : '');
-            messageText = messageText.replace(/{product_old_price}/g, prod.product_old_price ? `~R$ ${Number(prod.product_old_price).toFixed(2).replace('.', ',')}~` : '');
-            messageText = messageText.replace(/{product_discount}/g, prod.product_discount || '');
-            messageText = messageText.replace(/{product_link}/g, prod.product_link || '');
-            messageText = messageText.replace(/{product_affiliate_link}/g, prod.product_affiliate_link || prod.product_link || '');
-            messageText = messageText.replace(/{product_image}/g, prod.product_image || '');
-            messageText = messageText.replace(/{product_category}/g, prod.product_category || '');
-            messageText = messageText.replace(/{product_store}/g, prod.product_store || '');
-            messageText = messageText.replace(/{product_stock}/g, prod.product_stock || '');
-            messageText = messageText.replace(/{product_id}/g, prod.external_product_id || prod.id || '');
-            messageText = messageText.replace(/{product_cupom}/g, prod.product_cupom || '');
-            messageText = messageText.replace(/{product_tittle}/g, prod.product_title || '');
-
+            
+            // Handle optional elements manually if template is used:
+            messageText = messageText.replace(/{Category}/g, prod.category || '');
+            messageText = messageText.replace(/{Marketplace}/g, prod.marketplace === 'mercadolivre' ? 'Mercado Livre' : prod.marketplace);
+            messageText = messageText.replace(/{Product_Name}/g, prod.title || '');
+            
+            const priceStr = prod.price ? `R$ ${Number(prod.price).toFixed(2).replace('.', ',')}` : '';
+            messageText = messageText.replace(/{Product_Price}/g, priceStr);
+            
+            if (messageText.includes('🚫 De: {Product_Old_Price}') && !prod.originalPrice) {
+               messageText = messageText.replace(/🚫 De: \{Product_Old_Price\}\n?/g, '');
+            } else {
+               const oldPriceStr = prod.originalPrice ? `R$ ${Number(prod.originalPrice).toFixed(2).replace('.', ',')}` : '';
+                 messageText = messageText.replace(/{Product_Old_Price}/g, oldPriceStr);
+            }
+            
+            const linkStr = prod.affiliateUrl || prod.productUrl || '';
+            messageText = messageText.replace(/{Product_Affiliate_Link}/g, linkStr);
+            
             // Clean up unreplaced variables and empty lines
             const lines = messageText.split('\n');
             const cleanLines = lines.map((l: string) => l.replace(/{[^{}]+}/g, '').trim()).filter((l: string) => l !== '');
             messageText = cleanLines.join('\n');
 
-            if (finalImageUrl.includes('{product_image}')) {
-                finalImageUrl = finalImageUrl.replace(/{product_image}/g, prod.product_image || '');
-            } else if (!finalImageUrl && messageText.includes('{product_image}')) {
-                finalImageUrl = prod.product_image || '';
+            if (!finalImageUrl) {
+                finalImageUrl = prod.image || prod.thumbnail || '';
+                if (!finalImageUrl) {
+                    console.log(`[Scheduler] Product ${prod.marketplaceProductId} has no image, sending text only.`);
+                }
             }
         } else if (messageText.includes('{{')) {
             // Legacy/Dummy variables fallback for old campaigns

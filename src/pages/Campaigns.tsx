@@ -104,7 +104,7 @@ export default function Campaigns() {
   const [productUrl, setProductUrl] = useState('');
   const [aiObjective, setAiObjective] = useState('vender_produto');
   const [aiTone, setAiTone] = useState('Amigável');
-  const [offerCategory, setOfferCategory] = useState('Todos');
+  const [offerCategory, setOfferCategory] = useState('todos');
   const [offerMarketplace, setOfferMarketplace] = useState('all');
   const [marketplaces, setMarketplaces] = useState<any[]>([]);
   const [loadingMarketplaces, setLoadingMarketplaces] = useState(false);
@@ -113,10 +113,7 @@ export default function Campaigns() {
   const [categories, setCategories] = useState<string[]>([]);
 
   useEffect(() => {
-    fetch('/api/offers/categories')
-      .then(res => res.json())
-      .then(data => setCategories(data.categories || []))
-      .catch(console.error);
+    setCategories(["todos", "tecnologia", "casa_moveis", "eletrodomesticos", "esporte_fitness", "ferramentas", "moda", "beleza", "mercado", "brinquedos", "automotivo"]);
   }, []);
 
   useEffect(() => {
@@ -124,20 +121,35 @@ export default function Campaigns() {
     if (!user || messageMode !== 'auto_offer') return;
 
     setLoadingMarketplaces(true);
-    fetch(`/api/integrations/connected-marketplaces?userId=${user.uid}`)
-      .then(res => res.json())
-      .then(data => {
-        if (data.ok) {
-          setMarketplaces(data.marketplaces || []);
-          if (data.marketplaces.length === 1) {
-            setOfferMarketplace(data.marketplaces[0].id);
-          } else if (data.marketplaces.length >= 2) {
-            setOfferMarketplace('all');
-          }
-        }
-      })
-      .catch(console.error)
-      .finally(() => setLoadingMarketplaces(false));
+    // Check ml api natively
+    const mps: any[] = [];
+    fetch(`/api/integrations/mercadolivre/status`)
+        .then(res => res.json())
+        .then(mlData => {
+            if (mlData.ok && mlData.connected) {
+                mps.push({ id: 'mercadolivre', name: 'Mercado Livre' });
+            }
+            // fallback fetch the original for others if they existed
+            return fetch(`/api/integrations/connected-marketplaces?userId=${user.uid}`);
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.ok && data.marketplaces) {
+                for (const mp of data.marketplaces) {
+                    if (mp.id !== 'mercadolivre' && !mps.find(existing => existing.id === mp.id)) {
+                        mps.push(mp);
+                    }
+                }
+            }
+            setMarketplaces(mps);
+            if (mps.length === 1) {
+              setOfferMarketplace(mps[0].id);
+            } else if (mps.length >= 2) {
+              setOfferMarketplace('all');
+            }
+        })
+        .catch(console.error)
+        .finally(() => setLoadingMarketplaces(false));
   }, [messageMode]);
 
   const handleAICalling = async (instruction: string) => {
@@ -1050,7 +1062,12 @@ export default function Campaigns() {
 
               <button 
                 type="button"
-                onClick={() => setMessageMode('auto_offer')}
+                onClick={() => {
+                   setMessageMode('auto_offer');
+                   if (!message || message.trim() === '') {
+                       setMessage('⚡ {Category} | {Marketplace}\n\n🛍️ {Product_Name}\n\n🚫 De: {Product_Old_Price}\n💲 Por: {Product_Price}\n\n🛒 {Product_Affiliate_Link}');
+                   }
+                }}
                 className={`p-4 rounded-xl border-2 transition-all flex flex-col items-center gap-2 ${messageMode === 'auto_offer' ? 'border-indigo-600 bg-indigo-50/50 ring-2 ring-indigo-600/10' : 'border-gray-200 hover:border-indigo-200 hover:bg-gray-50'}`}
               >
                 <div className={`w-10 h-10 rounded-full flex items-center justify-center ${messageMode === 'auto_offer' ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-400'}`}>
@@ -1113,9 +1130,9 @@ export default function Campaigns() {
                          className="w-full p-2.5 border border-gray-200 rounded-lg text-[13px] bg-white focus:outline-none focus:border-indigo-500 shadow-sm"
                        >
                          {categories.length > 0 ? categories.map(cat => (
-                           <option key={cat} value={cat}>{cat}</option>
+                           <option key={cat} value={cat} className="capitalize">{cat.replace('_', ' e ')}</option>
                          )) : (
-                           <option value="Todos">Todos</option>
+                           <option value="todos">Todos</option>
                          )}
                        </select>
                      </div>

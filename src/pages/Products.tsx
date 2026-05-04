@@ -13,6 +13,11 @@ export default function Products() {
   const [tempLink, setTempLink] = useState('');
   
   const [searchQuery, setSearchQuery] = useState('');
+  const [filterMarketplace, setFilterMarketplace] = useState('');
+  const [filterCategory, setFilterCategory] = useState('');
+  const [filterDiscount, setFilterDiscount] = useState(false);
+  const [sortBy, setSortBy] = useState('recent');
+  
   const [syncStatus, setSyncStatus] = useState<{type: 'success' | 'error', text: string} | null>(null);
   const navigate = useNavigate();
 
@@ -24,16 +29,18 @@ export default function Products() {
     setLoading(true);
     setSyncStatus(null);
     try {
-      const response = await fetch(`/api/offers?marketplace=Mercado Livre&status=active`);
+      const response = await fetch(`/api/mercadolivre/offers/list?category=todos&limit=50`);
       const data = await response.json();
       
       if (response.ok && data.ok) {
           setProducts(data.offers || []);
       } else {
           console.error(data.error);
+          setSyncStatus({ type: 'error', text: data.error || 'Falha ao carregar ofertas.' });
       }
     } catch (e) {
         console.error("Failed to load offers:", e);
+        setSyncStatus({ type: 'error', text: 'Erro de conexão ao carregar ofertas.' });
     }
     setLoading(false);
   };
@@ -42,7 +49,7 @@ export default function Products() {
       setSyncing(true);
       setSyncStatus(null);
       try {
-          const res = await fetch('/api/offers/mercadolivre/sync-daily', {
+          const res = await fetch('/api/mercadolivre/offers/sync', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' }
           });
@@ -50,13 +57,13 @@ export default function Products() {
           const data = await res.json();
           
           if (!res.ok || !data.ok) {
-              setSyncStatus({ type: 'error', text: data.error || 'Erro ao sincronizar ofertas do dia.' });
+              setSyncStatus({ type: 'error', text: `Erro ao sincronizar ofertas: ${data.error || 'Erro desconhecido'}` });
           } else {
-              setSyncStatus({ type: 'success', text: data.message });
+              setSyncStatus({ type: 'success', text: `${data.totalSaved || 0} ofertas sincronizadas com sucesso!` });
               await loadProducts();
           }
       } catch (e: any) {
-          setSyncStatus({ type: 'error', text: 'Erro de conexão ao tentar coletar ofertas.' });
+          setSyncStatus({ type: 'error', text: `Erro ao sincronizar ofertas: ${e.message || 'Erro de conexão'}` });
       }
       setSyncing(false);
   };
@@ -77,21 +84,21 @@ export default function Products() {
   };
 
   const renderProductCard = (p: any) => {
-      const title = p.product_name;
-      const image = p.product_image;
-      const price = p.product_price;
-      const oldPrice = p.product_old_price;
-      const discount = p.product_discount;
-      const link = p.product_original_link;
-      const affiliateLink = p.product_affiliate_link;
+      const title = p.title;
+      const image = p.image || p.thumbnail;
+      const price = p.price;
+      const oldPrice = p.originalPrice;
+      const discount = p.discountPercent ? `${p.discountPercent}% OFF` : null;
+      const link = p.productUrl;
+      const affiliateLink = p.affiliateUrl;
       const category = p.category || "Geral";
 
       return (
-        <div key={p.id} className="bg-white flex flex-col border border-gray-200 rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-all hover:-translate-y-0.5 group">
+        <div key={p.id || p.marketplaceProductId} className="bg-white flex flex-col border border-gray-200 rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-all hover:-translate-y-0.5 group">
             <div className="bg-white h-[200px] flex items-center justify-center border-b border-gray-100 p-4 relative group-hover:bg-gray-50 transition-colors">
                 <div className="absolute top-3 left-3 z-10">
-                    <span className="px-2 py-1 bg-white/90 backdrop-blur-sm border border-gray-100 rounded-md text-[10px] font-bold text-gray-500 uppercase shadow-sm">
-                        {category}
+                    <span className="px-2 py-1 bg-white/90 backdrop-blur-sm border border-gray-100 rounded-md text-[10px] font-bold text-gray-500 uppercase shadow-sm capitalize inline-block truncate max-w-[150px]">
+                        {category.replace('_', ' e ')}
                     </span>
                 </div>
                 {image ? (
@@ -99,7 +106,7 @@ export default function Products() {
                 ) : (
                     <Package className="w-10 h-10 text-gray-300" />
                 )}
-                {marketplaceLogo(p.marketplace)}
+                {marketplaceLogo("Mercado Livre")}
             </div>
             
             <div className="p-5 flex-1 flex flex-col">
@@ -134,7 +141,7 @@ export default function Products() {
                     </div>
                     
                     <button 
-                        onClick={() => navigate('/campaigns', { state: { offerId: p.id } })}
+                        onClick={() => navigate('/campaigns', { state: { offerId: p.marketplaceProductId, type: 'auto_offer', marketplace: 'mercadolivre' } })}
                         className="w-full py-3 bg-indigo-600 text-white rounded-xl font-bold text-[13px] flex items-center justify-center gap-2 hover:bg-indigo-700 transition-all shadow-sm"
                     >
                         <Sparkles className="w-4 h-4"/> Usar em campanha
@@ -149,19 +156,31 @@ export default function Products() {
                       >
                         Ver produto
                       </a>
-                      <button 
-                        onClick={() => handleUpdateOffer(p.id)}
-                        className="p-2 bg-gray-50 text-gray-500 border border-gray-200 rounded-lg hover:bg-gray-100 transition-colors"
-                        title="Atualizar oferta"
-                      >
-                        <RefreshCw className="w-4 h-4" />
-                      </button>
                     </div>
                 </div>
             </div>
         </div>
       );
   };
+  const filteredProducts = products.filter(p => {
+    if (searchQuery && !p.title?.toLowerCase().includes(searchQuery.toLowerCase())) return false;
+    if (filterMarketplace && p.marketplace !== filterMarketplace) return false;
+    if (filterCategory && p.category !== filterCategory) return false;
+    if (filterDiscount && (!p.discountPercent || parseInt(p.discountPercent) <= 0)) return false;
+    return true;
+  }).sort((a, b) => {
+    if (sortBy === 'discount') {
+      return (parseInt(b.discountPercent) || 0) - (parseInt(a.discountPercent) || 0);
+    }
+    if (sortBy === 'price_asc') {
+      return (a.price || 0) - (b.price || 0);
+    }
+    // recent
+    const timeA = a.fetchedAt || a.updatedAt || 0;
+    const timeB = b.fetchedAt || b.updatedAt || 0;
+    return timeB - timeA;
+  });
+
   return (
     <div className="p-6 md:p-10 max-w-7xl mx-auto space-y-8">
       
@@ -200,22 +219,67 @@ export default function Products() {
       )}
 
       <div className="space-y-6 animate-in fade-in duration-300">
-          <div className="flex items-center justify-between">
-              <h2 className="text-[18px] font-bold text-gray-900 flex items-center gap-2">
-                Ofertas Disponíveis
-                <span className="bg-gray-100 text-gray-600 text-[12px] px-2 py-0.5 rounded-full">{products.length}</span>
-              </h2>
-              <div className="flex items-center gap-2">
-                <div className="relative">
-                  <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                  <input 
-                    type="text" 
-                    value={searchQuery}
-                    onChange={e => setSearchQuery(e.target.value)}
-                    placeholder="Filtrar ofertas..." 
-                    className="pl-9 pr-4 py-2 bg-white border border-gray-200 rounded-lg text-[13px] focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all shadow-sm"
-                  />
-                </div>
+          <div className="flex flex-col gap-4">
+              <div className="flex items-center justify-between">
+                  <h2 className="text-[18px] font-bold text-gray-900 flex items-center gap-2">
+                    Ofertas Disponíveis
+                    <span className="bg-gray-100 text-gray-600 text-[12px] px-2 py-0.5 rounded-full">{filteredProducts.length}</span>
+                  </h2>
+                  <div className="flex items-center gap-2">
+                    <div className="relative">
+                      <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                      <input 
+                        type="text" 
+                        value={searchQuery}
+                        onChange={e => setSearchQuery(e.target.value)}
+                        placeholder="Buscar por nome..." 
+                        className="pl-9 pr-4 py-2 bg-white border border-gray-200 rounded-lg text-[13px] focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all shadow-sm"
+                      />
+                    </div>
+                  </div>
+              </div>
+              <div className="flex flex-wrap items-center gap-3 bg-gray-50 p-3 rounded-xl border border-gray-100">
+                  <select 
+                    value={filterMarketplace} 
+                    onChange={e => setFilterMarketplace(e.target.value)}
+                    className="p-2 border border-gray-200 rounded-lg text-[12px] bg-white text-gray-700 outline-none"
+                  >
+                    <option value="">Todos Marketplaces</option>
+                    <option value="mercadolivre">Mercado Livre</option>
+                  </select>
+                  
+                  <select 
+                    value={filterCategory} 
+                    onChange={e => setFilterCategory(e.target.value)}
+                    className="p-2 border border-gray-200 rounded-lg text-[12px] bg-white text-gray-700 outline-none capitalize"
+                  >
+                    <option value="">Todas Categorias</option>
+                    {["todos", "tecnologia", "casa_moveis", "eletrodomesticos", "esporte_fitness", "ferramentas", "moda", "beleza", "mercado", "brinquedos", "automotivo"].map(cat => (
+                      <option key={cat} value={cat}>{cat.replace('_', ' e ')}</option>
+                    ))}
+                  </select>
+                  
+                  <label className="flex items-center gap-2 text-[12px] text-gray-700 font-medium cursor-pointer bg-white border border-gray-200 px-3 py-2 rounded-lg hover:bg-gray-50 transition">
+                    <input 
+                      type="checkbox" 
+                      checked={filterDiscount} 
+                      onChange={e => setFilterDiscount(e.target.checked)}
+                      className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                    />
+                    Somente com desconto
+                  </label>
+                  
+                  <div className="ml-auto">
+                    <select 
+                      value={sortBy} 
+                      onChange={e => setSortBy(e.target.value)}
+                      className="p-2 border border-gray-200 rounded-lg text-[12px] font-medium bg-white text-gray-900 outline-none"
+                    >
+                      <option value="recent">Mais Recentes</option>
+                      <option value="discount">Maior Desconto</option>
+                      <option value="price_asc">Menor Preço</option>
+                    </select>
+                  </div>
               </div>
           </div>
 
@@ -226,14 +290,17 @@ export default function Products() {
                <div className="w-16 h-16 bg-gray-50 border border-gray-100 rounded-2xl flex items-center justify-center mb-5">
                  <Package className="w-8 h-8 text-gray-400" />
                </div>
-               <h3 className="text-[18px] font-bold text-gray-900 mb-2">Nenhuma oferta carregada</h3>
-               <p className="text-[14px] text-gray-500 max-w-sm mb-8 leading-relaxed">As ofertas sincronizadas aparecerão aqui. Clique em "Sincronizar Ofertas do Dia" para começar.</p>
+               <h3 className="text-[18px] font-bold text-gray-900 mb-2">Nenhuma oferta encontrada ainda.</h3>
+               <p className="text-[14px] text-gray-500 max-w-sm mb-8 leading-relaxed">Clique em Sincronizar Ofertas para buscar produtos do Mercado Livre.</p>
+            </div>
+          ) : filteredProducts.length === 0 ? (
+            <div className="bg-white flex flex-col items-center justify-center border border-gray-200 rounded-3xl py-24 text-center shadow-sm">
+               <h3 className="text-[18px] font-bold text-gray-900 mb-2">Nenhuma oferta bate com os filtros</h3>
+               <button onClick={() => { setSearchQuery(''); setFilterMarketplace(''); setFilterCategory(''); setFilterDiscount(false); }} className="text-indigo-600 hover:underline text-[13px] font-medium">Limpar filtros</button>
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                {products
-                  .filter(p => !searchQuery || p.product_name?.toLowerCase().includes(searchQuery.toLowerCase()))
-                  .map(p => renderProductCard(p))}
+                {filteredProducts.map(p => renderProductCard(p))}
             </div>
           )}
       </div>
