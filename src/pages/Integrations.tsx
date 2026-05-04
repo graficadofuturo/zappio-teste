@@ -98,8 +98,10 @@ export default function Integrations() {
             if (isReallyConnected) {
               showSuccess('Mercado Livre conectado com sucesso.');
             } else {
-              showError("Conexão autorizada, mas não foi encontrada no banco de dados. Tente conectar novamente.");
+              showError("A conta foi autorizada, mas não foi possível salvar a integração. Verifique o banco de dados e tente novamente.");
             }
+          } else if (mlParam === 'save_error') {
+            showError("A conta foi autorizada, mas não foi possível salvar a integração. Verifique o banco de dados e tente novamente.");
           }
         };
 

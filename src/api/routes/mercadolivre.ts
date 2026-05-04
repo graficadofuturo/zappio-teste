@@ -41,15 +41,16 @@ router.get("/status", async (req, res) => {
       });
     }
 
+    console.log("ML_STATUS_START", { firebaseUserId: userId });
+
     const docRef = db.doc(`users/${userId}/integrations/mercadolivre`);
       
-    console.log("ML_STATUS_READ_PATH", `users/${userId}/integrations/mercadolivre`);
+    console.log("ML_STATUS_READ_PATH", { path: `users/${userId}/integrations/mercadolivre` });
 
     const docSnap = await docRef.get();
     
-    console.log("ML_STATUS_RESULT", { exists: docSnap.exists });
-
     if (!docSnap.exists) {
+      console.log("ML_STATUS_NOT_FOUND");
       return res.status(200).json({
         ok: true,
         connected: false,
@@ -60,6 +61,7 @@ router.get("/status", async (req, res) => {
     const docData = docSnap.data();
 
     if (!docData || docData.connected !== true) {
+      console.log("ML_STATUS_NOT_FOUND");
       return res.status(200).json({
         ok: true,
         connected: false,
@@ -78,13 +80,18 @@ router.get("/status", async (req, res) => {
       connected: true,
       integration: {
         provider: "mercadolivre",
+        connected: true,
         mlUserId: docData.mlUserId || null,
         nickname: docData.nickname || docData.mlNickname || null,
         email: docData.email || docData.mlEmail || null,
+        firstName: docData.firstName || null,
+        lastName: docData.lastName || null,
         connectedAt: formatTimestamp(docData.connectedAt),
         updatedAt: formatTimestamp(docData.updatedAt),
       }
     };
+
+    console.log("ML_STATUS_FOUND", { connected: true, mlUserId: result.integration.mlUserId });
 
     return res.status(200).json(result);
   } catch (error: any) {
@@ -164,8 +171,8 @@ router.get("/auth-url", async (req, res) => {
         ? crypto.randomUUID()
         : `ml-${Date.now()}-${Math.random()}`;
         
-    const stateObj = { uid: userId, nonce: stateBase };
-    const state = encodeURIComponent(JSON.stringify(stateObj));
+    const stateObj = { uid: userId, nonce: stateBase, createdAt: Date.now() };
+    const state = Buffer.from(JSON.stringify(stateObj)).toString('base64url');
     const authorizationUrl = `https://auth.mercadolivre.com.br/authorization?response_type=code&client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${state}`;
 
     return res.status(200).json({
@@ -277,7 +284,8 @@ router.get("/callback", async (req, res) => {
     let userId = "unknown";
     if (state) {
       try {
-        const decoded = JSON.parse(decodeURIComponent(String(state)));
+        const decodedStr = Buffer.from(String(state), 'base64url').toString('utf8');
+        const decoded = JSON.parse(decodedStr);
         if (decoded && decoded.uid) {
           userId = decoded.uid;
         } else if (typeof state === "string" && state.includes("__")) {
@@ -290,6 +298,8 @@ router.get("/callback", async (req, res) => {
       }
     }
     
+    console.log("ML_STATE_PARSED", { uid: userId, state });
+
     if (userId === "unknown" || !userId || userId === "undefined") {
        console.error("ML_CALLBACK_SAVE_ERROR", "User ID not found in state");
        return sendHtml("missing_user");
@@ -300,19 +310,25 @@ router.get("/callback", async (req, res) => {
     const db = getAdminFirestore();
 
     console.log("ML_CALLBACK_START", { userId });
-    console.log("ML_TOKEN_SUCCESS", { expiresIn: tokenData.expires_in });
-    console.log("ML_USER_SUCCESS", { mlUserId: mlUser.id });
+    console.log("ML_TOKEN_RESPONSE", { status: tokenRes.status, ok: tokenRes.ok });
+    console.log("ML_USER_ME_RESPONSE", { status: userRes.status, ok: userRes.ok, mlUserId: mlUser.id });
+
+    const expiresIn = tokenData.expires_in || null;
 
     const data: any = {
       provider: "mercadolivre",
       connected: true,
-      mlUserId: String(mlUser.id),
-      nickname: mlUser.nickname || null,
-      email: mlUser.email || null,
+      marketplace: "mercadolivre",
       accessToken: tokenData.access_token || null,
       refreshToken: tokenData.refresh_token || null,
       tokenType: tokenData.token_type || null,
-      expiresAt: tokenData.expires_in ? Date.now() + tokenData.expires_in * 1000 : null,
+      expiresIn: expiresIn,
+      expiresAt: expiresIn ? Date.now() + expiresIn * 1000 : null,
+      mlUserId: String(mlUser.id),
+      nickname: mlUser.nickname || null,
+      email: mlUser.email || null,
+      firstName: mlUser.first_name || null,
+      lastName: mlUser.last_name || null,
       scope: tokenData.scope || null,
       connectedAt: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
@@ -348,6 +364,7 @@ router.get("/callback", async (req, res) => {
 });
 
 router.post("/disconnect", async (req, res) => {
+  res.setHeader("Content-Type", "application/json; charset=utf-8");
   try {
     const db = getAdminFirestore();
     const { userId } = req.query;
