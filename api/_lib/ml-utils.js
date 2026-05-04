@@ -114,9 +114,7 @@ export function normalizeOffer(item, source = 'auto_collector', category = 'todo
   }
 
   const hasDiscount = !!(finalOriginalPrice && finalOriginalPrice > finalPrice);
-  if (hasDiscount && !discountPercent) {
-    discountPercent = Math.round(((finalOriginalPrice - finalPrice) / finalOriginalPrice) * 100);
-  }
+  const discountPercentage = hasDiscount ? (discountPercent || Math.round(((finalOriginalPrice - finalPrice) / finalOriginalPrice) * 100)) : null;
 
   // DEBUG LOG AS REQUESTED
   console.log("PRICE_DEBUG", {
@@ -126,7 +124,7 @@ export function normalizeOffer(item, source = 'auto_collector', category = 'todo
     selectedPrice: finalPrice,
     selectedOriginalPrice: finalOriginalPrice,
     hasDiscount,
-    discountPercentage: discountPercent,
+    discountPercentage,
     sourceUrl: item.permalink || 'unknown'
   });
 
@@ -139,7 +137,8 @@ export function normalizeOffer(item, source = 'auto_collector', category = 'todo
     price: finalPrice,
     originalPrice: Number.isFinite(finalOriginalPrice) ? finalOriginalPrice : null,
     hasDiscount: hasDiscount,
-    discountPercent: item.discountPercent ?? discountPercent,
+    discountPercentage: discountPercentage,
+    discountPercent: discountPercentage ? `${discountPercentage}% OFF` : null, // legacy compat
     imageUrl: imageUrl,
     productUrl: productUrl,
     affiliateUrl: item.affiliateUrl || null,
@@ -278,9 +277,9 @@ export function normalizeOfferCategory(rawCategory, title, searchTerm) {
 }
 
 /**
- * Scrape a single product page for real data
+ * Scrape a single product page for real data with robust enrichment
  */
-async function scrapeProductPage(idOrUrl, category = 'todos') {
+export async function scrapeProductPage(idOrUrl, category = 'todos') {
   const url = idOrUrl.startsWith('http') ? idOrUrl : `https://www.mercadolivre.com.br/p/${idOrUrl}`;
   
   try {
@@ -300,67 +299,112 @@ async function scrapeProductPage(idOrUrl, category = 'todos') {
     const title = $('meta[property="og:title"]').attr('content') || $('h1').first().text().trim();
     const imageUrl = $('meta[property="og:image"]').attr('content');
     
-    // Better price extraction for current price
+    // EXTRACT PRICES ROBUSTLY
     let price = 0;
-    const metaPrice = $('meta[property="product:price:amount"]').attr('content');
-    if (metaPrice) {
-      price = parseFloat(metaPrice);
-    } 
+    let originalPrice = null;
+    let discountText = "";
+
+    // 1. Current Price Candidates
+    const currentPriceCandidates = [];
     
-    // Fallback if price is still 0 or meta tag was missing/wrong
-    if (!price || price <= 0) {
-      const priceElement = $('.ui-pdp-price__second-line .andes-money-amount__fraction').first();
-      if (priceElement.length) {
-        const fraction = priceElement.text().replace(/\./g, '');
-        const cents = $('.ui-pdp-price__second-line .andes-money-amount__cents').first().text() || '00';
-        price = parseFloat(`${fraction}.${cents}`);
+    // Meta tag
+    const metaPrice = $('meta[property="product:price:amount"]').attr('content');
+    if (metaPrice) currentPriceCandidates.push(parseFloat(metaPrice));
+
+    // Page selectors for current price
+    $('.ui-pdp-price__second-line .andes-money-amount, .ui-pdp-price__current-price .andes-money-amount').first().each((i, el) => {
+      const fraction = $(el).find('.andes-money-amount__fraction').text().replace(/\./g, '');
+      const cents = $(el).find('.andes-money-amount__cents').text() || '00';
+      const val = parseFloat(`${fraction}.${cents}`);
+      if (val > 0) currentPriceCandidates.push(val);
+    });
+
+    // 2. Previous Price Candidates
+    const previousPriceCandidates = [];
+    $('.ui-pdp-price__original-value .andes-money-amount, .andes-money-amount--previous, del .andes-money-amount').each((i, el) => {
+      const fraction = $(el).find('.andes-money-amount__fraction').text().replace(/\./g, '');
+      const cents = $(el).find('.andes-money-amount__cents').text() || '00';
+      const val = parseFloat(`${fraction}.${cents}`);
+      if (val > 0) previousPriceCandidates.push(val);
+    });
+
+    // 3. Discount text
+    discountText = $('.ui-pdp-price__discount, [class*="discount"]').first().text().trim();
+    let discountPercentageFromPage = null;
+    const discMatch = discountText.match(/(\d+)%\s*OFF/i);
+    if (discMatch) discountPercentageFromPage = parseInt(discMatch[1]);
+
+    const allFoundPrices = [...currentPriceCandidates, ...previousPriceCandidates].filter(v => v > 0);
+    const uniquePrices = [...new Set(allFoundPrices)].sort((a, b) => a - b);
+
+    let selectedPrice = 0;
+    let selectedOriginalPrice = null;
+
+    if (uniquePrices.length >= 2) {
+      selectedPrice = uniquePrices[0];
+      selectedOriginalPrice = uniquePrices[uniquePrices.length - 1];
+    } else if (uniquePrices.length === 1) {
+      selectedPrice = uniquePrices[0];
+      selectedOriginalPrice = null;
+    }
+
+    // Refine: if we have explicit "previous" price, use it
+    if (previousPriceCandidates.length > 0) {
+      const highestOld = Math.max(...previousPriceCandidates);
+      if (highestOld > selectedPrice) {
+        selectedOriginalPrice = highestOld;
       }
     }
 
-    // Even more fallbacks for price
-    if (!price || price <= 0) {
-       const fraction = $('.andes-money-amount__fraction').first().text().replace(/\./g, '');
-       const cents = $('.andes-money-amount__cents').first().text() || '00';
-       price = parseFloat(`${fraction}.${cents}`);
+    if (selectedOriginalPrice && selectedPrice >= selectedOriginalPrice) {
+       selectedOriginalPrice = null;
     }
-    
-    // Attempt to extract original price
-    let originalPrice = null;
-    // Look for <del> or specific "previous price" classes
-    const delContainer = $('del .andes-money-amount, .ui-pdp-price__old .andes-money-amount').first();
-    if (delContainer.length) {
-      const delFraction = delContainer.find('.andes-money-amount__fraction').text().replace(/\./g, '');
-      const delCents = delContainer.find('.andes-money-amount__cents').text() || '00';
-      originalPrice = parseFloat(`${delFraction}.${delCents}`);
+
+    let finalDiscountPercent = discountPercentageFromPage;
+    if (selectedOriginalPrice && !finalDiscountPercent) {
+       finalDiscountPercent = Math.round(((selectedOriginalPrice - selectedPrice) / selectedOriginalPrice) * 100);
     }
+
+    // DEBUG LOG AS REQUESTED
+    console.log("ML_PRODUCT_PRICE_DEBUG", {
+      url,
+      title,
+      pricesFound: uniquePrices,
+      previousPriceCandidates,
+      currentPriceCandidates,
+      selectedPrice,
+      selectedOriginalPrice,
+      discountText,
+      discountPercentage: finalDiscountPercent
+    });
 
     const productIdMatch = url.match(/MLB-?(\d+)/);
-
     const productId = productIdMatch ? `MLB${productIdMatch[1]}` : idOrUrl;
 
-    if (title && price > 0 && imageUrl) {
+    if (title && selectedPrice > 0 && imageUrl) {
       return normalizeOffer({
         id: productId,
         title,
-        price,
-        original_price: originalPrice,
+        price: selectedPrice,
+        original_price: selectedOriginalPrice,
+        discountPercent: finalDiscountPercent,
         permalink: url,
         thumbnail: imageUrl
-      }, "auto_collector_scrape", category);
+      }, "mercadolivre-product-page", category);
     }
   } catch (e) {
-    console.error(`ML_OFFERS_SCRAPE_ERROR: ${url}`, e.message);
+    console.error(`ML_OFFERS_ENRICH_ERROR: ${url}`, e.message);
   }
   return null;
 }
 
 /**
- * Fetch and Enrich: Extracts data directly from HTML results to avoid per-item blocks
+ * Fetch and Enrich: Extracts data directly from HTML results then ENRICHES each item
  */
 export async function collectAutomated(query, category = 'todos') {
   console.log(`ML_OFFERS_COLLECT_START: category=${category}, query=${query}`);
   
-  const enrichedOffers = [];
+  const rawOfferUrls = [];
   const urls = [
     `https://www.mercadolivre.com.br/ofertas?q=${encodeURIComponent(query)}`,
     `https://lista.mercadolivre.com.br/${encodeURIComponent(query.replace(/\s+/g, '-'))}`
@@ -375,60 +419,31 @@ export async function collectAutomated(query, category = 'todos') {
         const html = await res.text();
         const $ = cheerio.load(html);
         
-        // ML search results usually have items in these containers
         $('.ui-search-result, .promotion-item, [class*="poly-card"]').each((i, el) => {
-          const title = $(el).find('h2, h3, [class*="title"]').text().trim();
           const productUrl = $(el).find('a').attr('href');
-          const imageUrl = $(el).find('img').attr('data-src') || $(el).find('img').attr('src');
-          
-          // Improved price matching: separate Current vs Original
-          let currentPrice = 0;
-          let oldPrice = null;
-
-          // ML Search results current price usually has no <del> wrapper
-          const priceContainers = $(el).find('.andes-money-amount');
-          
-          priceContainers.each((j, pEl) => {
-            const isOld = $(pEl).closest('del').length > 0 || $(pEl).hasClass('ui-search-price__part--del');
-            const fraction = $(pEl).find('.andes-money-amount__fraction').text().replace(/\./g, '');
-            const cents = $(pEl).find('.andes-money-amount__cents').text() || '00';
-            const val = parseFloat(`${fraction}.${cents}`);
-
-            if (isOld) {
-              oldPrice = val;
-            } else if (currentPrice === 0) {
-              currentPrice = val;
-            }
-          });
-
-          if (title && currentPrice > 0 && productUrl && imageUrl) {
-            const idMatch = productUrl.match(/MLB-?(\d+)/);
-            const productId = idMatch ? `MLB${idMatch[1]}` : null;
-            
-            if (productId) {
-              const offer = normalizeOffer({
-                id: productId,
-                title,
-                price: currentPrice,
-                original_price: oldPrice,
-                permalink: productUrl,
-                thumbnail: imageUrl
-              }, "auto_collector_search_list", category, query);
-              
-              if (offer) {
-                enrichedOffers.push(offer);
-              }
-            }
+          if (productUrl && productUrl.startsWith('http') && !rawOfferUrls.includes(productUrl)) {
+            rawOfferUrls.push(productUrl);
           }
         });
       }
     } catch (e) {
-      console.error(`ML_OFFERS_COLLECT_ERROR: Failed to fetch ${url}`, e.message);
+      console.error(`ML_OFFERS_COLLECT_ERROR: Failed to fetch searching ${url}`, e.message);
     }
-    if (enrichedOffers.length >= 10) break;
+    if (rawOfferUrls.length >= 15) break;
   }
 
-  console.log(`ML_OFFERS_NORMALIZED_COUNT: ${enrichedOffers.length} valid offers extracted`);
+  console.log(`ML_OFFERS_ENRICH_START: ${rawOfferUrls.length} items to enrich`);
+  const enrichedOffers = [];
+  
+  // Enrich each offer (sequentially or in small batches to respect limits)
+  for (const productUrl of rawOfferUrls.slice(0, 10)) { // Limit to 10 for performance
+     const enriched = await scrapeProductPage(productUrl, category);
+     if (enriched) {
+       enrichedOffers.push(enriched);
+     }
+  }
+
+  console.log(`ML_OFFERS_NORMALIZED_COUNT: ${enrichedOffers.length} valid offers enriched and saved`);
   return enrichedOffers;
 }
 

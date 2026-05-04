@@ -107,20 +107,28 @@ export default function Products() {
       const originalTitle = p.titleOriginal || p.title;
       const displayTitle = p.titleShort || p.title;
       const image = p.imageUrl || p.image || p.thumbnail;
-      const price = p.price;
-      const oldPrice = p.originalPrice;
-      let discount = p.discountPercent || p.discount;
-      if (!discount && oldPrice && price && Number(oldPrice) > Number(price)) {
-          const perc = Math.round(((Number(oldPrice) - Number(price)) / Number(oldPrice)) * 100);
-          if (perc > 0) discount = `${perc}% OFF`;
-      } else if (discount && !String(discount).includes('OFF')) {
-          discount = `${discount}% OFF`;
+      
+      const price = Number(p.price);
+      let oldPrice = p.originalPrice ? Number(p.originalPrice) : null;
+      let discount = p.discountPercentage || p.discountPercent || p.discount;
+      
+      // Safety check: only show oldPrice if it is actually greater than current price
+      if (oldPrice && oldPrice <= price) {
+          oldPrice = null;
+      }
+
+      // Format discount string
+      let discountBadge = null;
+      if (discount) {
+          const discountStr = String(discount);
+          discountBadge = discountStr.includes('%') ? discountStr : `${discountStr}% OFF`;
+      } else if (oldPrice && price && oldPrice > price) {
+          const perc = Math.round(((oldPrice - price) / oldPrice) * 100);
+          if (perc > 0) discountBadge = `${perc}% OFF`;
       }
 
       const link = p.productUrl;
-      const affiliateLink = p.affiliateUrl;
       const category = p.category || "Geral";
-
       const formattedPrice = formatCurrency(price);
       if (!formattedPrice) return null;
 
@@ -150,18 +158,21 @@ export default function Products() {
                 </div>
                 
                 <div className="flex flex-col mb-4">
-                    {Number(oldPrice) > 0 && Number(oldPrice) > Number(price) && (
-                        <span className="text-[12px] text-gray-400 line-through leading-none mb-1">
-                            {formatCurrency(oldPrice)}
+                    {oldPrice && (
+                        <span className="text-[11px] text-gray-400 line-through leading-none mb-1.5">
+                            De: {formatCurrency(oldPrice)}
                         </span>
                     )}
                     <div className="flex items-baseline gap-2">
                         <span className="text-[22px] font-extrabold text-gray-900 leading-none">
+                            {oldPrice ? (
+                                <span className="text-[14px] font-medium text-gray-500 mr-1 italic">Por:</span>
+                            ) : null}
                             {formattedPrice}
                         </span>
-                        {Boolean(discount) && (
-                            <span className="text-[12px] font-bold text-green-600 bg-green-50 px-1.5 py-0.5 rounded">
-                                {discount}
+                        {discountBadge && (
+                            <span className="text-[12px] font-bold text-green-600 bg-green-50 px-1.5 py-0.5 rounded border border-green-100">
+                                {discountBadge}
                             </span>
                         )}
                     </div>
