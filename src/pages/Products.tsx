@@ -20,6 +20,7 @@ export default function Products() {
   const [sortBy, setSortBy] = useState('recent');
   
   const [syncStatus, setSyncStatus] = useState<{type: 'success' | 'error' | 'warning', text: string} | null>(null);
+  const [reprocessing, setReprocessing] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -34,7 +35,7 @@ export default function Products() {
       const data = await response.json();
       
       if (response.ok && data.ok) {
-          setProducts(data.offers || []);
+          setProducts(Array.isArray(data.offers) ? data.offers : []);
       } else {
           console.error(data.error);
           setSyncStatus({ type: 'error', text: data.error || 'Falha ao carregar ofertas.' });
@@ -44,6 +45,27 @@ export default function Products() {
         setSyncStatus({ type: 'error', text: 'Erro de conexão ao carregar ofertas.' });
     }
     setLoading(false);
+  };
+
+  const handleReprocess = async () => {
+    setReprocessing(true);
+    setSyncStatus(null);
+    try {
+      const res = await fetch('/api/offers/reprocess', { method: 'POST' });
+      const data = await res.json();
+      if (res.ok && data.ok) {
+        setSyncStatus({ 
+          type: 'success', 
+          text: `Reprocessamento concluído! ${data.updated} ofertas atualizadas e ${data.removed} removidas.` 
+        });
+        await loadProducts();
+      } else {
+        setSyncStatus({ type: 'error', text: `Erro no reprocessamento: ${data.error || 'Erro desconhecido'}` });
+      }
+    } catch (e: any) {
+      setSyncStatus({ type: 'error', text: `Erro ao conectar para reprocessar: ${e.message}` });
+    }
+    setReprocessing(false);
   };
 
   const handleCollectorRun = async () => {
@@ -186,6 +208,15 @@ export default function Products() {
         // If price is completely missing, we still show the card but with warning
         const isPriceAvailable = price !== null;
 
+        // DEBUG LOG AS REQUESTED
+        console.log("OFFER_CARD_PRICE_DEBUG", {
+          title: displayTitle,
+          price: price,
+          originalPrice: oldPrice,
+          discountPercentage: discountPercentage,
+          hasDiscount: price !== null && oldPrice !== null && oldPrice > price
+        });
+
         return (
           <div key={p.id || p.productId || Math.random()} className="bg-white flex flex-col border border-gray-200 rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-all hover:-translate-y-0.5 group">
               <div className="bg-white h-[200px] flex items-center justify-center border-b border-gray-100 p-4 relative group-hover:bg-gray-50 transition-colors">
@@ -327,14 +358,25 @@ export default function Products() {
             </h1>
             <p className="text-[14px] text-gray-500 mt-1">Produtos reais coletados do Mercado Livre para suas automações.</p>
           </div>
-          <button 
-            onClick={handleCollectorRun}
-            disabled={syncing || loading}
-            className="bg-indigo-600 text-white hover:bg-indigo-700 transition-colors px-6 py-3 rounded-xl font-bold flex items-center justify-center gap-2 text-[14px] shadow-sm disabled:opacity-50"
-          >
-            {syncing ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />} 
-            Executar coleta agora
-          </button>
+          <div className="flex items-center gap-2">
+            <button 
+              onClick={handleReprocess}
+              disabled={reprocessing || syncing || loading}
+              className="bg-white text-gray-700 border border-gray-200 hover:bg-gray-50 transition-colors px-4 py-3 rounded-xl font-bold flex items-center justify-center gap-2 text-[14px] shadow-sm disabled:opacity-50"
+              title="Reprocessar ofertas antigas para corrigir preços e descontos"
+            >
+              {reprocessing ? <Loader2 className="w-4 h-4 animate-spin text-indigo-600" /> : <Wand2 className="w-4 h-4 text-indigo-600" />} 
+              Reprocessar antigas
+            </button>
+            <button 
+              onClick={handleCollectorRun}
+              disabled={syncing || reprocessing || loading}
+              className="bg-indigo-600 text-white hover:bg-indigo-700 transition-colors px-6 py-3 rounded-xl font-bold flex items-center justify-center gap-2 text-[14px] shadow-sm disabled:opacity-50"
+            >
+              {syncing ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />} 
+              Executar coleta agora
+            </button>
+          </div>
       </div>
 
       <div className="bg-blue-50 border border-blue-200 text-blue-800 p-4 rounded-xl flex items-start gap-3 shadow-sm">

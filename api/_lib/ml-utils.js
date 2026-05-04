@@ -48,29 +48,95 @@ export function simplifyProductTitle(title) {
   return short || title.slice(0, 55);
 }
 
+function toNumberSafe(value) {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string") {
+    const normalized = value
+      .replace(/[^\d,.-]/g, "")
+      .replace(/\./g, "")
+      .replace(",", ".");
+    const parsed = Number(normalized);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
+function pickBestCurrentPrice(currentCandidates, originalCandidates, raw) {
+  const allCurrent = currentCandidates.map(v => toNumberSafe(v)).filter(v => v !== null && v > 0);
+  const allOriginal = originalCandidates.map(v => toNumberSafe(v)).filter(v => v !== null && v > 0);
+  
+  const allValidPrices = [...new Set([...allCurrent, ...allOriginal])].sort((a, b) => a - b);
+  
+  if (allValidPrices.length === 0) return null;
+  
+  // If we have distinct prices, the smallest is almost always the current price in a promotion
+  if (allValidPrices.length >= 2) {
+    return allValidPrices[0];
+  }
+  
+  return allValidPrices[0];
+}
+
+function pickBestOriginalPrice(originalCandidates, currentPrice, raw) {
+  const allOriginal = originalCandidates.map(v => toNumberSafe(v)).filter(v => v !== null && v > currentPrice);
+  
+  if (allOriginal.length === 0) {
+    // Maybe the original price was in currentCandidates?
+    const allCandidates = [...originalCandidates, raw?.price, raw?.original_price]
+      .map(v => toNumberSafe(v))
+      .filter(v => v !== null && v > currentPrice);
+      
+    if (allCandidates.length === 0) return null;
+    return Math.max(...allCandidates);
+  }
+  
+  return Math.max(...allOriginal);
+}
+
 /**
  * Standardize and VALIDATE an offer payload for Firestore
  * Returns null if the offer is invalid.
  */
 export function normalizeOffer(item, source = 'auto_collector', category = 'todos', searchTerm = '') {
-  const originalPrice = Number(item.original_price ?? item.originalPrice ?? null);
-  const price = Number(item.price ?? null);
+  const currentPriceCandidates = [
+    item?.sale_price?.amount,
+    item?.price,
+    item?.salePrice,
+    item?.currentPrice,
+    item?.prices?.current,
+    item?.priceInfo?.current,
+  ];
+
+  const originalPriceCandidates = [
+    item?.original_price,
+    item?.originalPrice,
+    item?.oldPrice,
+    item?.listPrice,
+    item?.priceInfo?.original,
+    item?.regular_price,
+  ];
+
+  const finalPrice = pickBestCurrentPrice(currentPriceCandidates, originalPriceCandidates, item);
+  if (finalPrice === null) return null;
+
+  const finalOriginalPrice = pickBestOriginalPrice(originalPriceCandidates, finalPrice, item);
   
+  const hasDiscount = !!(finalOriginalPrice && finalOriginalPrice > finalPrice);
+  const discountPercentage = hasDiscount 
+    ? (item.discountPercentage || Math.round(((finalOriginalPrice - finalPrice) / finalOriginalPrice) * 100)) 
+    : null;
+
   // REQUIRED FIELDS VALIDATION
   if (!item.title || item.title.includes("Produto Mercado Livre") || item.title.length < 5) {
      return null;
   }
   
-  if (!Number.isFinite(price) || price <= 0) {
-     return null;
-  }
-
   const productId = String(item.id || item.marketplaceProductId || item.productId);
   if (!productId || productId.startsWith("url_")) {
      return null;
   }
-
-  const productUrl = item.permalink || item.productUrl || null;
+  
+  const productUrl = item.permalink || item.productUrl || item.url || null;
   if (!productUrl || !productUrl.startsWith("http")) {
      return null;
   }
@@ -83,11 +149,6 @@ export function normalizeOffer(item, source = 'auto_collector', category = 'todo
   // Use higher resolution if possible
   const imageUrl = thumbnail.replace("-I.jpg", "-O.jpg");
 
-  let discountPercent = null;
-  if (originalPrice && price && originalPrice > price) {
-    discountPercent = Math.round(((originalPrice - price) / originalPrice) * 100);
-  }
-
   let fullTitle = item.title.trim();
   const half = Math.floor(fullTitle.length / 2);
   if (fullTitle.length > 20 && fullTitle.slice(0, half) === fullTitle.slice(half)) {
@@ -99,60 +160,45 @@ export function normalizeOffer(item, source = 'auto_collector', category = 'todo
   // Determine Category
   const finalCategory = normalizeOfferCategory(category, fullTitle, searchTerm);
 
-  // Ensure price logic is sound: price should be the final effective price
-  let finalPrice = price;
-  let finalOriginalPrice = originalPrice;
-
-  if (finalOriginalPrice && finalPrice > finalOriginalPrice) {
-    // If somehow they are swapped, swap them back
-    [finalPrice, finalOriginalPrice] = [finalOriginalPrice, finalPrice];
-  }
-
-  // Ensure originalPrice is null if it's not greater than current price
-  if (finalOriginalPrice !== null && finalOriginalPrice <= finalPrice) {
-    finalOriginalPrice = null;
-  }
-
-  const hasDiscount = !!(finalOriginalPrice && finalOriginalPrice > finalPrice);
-  const discountPercentage = hasDiscount ? (discountPercent || Math.round(((finalOriginalPrice - finalPrice) / finalOriginalPrice) * 100)) : null;
-
   // DEBUG LOG AS REQUESTED
-  console.log("PRICE_DEBUG", {
-    title: shortTitle,
-    rawPrice: price,
-    rawOriginalPrice: originalPrice,
-    selectedPrice: finalPrice,
-    selectedOriginalPrice: finalOriginalPrice,
-    hasDiscount,
+  console.log("ML_OFFER_PRICE_DEBUG", {
+    title: fullTitle,
+    rawPrice: item?.price,
+    rawOriginalPrice: item?.original_price,
+    rawSalePrice: item?.sale_price,
+    normalizedPrice: finalPrice,
+    normalizedOriginalPrice: finalOriginalPrice,
     discountPercentage,
-    sourceUrl: item.permalink || 'unknown'
+    hasDiscount
   });
 
   const offer = {
     marketplace: "mercadolivre",
     productId: productId,
-    title: shortTitle, // Default for compatibility
+    title: shortTitle, 
     titleShort: shortTitle,
     titleOriginal: fullTitle,
     price: finalPrice,
-    originalPrice: Number.isFinite(finalOriginalPrice) ? finalOriginalPrice : null,
+    originalPrice: finalOriginalPrice,
     hasDiscount: hasDiscount,
     discountPercentage: discountPercentage,
     discountPercent: discountPercentage ? `${discountPercentage}% OFF` : null, // legacy compat
+    currencyId: "BRL",
+    currency: "BRL",
     imageUrl: imageUrl,
     productUrl: productUrl,
     affiliateUrl: item.affiliateUrl || null,
     category: finalCategory,
     status: "active",
     source: source,
-    collectedAt: new Date().toISOString(),
+    collectedAt: item.collectedAt || new Date().toISOString(),
     updatedAt: new Date().toISOString()
   };
 
   // Final check: filter out undefined/null except for allowed nulls
   return Object.fromEntries(
     Object.entries(offer).filter(([k, v]) => {
-      if (k === 'originalPrice' || k === 'discountPercent' || k === 'affiliateUrl' || k === 'category') return true;
+      if (k === 'originalPrice' || k === 'discountPercent' || k === 'affiliateUrl' || k === 'category' || k === 'discountPercentage') return true;
       return v !== undefined && v !== null;
     })
   );
