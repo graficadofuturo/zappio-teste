@@ -68,10 +68,6 @@ export default function Integrations() {
       showError(`Erro Mercado Livre: ${mlParam}`);
     }
 
-    if (mlParam) {
-      window.history.replaceState({}, '', '/integrations');
-    }
-
     async function checkStatus() {
       try {
         setMercadoLivreLoading(true);
@@ -87,10 +83,14 @@ export default function Integrations() {
           });
 
           const data = await response.json();
-          console.log("ML_STATUS_RESPONSE", data);
+          console.log("ML_STATUS_FRONTEND", data);
           
           setMlApiStatus(data);
           setMercadoLivreConnected(data.connected === true);
+
+          if (data.connected && mlParam) {
+            window.history.replaceState({}, '', '/integrations');
+          }
         };
 
         if (auth.currentUser) {
@@ -196,6 +196,7 @@ export default function Integrations() {
       const user = auth.currentUser;
       const res = await fetch(`/api/integrations/mercadolivre/status${user ? `?userId=${user.uid}` : ''}`);
       const data = await res.json();
+      console.log("ML_STATUS_FRONTEND", data);
       setMlApiStatus(data);
       if (data.ok && data.connected) {
          setMercadoLivreConnected(true);
@@ -261,13 +262,6 @@ export default function Integrations() {
       
       setMercadoLivreConnected(false);
       setMlApiStatus(data);
-      
-      const user = auth.currentUser;
-      if (user) {
-         try {
-            await deleteDoc(doc(db, 'users', user.uid, 'integrations', 'mercadolivre'));
-         } catch(e) {}
-      }
       
       showSuccess("Mercado Livre desconectado com sucesso.");
       await checkMlApiStatus();
