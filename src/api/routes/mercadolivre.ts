@@ -98,62 +98,36 @@ router.get("/status", async (req, res) => {
 });
 
 router.get("/auth-url", async (req, res) => {
-  console.log("ML_AUTH_URL_START");
-  
-  const ML_CLIENT_ID = process.env.ML_CLIENT_ID;
-  const ML_REDIRECT_URI = process.env.ML_REDIRECT_URI;
-  const APP_BASE_URL = process.env.APP_BASE_URL || `${req.headers['x-forwarded-proto'] || req.protocol}://${req.headers.host}`;
-
-  console.log("ML_AUTH_URL_ENV_CHECK", {
-    hasClientId: !!ML_CLIENT_ID,
-    hasRedirectUri: !!ML_REDIRECT_URI,
-    redirectUri: ML_REDIRECT_URI,
-    appBaseUrl: APP_BASE_URL
-  });
-
   try {
-    const missing = [];
-    if (!ML_CLIENT_ID) missing.push("ML_CLIENT_ID");
-    if (!ML_REDIRECT_URI) missing.push("ML_REDIRECT_URI");
-
-    if (missing.length > 0) {
-      console.error("ML_AUTH_URL_ERROR", "Missing environment variables", missing);
+    const clientId = process.env.ML_CLIENT_ID;
+    const redirectUri = process.env.ML_REDIRECT_URI;
+    
+    if (!clientId || !redirectUri) {
+      const missing = [];
+      if (!clientId) missing.push("ML_CLIENT_ID");
+      if (!redirectUri) missing.push("ML_REDIRECT_URI");
+      
       return res.status(500).json({
         ok: false,
-        error: "missing_env",
-        missing
+        error: "Missing required environment variables",
+        missing: missing
       });
     }
 
-    const { userId } = req.query;
-    
-    const state = crypto.randomUUID();
-
-    const authorizationUrl = `https://auth.mercadolivre.com.br/authorization?response_type=code&client_id=${ML_CLIENT_ID!}&redirect_uri=${encodeURIComponent(ML_REDIRECT_URI!)}&state=${state}`;
-
-    // Also use cookie as a fallback explicitly if state parsing somehow fails
-    res.cookie('ml_oauth_state', JSON.stringify({ uuid: state, userId: userId ? String(userId) : "unknown" }), { 
-      httpOnly: true, 
-      maxAge: 1000 * 60 * 10, 
-      sameSite: 'none', 
-      secure: true 
-    });
-
-    console.log("ML_AUTH_URL_CREATED", { authorizationUrl });
+    const state = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `ml-${Date.now()}-${Math.random()}`;
+    const authorizationUrl = `https://auth.mercadolivre.com.br/authorization?response_type=code&client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${state}`;
 
     return res.status(200).json({
       ok: true,
       authorizationUrl: authorizationUrl,
-      redirectUri: ML_REDIRECT_URI,
-      clientIdPresent: true,
+      redirectUri: redirectUri,
       state: state
     });
   } catch (error: any) {
-    console.error("ML_AUTH_URL_ERROR", error.message);
     return res.status(500).json({
       ok: false,
-      error: "auth_url_exception",
-      message: error.message || "Erro ao gerar URL de conexão."
+      route: "/api/integrations/mercadolivre/auth-url",
+      error: error?.message || String(error)
     });
   }
 });

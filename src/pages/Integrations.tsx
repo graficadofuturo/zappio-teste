@@ -165,15 +165,7 @@ export default function Integrations() {
         throw new Error(data.message || data.error || "Não foi possível iniciar a conexão.");
       }
   
-      const authWindow = window.open(
-        data.authorizationUrl,
-        'oauth_popup',
-        'width=600,height=700'
-      );
-
-      if (!authWindow) {
-        throw new Error("O navegador bloqueou o pop-up de conexão. Permita pop-ups para este site.");
-      }
+      window.location.href = data.authorizationUrl;
     } catch (e: any) {
       console.error("CONNECT_ML_ERROR", e);
       showError(e.message || "Não foi possível iniciar a conexão.");
