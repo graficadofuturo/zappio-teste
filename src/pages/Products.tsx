@@ -109,7 +109,14 @@ export default function Products() {
       const image = p.imageUrl || p.image || p.thumbnail;
       const price = p.price;
       const oldPrice = p.originalPrice;
-      const discount = p.discountPercent ? `${p.discountPercent}% OFF` : null;
+      let discount = p.discountPercent || p.discount;
+      if (!discount && oldPrice && price && Number(oldPrice) > Number(price)) {
+          const perc = Math.round(((Number(oldPrice) - Number(price)) / Number(oldPrice)) * 100);
+          if (perc > 0) discount = `${perc}% OFF`;
+      } else if (discount && !String(discount).includes('OFF')) {
+          discount = `${discount}% OFF`;
+      }
+
       const link = p.productUrl;
       const affiliateLink = p.affiliateUrl;
       const category = p.category || "Geral";

@@ -118,6 +118,18 @@ export function normalizeOffer(item, source = 'auto_collector', category = 'todo
     discountPercent = Math.round(((finalOriginalPrice - finalPrice) / finalOriginalPrice) * 100);
   }
 
+  // DEBUG LOG AS REQUESTED
+  console.log("PRICE_DEBUG", {
+    title: shortTitle,
+    rawPrice: price,
+    rawOriginalPrice: originalPrice,
+    selectedPrice: finalPrice,
+    selectedOriginalPrice: finalOriginalPrice,
+    hasDiscount,
+    discountPercentage: discountPercent,
+    sourceUrl: item.permalink || 'unknown'
+  });
+
   const offer = {
     marketplace: "mercadolivre",
     productId: productId,
@@ -127,7 +139,7 @@ export function normalizeOffer(item, source = 'auto_collector', category = 'todo
     price: finalPrice,
     originalPrice: Number.isFinite(finalOriginalPrice) ? finalOriginalPrice : null,
     hasDiscount: hasDiscount,
-    discountPercent: item.discountPercent ?? (discountPercent ? `${discountPercent}% OFF` : null),
+    discountPercent: item.discountPercent ?? discountPercent,
     imageUrl: imageUrl,
     productUrl: productUrl,
     affiliateUrl: item.affiliateUrl || null,
@@ -293,21 +305,37 @@ async function scrapeProductPage(idOrUrl, category = 'todos') {
     const metaPrice = $('meta[property="product:price:amount"]').attr('content');
     if (metaPrice) {
       price = parseFloat(metaPrice);
-    } else {
-      const fraction = $('.andes-money-amount__fraction').first().text().replace(/\./g, '');
-      const cents = $('.andes-money-amount__cents').first().text() || '00';
-      price = parseFloat(`${fraction}.${cents}`);
+    } 
+    
+    // Fallback if price is still 0 or meta tag was missing/wrong
+    if (!price || price <= 0) {
+      const priceElement = $('.ui-pdp-price__second-line .andes-money-amount__fraction').first();
+      if (priceElement.length) {
+        const fraction = priceElement.text().replace(/\./g, '');
+        const cents = $('.ui-pdp-price__second-line .andes-money-amount__cents').first().text() || '00';
+        price = parseFloat(`${fraction}.${cents}`);
+      }
+    }
+
+    // Even more fallbacks for price
+    if (!price || price <= 0) {
+       const fraction = $('.andes-money-amount__fraction').first().text().replace(/\./g, '');
+       const cents = $('.andes-money-amount__cents').first().text() || '00';
+       price = parseFloat(`${fraction}.${cents}`);
     }
     
-    // Attempt to extract original price (often in a <del> or specific class)
+    // Attempt to extract original price
     let originalPrice = null;
-    const delPrice = $('del .andes-money-amount__fraction').first().text().replace(/\./g, '');
-    if (delPrice) {
-      const delCents = $('del .andes-money-amount__cents').first().text() || '00';
-      originalPrice = parseFloat(`${delPrice}.${delCents}`);
+    // Look for <del> or specific "previous price" classes
+    const delContainer = $('del .andes-money-amount, .ui-pdp-price__old .andes-money-amount').first();
+    if (delContainer.length) {
+      const delFraction = delContainer.find('.andes-money-amount__fraction').text().replace(/\./g, '');
+      const delCents = delContainer.find('.andes-money-amount__cents').text() || '00';
+      originalPrice = parseFloat(`${delFraction}.${delCents}`);
     }
 
     const productIdMatch = url.match(/MLB-?(\d+)/);
+
     const productId = productIdMatch ? `MLB${productIdMatch[1]}` : idOrUrl;
 
     if (title && price > 0 && imageUrl) {
