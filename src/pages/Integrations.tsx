@@ -81,7 +81,7 @@ export default function Integrations() {
         
         // Use auth.onAuthStateChanged if currentUser is not immediately available on mount
         const fetchStatus = async (uid: string | undefined) => {
-          const response = await fetch(`/api/integrations/mercadolivre/status${uid ? `?userId=${uid}` : ''}`, {
+          const response = await fetch(`/api/integrations/mercadolivre/status${uid ? `?uid=${uid}` : ''}`, {
             method: "GET",
             headers: {
               "Accept": "application/json"
@@ -169,7 +169,7 @@ export default function Integrations() {
       console.log("CONNECT_ML_CLICKED");
   
       const userId = auth.currentUser?.uid;
-      const response = await fetch(`/api/integrations/mercadolivre/auth-url${userId ? `?userId=${userId}` : ''}`, {
+      const response = await fetch(`/api/integrations/mercadolivre/auth-url${userId ? `?uid=${userId}` : ''}`, {
         method: "GET",
         headers: {
           "Accept": "application/json"
@@ -180,8 +180,7 @@ export default function Integrations() {
       if (!contentType || !contentType.includes("application/json")) {
         const text = await response.text();
         console.error("ML_AUTH_URL_NON_JSON_RESPONSE", `Status: ${response.status}, Resposta: ${text}`);
-        const shortText = text.substring(0, 200).replace(/\n/g, " ");
-        throw new Error(`A rota retornou formato inválido (Status: ${response.status}). Resposta: ${shortText}...`);
+        throw new Error("Rota auth-url retornou HTML. Verifique se a função existe na Vercel.");
       }
   
       const data = await response.json();
@@ -220,7 +219,7 @@ export default function Integrations() {
     setMercadoLivreLoading(true);
     try {
       const user = auth.currentUser;
-      const res = await fetch(`/api/integrations/mercadolivre/status${user ? `?userId=${user.uid}` : ''}`);
+      const res = await fetch(`/api/integrations/mercadolivre/status${user ? `?uid=${user.uid}` : ''}`);
       const data = await res.json();
       console.log("ML_STATUS_FRONTEND_RESPONSE", data);
       setMlApiStatus(data);
@@ -275,7 +274,7 @@ export default function Integrations() {
       setShowDisconnectModal(false);
       
       const userId = auth.currentUser?.uid;
-      const response = await fetch(`/api/integrations/mercadolivre/disconnect${userId ? `?userId=${userId}` : ''}`, {
+      const response = await fetch(`/api/integrations/mercadolivre/disconnect${userId ? `?uid=${userId}` : ''}`, {
         method: "POST"
       });
       

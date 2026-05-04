@@ -29,18 +29,18 @@ router.get("/ping", (req, res) => {
 router.get("/status", async (req, res) => {
   res.setHeader("Content-Type", "application/json; charset=utf-8");
   try {
-    const { userId } = req.query;
+    const { uid } = req.query;
 
-    if (!userId || userId === "undefined") {
+    if (!uid || uid === "undefined") {
       return res.status(400).json({
         ok: false,
         connected: false,
-        error: "missing_uid"
+        error: "MISSING_UID"
       });
     }
 
     const db = getAdminDb();
-    const docRef = db.doc(`users/${userId}/integrations/mercadolivre`);
+    const docRef = db.doc(`users/${uid}/integrations/mercadolivre`);
     const docSnap = await docRef.get();
     
     if (!docSnap.exists) {
@@ -65,7 +65,7 @@ router.get("/status", async (req, res) => {
       ok: true,
       connected: true,
       integration: {
-        uid: userId,
+        uid: String(uid),
         marketplace: docData.marketplace,
         mlUserId: docData.mlUserId || null,
         nickname: docData.nickname || null,
@@ -91,23 +91,48 @@ router.get("/debug-user-path", async (req, res) => {
   try {
     const { uid } = req.query;
     if (!uid || uid === "undefined") {
-      return res.json({ ok: false, error: "missing_uid" });
+      return res.status(400).json({ ok: false, error: "MISSING_UID" });
     }
+    
     const db = getAdminDb();
-    const path = `users/${uid}/integrations/mercadolivre_debug`;
+    const path = `users/${uid}/integrations/mercadolivre`;
     const docRef = db.doc(path);
-    await docRef.set({ test: true, timestamp: new Date().toISOString() });
     const snap = await docRef.get();
+    
+    let docData = null;
+    if (snap.exists) {
+      const data = snap.data() || {};
+      docData = {
+        marketplace: data.marketplace,
+        connected: data.connected,
+        mlUserId: data.mlUserId,
+        nickname: data.nickname,
+        email: data.email,
+        connectedAt: data.connectedAt,
+        updatedAt: data.updatedAt
+      };
+    }
     
     return res.json({
       ok: true,
-      path,
-      write: true,
-      read: snap.exists,
-      exists: snap.exists
+      uidReceived: String(uid),
+      expectedPath: path,
+      documentExists: snap.exists,
+      documentDataWithoutTokens: docData,
+      env: {
+        hasMlClientId: !!process.env.ML_CLIENT_ID,
+        hasMlRedirectUri: !!process.env.ML_REDIRECT_URI,
+        hasFirebaseServiceAccountKey: !!process.env.FIREBASE_SERVICE_ACCOUNT_KEY,
+        firestoreDatabaseId: process.env.FIRESTORE_DATABASE_ID || "(default)"
+      }
     });
   } catch (error: any) {
-    return res.json({ ok: false, error: error.message, path: `users/${req.query.uid}/integrations/mercadolivre_debug` });
+    return res.status(500).json({ 
+      ok: false, 
+      error: error.code || "ERROR", 
+      message: error.message,
+      stack: error.stack
+    });
   }
 });
 
@@ -115,9 +140,16 @@ router.get("/auth-url", async (req, res) => {
   try {
     const clientId = process.env.ML_CLIENT_ID;
     const redirectUri = process.env.ML_REDIRECT_URI;
-    const { userId } = req.query;
+    const { uid } = req.query;
 
     res.setHeader("Content-Type", "application/json; charset=utf-8");
+
+    if (!uid || uid === "undefined") {
+      return res.status(400).json({
+        ok: false,
+        error: "MISSING_UID"
+      });
+    }
 
     if (!clientId || !redirectUri) {
       const missing = [];
@@ -133,19 +165,17 @@ router.get("/auth-url", async (req, res) => {
 
     const stateBase = crypto.randomUUID();
         
-    const stateObj = { uid: userId, nonce: stateBase };
+    const stateObj = { uid: String(uid), nonce: stateBase };
     const stateStr = JSON.stringify(stateObj);
-    const state = encodeURIComponent(Buffer.from(stateStr).toString('base64'));
+    const encodedState = encodeURIComponent(Buffer.from(stateStr).toString('base64'));
     
-    console.log("ML_AUTH_STATE_CREATED", { hasUid: !!userId, uid: userId });
+    console.log("ML_AUTH_STATE_CREATED", { hasUid: !!uid, uid: String(uid) });
 
-    const authorizationUrl = `https://auth.mercadolivre.com.br/authorization?response_type=code&client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${state}`;
+    const authorizationUrl = `https://auth.mercadolivre.com.br/authorization?response_type=code&client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${encodedState}`;
 
     return res.status(200).json({
       ok: true,
-      authorizationUrl: authorizationUrl,
-      redirectUri: redirectUri,
-      state: state,
+      authorizationUrl: authorizationUrl
     });
   } catch (error: any) {
     res.setHeader("Content-Type", "application/json; charset=utf-8");
@@ -337,13 +367,13 @@ router.post("/disconnect", async (req, res) => {
   res.setHeader("Content-Type", "application/json; charset=utf-8");
   try {
     const db = getAdminDb();
-    const { userId } = req.query;
+    const { uid } = req.query;
 
-    if (!userId || userId === "undefined") {
-      return res.status(400).json({ ok: false, error: "Missing user ID" });
+    if (!uid || uid === "undefined") {
+      return res.status(400).json({ ok: false, error: "MISSING_UID" });
     }
 
-    const docPath = `users/${userId}/integrations/mercadolivre`;
+    const docPath = `users/${uid}/integrations/mercadolivre`;
     const docRef = db.doc(docPath);
     await docRef.set(
       {
