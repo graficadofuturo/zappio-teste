@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { getAdminFirestore, removeUndefinedDeep } from "../firebaseAdmin.ts";
+import { getAdminDb, removeUndefinedDeep } from "../firebaseAdmin.ts";
 import crypto from "crypto";
 
 const router = Router();
@@ -27,30 +27,23 @@ router.get("/ping", (req, res) => {
 });
 
 router.get("/status", async (req, res) => {
+  res.setHeader("Content-Type", "application/json; charset=utf-8");
   try {
-    const db = getAdminFirestore();
     const { userId } = req.query;
 
-    res.setHeader("Content-Type", "application/json; charset=utf-8");
-
     if (!userId || userId === "undefined") {
-      return res.status(200).json({
-        ok: true,
+      return res.status(400).json({
+        ok: false,
         connected: false,
-        integration: null
+        error: "missing_uid"
       });
     }
 
-    console.log("ML_STATUS_START", { firebaseUserId: userId });
-
+    const db = getAdminDb();
     const docRef = db.doc(`users/${userId}/integrations/mercadolivre`);
-      
-    console.log("ML_STATUS_READ_PATH", { path: `users/${userId}/integrations/mercadolivre` });
-
     const docSnap = await docRef.get();
     
     if (!docSnap.exists) {
-      console.log("ML_STATUS_NOT_FOUND");
       return res.status(200).json({
         ok: true,
         connected: false,
@@ -61,7 +54,6 @@ router.get("/status", async (req, res) => {
     const docData = docSnap.data();
 
     if (!docData || docData.connected !== true) {
-      console.log("ML_STATUS_NOT_FOUND");
       return res.status(200).json({
         ok: true,
         connected: false,
@@ -69,79 +61,53 @@ router.get("/status", async (req, res) => {
       });
     }
 
-    const formatTimestamp = (ts: any) => {
-      if (!ts) return null;
-      if (ts.toDate) return ts.toDate().toISOString();
-      return ts;
-    };
-
-    const result = {
+    return res.status(200).json({
       ok: true,
       connected: true,
       integration: {
-        provider: "mercadolivre",
-        connected: true,
+        uid: userId,
+        marketplace: docData.marketplace,
         mlUserId: docData.mlUserId || null,
-        nickname: docData.nickname || docData.mlNickname || null,
-        email: docData.email || docData.mlEmail || null,
+        nickname: docData.nickname || null,
+        email: docData.email || null,
         firstName: docData.firstName || null,
         lastName: docData.lastName || null,
-        connectedAt: formatTimestamp(docData.connectedAt),
-        updatedAt: formatTimestamp(docData.updatedAt),
+        connectedAt: docData.connectedAt || null,
+        updatedAt: docData.updatedAt || null,
       }
-    };
+    });
 
-    console.log("ML_STATUS_FOUND", { connected: true, mlUserId: result.integration.mlUserId });
-
-    return res.status(200).json(result);
   } catch (error: any) {
-    console.error("ML_STATUS_ERROR", error.message);
-    res.setHeader("Content-Type", "application/json; charset=utf-8");
     return res.status(500).json({
       ok: false,
       connected: false,
-      integration: null,
       error: error.message || "Unknown error",
     });
   }
 });
 
-router.get("/debug-status", async (req, res) => {
+router.get("/debug-user-path", async (req, res) => {
+  res.setHeader("Content-Type", "application/json; charset=utf-8");
   try {
-    const db = getAdminFirestore();
-    const { userId } = req.query;
-
-    res.setHeader("Content-Type", "application/json; charset=utf-8");
-
-    const response: any = {
-      ok: true,
-      uidDetected: userId && userId !== "undefined" ? userId : null,
-      firestorePath: null,
-      documentExists: false,
-      documentDataPreview: null,
-    };
-
-    if (userId && userId !== "undefined") {
-      const path = `users/${userId}/integrations/mercadolivre`;
-      response.firestorePath = path;
-      const docRef = db.doc(path);
-      const docSnap = await docRef.get();
-      response.documentExists = docSnap.exists;
-      if (docSnap.exists) {
-        const data = docSnap.data() || {};
-        response.documentDataPreview = { 
-          provider: data.provider,
-          connected: data.connected,
-          mlUserId: data.mlUserId,
-          nickname: data.nickname,
-          email: data.email
-        };
-      }
+    const { uid } = req.query;
+    if (!uid || uid === "undefined") {
+      return res.json({ ok: false, error: "missing_uid" });
     }
-
-    return res.status(200).json(response);
+    const db = getAdminDb();
+    const path = `users/${uid}/integrations/mercadolivre_debug`;
+    const docRef = db.doc(path);
+    await docRef.set({ test: true, timestamp: new Date().toISOString() });
+    const snap = await docRef.get();
+    
+    return res.json({
+      ok: true,
+      path,
+      write: true,
+      read: snap.exists,
+      exists: snap.exists
+    });
   } catch (error: any) {
-    return res.status(500).json({ ok: false, error: error.message });
+    return res.json({ ok: false, error: error.message, path: `users/${req.query.uid}/integrations/mercadolivre_debug` });
   }
 });
 
@@ -151,7 +117,6 @@ router.get("/auth-url", async (req, res) => {
     const redirectUri = process.env.ML_REDIRECT_URI;
     const { userId } = req.query;
 
-    // Must be clean JSON, no HTML
     res.setHeader("Content-Type", "application/json; charset=utf-8");
 
     if (!clientId || !redirectUri) {
@@ -166,13 +131,14 @@ router.get("/auth-url", async (req, res) => {
       });
     }
 
-    const stateBase =
-      typeof crypto !== "undefined" && crypto.randomUUID
-        ? crypto.randomUUID()
-        : `ml-${Date.now()}-${Math.random()}`;
+    const stateBase = crypto.randomUUID();
         
-    const stateObj = { uid: userId, nonce: stateBase, createdAt: Date.now() };
-    const state = Buffer.from(JSON.stringify(stateObj)).toString('base64url');
+    const stateObj = { uid: userId, nonce: stateBase };
+    const stateStr = JSON.stringify(stateObj);
+    const state = encodeURIComponent(Buffer.from(stateStr).toString('base64'));
+    
+    console.log("ML_AUTH_STATE_CREATED", { hasUid: !!userId, uid: userId });
+
     const authorizationUrl = `https://auth.mercadolivre.com.br/authorization?response_type=code&client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${state}`;
 
     return res.status(200).json({
@@ -196,9 +162,9 @@ router.get("/callback", async (req, res) => {
     process.env.APP_BASE_URL ||
     `${req.headers["x-forwarded-proto"] || req.protocol}://${req.headers.host}`;
 
-  const sendHtml = (status: string) => {
-    // Return early closing script window or redirecting
+  const sendHtml = (status: string, errorMsg?: string) => {
     const success = status === "connected";
+    const statusParam = errorMsg ? `${status}&errorDetails=${encodeURIComponent(errorMsg)}` : status;
     res.send(`
     <html>
       <head>
@@ -206,21 +172,24 @@ router.get("/callback", async (req, res) => {
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <style>
           body { font-family: sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; background-color: #f9fafb; color: #111827; }
-          .container { background: white; padding: 2rem; border-radius: 1rem; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); text-align: center; max-width: 400px; width: 90%; }
+          .container { background: white; padding: 2rem; border-radius: 1rem; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); text-align: center; max-width: 600px; width: 90%; }
         </style>
       </head>
       <body>
         <div class="container">
           <div style="font-size: 32px; margin-bottom: 1rem">${success ? "✅" : "❌"}</div>
           <h2 style="margin-top: 0">${success ? "Conectado com sucesso!" : "Erro na conexão"}</h2>
+          ${errorMsg ? `<p style="color: red; margin-bottom: 1rem; text-align: left; word-break: break-all;"><strong>Debug Error:</strong> ${errorMsg}</p>` : ""}
           <p style="color: #4b5563; margin-bottom: 0;">Redirecionando...</p>
         </div>
         <script>
           if (window.opener) {
             ${success ? `window.opener.postMessage({ type: 'OAUTH_AUTH_SUCCESS' }, '*');` : ""}
-            setTimeout(function() { window.close(); }, 1500);
+            setTimeout(function() { window.close(); }, ${errorMsg ? "5000" : "1500"});
           } else {
-            window.location.replace('${APP_BASE_URL}/integrations?mercadolivre=${status}');
+            setTimeout(function() {
+              window.location.replace('${APP_BASE_URL}/integrations?mercadolivre=${statusParam}');
+            }, ${errorMsg ? "5000" : "0"});
           }
         </script>
       </body>
@@ -233,8 +202,10 @@ router.get("/callback", async (req, res) => {
     const code = requestUrl.searchParams.get("code") || req.query.code;
     const state = requestUrl.searchParams.get("state") || req.query.state;
 
+    console.log("ML_CALLBACK_START", { hasCode: !!code, hasState: !!state });
+
     if (!code || !state) {
-      return sendHtml("error");
+      return sendHtml("error", "Parâmetros code ou state ausentes");
     }
 
     const ML_CLIENT_ID = process.env.ML_CLIENT_ID;
@@ -242,7 +213,7 @@ router.get("/callback", async (req, res) => {
     const ML_REDIRECT_URI = process.env.ML_REDIRECT_URI;
 
     if (!ML_CLIENT_ID || !ML_CLIENT_SECRET || !ML_REDIRECT_URI) {
-      return sendHtml("error");
+      return sendHtml("error", "Credenciais Ausentes");
     }
 
     const tokenParams = new URLSearchParams({
@@ -263,10 +234,11 @@ router.get("/callback", async (req, res) => {
     });
 
     if (!tokenRes.ok) {
-      return sendHtml("error");
+      return sendHtml("error", "Falha ao trocar código por token");
     }
 
     const tokenData: any = await tokenRes.json();
+    console.log("ML_TOKEN_OK", { hasAccessToken: !!tokenData.access_token });
 
     const userRes = await fetch("https://api.mercadolibre.com/users/me", {
       method: "GET",
@@ -276,81 +248,79 @@ router.get("/callback", async (req, res) => {
     });
 
     if (!userRes.ok) {
-      return sendHtml("error");
+      return sendHtml("error", "Falha ao buscar usuário no Mercado Livre");
     }
 
-    const mlUser: any = await userRes.json();
+    const usersMe: any = await userRes.json();
+    console.log("ML_USERS_ME_OK", { mlUserId: usersMe.id, nickname: usersMe.nickname });
 
     let userId = "unknown";
     if (state) {
       try {
-        const decodedStr = Buffer.from(String(state), 'base64url').toString('utf8');
+        const decodedStr = Buffer.from(String(state), 'base64').toString('utf8');
         const decoded = JSON.parse(decodedStr);
         if (decoded && decoded.uid) {
           userId = decoded.uid;
-        } else if (typeof state === "string" && state.includes("__")) {
-          userId = state.split("__")[1];
         }
       } catch (e) {
+        // Fallback for previous formats
         if (typeof state === "string" && state.includes("__")) {
           userId = state.split("__")[1];
+        } else {
+          try {
+             const decodedStr = Buffer.from(String(state), 'base64url').toString('utf8');
+             const decoded = JSON.parse(decodedStr);
+             if (decoded && decoded.uid) {
+               userId = decoded.uid;
+             }
+          } catch(e2) {}
         }
       }
     }
-    
-    console.log("ML_STATE_PARSED", { uid: userId, state });
+
+    console.log("ML_CALLBACK_STATE_DECODED", { uid: userId, hasUid: !!userId && userId !== "unknown" });
 
     if (userId === "unknown" || !userId || userId === "undefined") {
        console.error("ML_CALLBACK_SAVE_ERROR", "User ID not found in state");
-       return sendHtml("missing_user");
+       return sendHtml("missing_uid", "Usuário Firebase não identificado no retorno do OAuth");
     }
 
-    const { getAdminFirestore } = await import("../firebaseAdmin.ts");
-    const { FieldValue } = await import("firebase-admin/firestore");
-    const db = getAdminFirestore();
-
-    console.log("ML_CALLBACK_START", { userId });
-    console.log("ML_TOKEN_RESPONSE", { status: tokenRes.status, ok: tokenRes.ok });
-    console.log("ML_USER_ME_RESPONSE", { status: userRes.status, ok: userRes.ok, mlUserId: mlUser.id });
-
-    const expiresIn = tokenData.expires_in || null;
+    const db = getAdminDb();
 
     const data: any = {
-      provider: "mercadolivre",
-      connected: true,
       marketplace: "mercadolivre",
-      accessToken: tokenData.access_token || null,
+      connected: true,
+      uid: userId,
+      mlUserId: usersMe.id,
+      nickname: usersMe.nickname || null,
+      email: usersMe.email || null,
+      firstName: usersMe.first_name || null,
+      lastName: usersMe.last_name || null,
+      accessToken: tokenData.access_token,
       refreshToken: tokenData.refresh_token || null,
       tokenType: tokenData.token_type || null,
-      expiresIn: expiresIn,
-      expiresAt: expiresIn ? Date.now() + expiresIn * 1000 : null,
-      mlUserId: String(mlUser.id),
-      nickname: mlUser.nickname || null,
-      email: mlUser.email || null,
-      firstName: mlUser.first_name || null,
-      lastName: mlUser.last_name || null,
+      expiresIn: tokenData.expires_in || null,
       scope: tokenData.scope || null,
-      connectedAt: FieldValue.serverTimestamp(),
-      updatedAt: FieldValue.serverTimestamp(),
+      connectedAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
     };
 
-    const savePath = `users/${userId}/integrations/mercadolivre`;
-    console.log("ML_FIRESTORE_SAVE_PATH", savePath);
-    console.log("ML_CALLBACK_SAVE_DATA", { ...data, accessToken: "***", refreshToken: "***" });
+    const path = `users/${userId}/integrations/mercadolivre`;
+    console.log("ML_FIRESTORE_SAVE_START", { path });
 
-    // Save to the standardized path
     try {
-      await db.doc(savePath).set(data, { merge: true });
-      console.log("ML_FIRESTORE_SAVE_SUCCESS", { path: savePath });
-      
-      const verifySnap = await db.doc(savePath).get();
-      if (!verifySnap.exists) {
-        throw new Error("Document was not found after saving");
-      }
-      console.log("ML_FIRESTORE_VERIFY_OK", { exists: verifySnap.exists });
+      // Save directly with getAdminDb()
+      await db.doc(path).set(data);
+      console.log("ML_FIRESTORE_SAVE_SUCCESS", { path });
     } catch (dbErr: any) {
-      console.error("ML_FIRESTORE_SAVE_ERROR", dbErr);
-      return sendHtml("save_error");
+      console.error("ML_FIRESTORE_SAVE_ERROR", { 
+        message: dbErr?.message, 
+        code: dbErr?.code,
+        stack: dbErr?.stack, 
+        uid: userId,
+        path: userId ? `users/${userId}/integrations/mercadolivre` : null
+      });
+      return sendHtml("save_error", dbErr?.message || "Erro desconhecido ao salvar");
     }
 
     return sendHtml("connected");
@@ -359,14 +329,14 @@ router.get("/callback", async (req, res) => {
       message: error.message,
       stack: error.stack
     });
-    return sendHtml("error");
+    return sendHtml("error", error?.message || "Erro interno inesperado");
   }
 });
 
 router.post("/disconnect", async (req, res) => {
   res.setHeader("Content-Type", "application/json; charset=utf-8");
   try {
-    const db = getAdminFirestore();
+    const db = getAdminDb();
     const { userId } = req.query;
 
     if (!userId || userId === "undefined") {
@@ -387,18 +357,16 @@ router.post("/disconnect", async (req, res) => {
       { merge: true },
     );
 
-    console.log("ML_DISCONNECT_SUCCESS", { path: docPath });
-
     return res.status(200).json({
       ok: true,
       connected: false,
     });
   } catch (error: any) {
-    console.error("ML_ERROR", "ML_DISCONNECT_ERROR", error.message);
     return res.status(500).json({ ok: false, error: error.message });
   }
 });
 
+// Remove unused /sync as not requested? No, I'll keep it untouched or at the bottom.
 router.post("/sync", async (req, res) => {
   try {
     const { integrationId } = req.body;

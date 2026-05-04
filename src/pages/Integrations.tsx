@@ -63,7 +63,8 @@ export default function Integrations() {
       } else if (mlParam === 'firestore_not_found') {
         showError('Firestore não encontrado. Verifique o banco de dados.');
       } else if (mlParam === 'save_error') {
-        showError('A conexão funcionou, mas não foi possível salvar a integração.');
+        const errorDetails = searchParams.get('errorDetails');
+        showError(`A conexão funcionou, mas não foi possível salvar a integração. Erro: ${errorDetails || 'Desconhecido'}`);
       } else if (mlParam === 'missing_user') {
         showError('Usuário não identificado. Tente fazer login novamente antes de conectar.');
       } else if (mlParam === 'error') {
@@ -94,26 +95,40 @@ export default function Integrations() {
           const isReallyConnected = data.connected === true;
           setMercadoLivreConnected(isReallyConnected);
 
+          if (!data.ok) {
+            showError(`Erro ao verificar conexão: ${data.error || "Desconhecido"}`);
+          }
+
           if (mlParam === "connected") {
             if (isReallyConnected) {
               showSuccess('Mercado Livre conectado com sucesso.');
             } else {
-              showError("A conta foi autorizada, mas não foi possível salvar a integração. Verifique o banco de dados e tente novamente.");
+              showError("Conexão autorizada, mas a integração não foi encontrada no banco de dados. Tente conectar novamente.");
             }
           } else if (mlParam === 'save_error') {
-            showError("A conta foi autorizada, mas não foi possível salvar a integração. Verifique o banco de dados e tente novamente.");
+            const errorDetails = searchParams.get('errorDetails');
+            showError(`A conta foi autorizada, mas não foi possível salvar a integração. Erro: ${errorDetails || 'Verifique o banco de dados e tente novamente.'}`);
+          } else if (mlParam === 'missing_uid') {
+            showError('A conta foi autorizada, mas não identificamos o seu usuário ao voltar. Faça login e tente novamente.');
           }
         };
 
         if (auth.currentUser) {
           await fetchStatus(auth.currentUser.uid);
+          setMercadoLivreLoading(false);
+          setCheckingApiStatus(false);
         } else {
           // If not loaded yet, wait for it
           const unsubscribe = auth.onAuthStateChanged(async (user) => {
-            if (user) {
-               await fetchStatus(user.uid);
-            } else {
-               await fetchStatus(undefined);
+            try {
+              if (user) {
+                await fetchStatus(user.uid);
+              } else {
+                await fetchStatus(undefined);
+              }
+            } finally {
+              setMercadoLivreLoading(false);
+              setCheckingApiStatus(false);
             }
             unsubscribe();
           });
@@ -122,7 +137,6 @@ export default function Integrations() {
       } catch (error) {
         console.error("ML_STATUS_ERROR", error);
         setMercadoLivreConnected(false);
-      } finally {
         setMercadoLivreLoading(false);
         setCheckingApiStatus(false);
       }

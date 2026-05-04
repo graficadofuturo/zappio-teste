@@ -1,69 +1,69 @@
-import { initializeApp, getApps, cert, App } from "firebase-admin/app";
-import { getFirestore, Firestore } from "firebase-admin/firestore";
-import fs from 'fs';
-import path from 'path';
+import { initializeApp, cert, getApps, getApp } from "firebase-admin/app";
+import { getFirestore } from "firebase-admin/firestore";
 
-let app: App | null = null;
-let db: Firestore | null = null;
+let cachedDb: any = null;
 
-function getDatabaseId(): string {
-  try {
-    const configPath = path.resolve(process.cwd(), 'firebase-applet-config.json');
-    if (fs.existsSync(configPath)) {
-      const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
-      if (config.firestoreDatabaseId) return config.firestoreDatabaseId;
-    }
-  } catch (e) {
-    console.error("Error reading firebase-applet-config.json for databaseId", e);
+export function getFirebaseAdminApp() {
+  if (getApps().length > 0) {
+    return getApp();
   }
-  return process.env.FIRESTORE_DATABASE_ID || "(default)";
+
+  const rawServiceAccount = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
+
+  if (!rawServiceAccount) {
+    throw new Error("FIREBASE_SERVICE_ACCOUNT_KEY não configurada");
+  }
+
+  let serviceAccount;
+
+  try {
+    serviceAccount = JSON.parse(rawServiceAccount);
+  } catch (error) {
+    throw new Error("FIREBASE_SERVICE_ACCOUNT_KEY não é um JSON válido");
+  }
+
+  if (!serviceAccount.project_id) {
+    throw new Error("FIREBASE_SERVICE_ACCOUNT_KEY sem project_id");
+  }
+
+  if (!serviceAccount.client_email) {
+    throw new Error("FIREBASE_SERVICE_ACCOUNT_KEY sem client_email");
+  }
+
+  if (!serviceAccount.private_key) {
+    throw new Error("FIREBASE_SERVICE_ACCOUNT_KEY sem private_key");
+  }
+
+  serviceAccount.private_key = serviceAccount.private_key.replace(/\\n/g, "\n");
+
+  return initializeApp({
+    credential: cert(serviceAccount),
+  });
 }
 
-function getProjectId(): string {
-  try {
-    const configPath = path.resolve(process.cwd(), 'firebase-applet-config.json');
-    if (fs.existsSync(configPath)) {
-      const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
-      if (config.projectId) return config.projectId;
-    }
-  } catch (e) {
-    console.error("Error reading firebase-applet-config.json for projectId", e);
-  }
-  return "";
-}
+export function getAdminDb() {
+  if (cachedDb) return cachedDb;
 
-export function getAdminFirestore(): Firestore {
-  if (db) return db;
+  const app = getFirebaseAdminApp();
 
-  const serviceAccountRaw = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
-  const databaseId = getDatabaseId();
+  const databaseId = process.env.FIRESTORE_DATABASE_ID;
 
-  if (!serviceAccountRaw) {
-    throw new Error("FIREBASE_SERVICE_ACCOUNT_KEY ausente");
-  }
-
-  const serviceAccount = JSON.parse(serviceAccountRaw);
-  if (serviceAccount.private_key) {
-    serviceAccount.private_key = serviceAccount.private_key.replace(/\\n/g, "\n");
-  }
-
-  const apps = getApps();
-  if (!apps.length) {
-    app = initializeApp({
-      credential: cert(serviceAccount),
-      projectId: serviceAccount.project_id || getProjectId(),
-    });
+  if (
+    databaseId &&
+    databaseId !== "default" &&
+    databaseId !== "Default" &&
+    databaseId !== "(default)"
+  ) {
+    cachedDb = getFirestore(app, databaseId);
   } else {
-    app = apps[0];
+    cachedDb = getFirestore(app);
   }
 
-  db = getFirestore(app!, databaseId);
-  return db;
+  return cachedDb;
 }
 
-// Backward compatibility
-export async function getAdminDb() {
-  return getAdminFirestore();
+export function getAdminFirestore() {
+  return getAdminDb();
 }
 
 export function removeUndefinedDeep(obj: any): any {
