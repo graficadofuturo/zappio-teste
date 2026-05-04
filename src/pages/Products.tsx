@@ -4,6 +4,7 @@ import { updateDoc, doc } from 'firebase/firestore';
 import { handleFirestoreError, OperationType } from '../lib/firestore-utils';
 import { Loader2, Package, Link as LinkIcon, RefreshCw, AlertCircle, Search, PlusCircle, CheckCircle2, Wand2, Info, Sparkles } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { simplifyProductTitle } from '../lib/productUtils';
 
 export default function Products() {
   const [products, setProducts] = useState<any[]>([]);
@@ -101,7 +102,8 @@ export default function Products() {
   };
 
   const renderProductCard = (p: any) => {
-      const title = p.title;
+      const originalTitle = p.titleOriginal || p.title;
+      const displayTitle = p.titleShort || p.title;
       const image = p.imageUrl || p.image || p.thumbnail;
       const price = p.price;
       const oldPrice = p.originalPrice;
@@ -121,14 +123,20 @@ export default function Products() {
                         {category.replace('_', ' e ')}
                     </span>
                 </div>
-                <img src={image} alt={title} className="w-full h-full object-contain mix-blend-multiply drop-shadow-sm" />
+                <img src={image} alt={displayTitle} className="w-full h-full object-contain mix-blend-multiply drop-shadow-sm" />
                 {marketplaceLogo("Mercado Livre")}
             </div>
             
             <div className="p-5 flex-1 flex flex-col">
-                <div className="flex justify-between items-start mb-2 gap-2">
-                     <a href={link} target="_blank" rel="noopener noreferrer" className="text-[14px] font-bold text-gray-900 line-clamp-2 hover:text-[#2d3277] transition-colors relative z-10 block mb-1 leading-snug">
-                        {title}
+                <div className="flex justify-between items-start mb-2 gap-2 h-[2.5rem]">
+                     <a 
+                        href={link} 
+                        target="_blank" 
+                        rel="noopener noreferrer" 
+                        className="text-[14px] font-bold text-gray-900 line-clamp-2 hover:text-[#2d3277] transition-colors relative z-10 block mb-1 leading-snug"
+                        title={originalTitle}
+                      >
+                        {displayTitle}
                      </a>
                 </div>
                 

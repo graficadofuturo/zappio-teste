@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { getAdminDb } from "../firebaseAdmin.ts";
+import { simplifyProductTitle } from "../../lib/productUtils.ts";
 
 const router = Router();
 
@@ -52,9 +53,14 @@ router.post("/mercadolivre/sync-daily", async (req, res) => {
     let count = 0;
     for (const prod of products) {
         const offerId = `ml_${prod.id}`;
+        const fullTitle = prod.title.trim();
+        const shortTitle = simplifyProductTitle(fullTitle);
+
         await db.collection("affiliate_offers").doc(offerId).set({
             marketplace: "mercadolivre",
-            product_name: prod.title,
+            product_name: shortTitle, // Simplified for campaigns
+            titleShort: shortTitle,
+            titleOriginal: fullTitle,
             product_image: prod.thumbnail.replace("-I.jpg", "-V.jpg"),
             product_price: prod.price,
             product_old_price: prod.original_price || null,

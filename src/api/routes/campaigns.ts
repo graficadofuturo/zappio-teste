@@ -2,6 +2,7 @@ import { Router } from "express";
 import { getAdminDb } from "../firebaseAdmin.ts";
 import { getRandomKeyword, CAMPAIGN_CATEGORIES, getNextProductForCampaign, recordProductSent } from "../campaignService.ts";
 import { GoogleGenAI } from "@google/genai";
+import { simplifyProductTitle } from "../../lib/productUtils.ts";
 
 const router = Router();
 
@@ -87,11 +88,14 @@ router.post("/prepare-message", async (req, res) => {
       const discount = product.product_discount || "";
       const link = product.product_affiliate_link || product.product_original_link;
       const marketplaceName = product.marketplace || "Mercado Livre";
+      
+      // Determine short name
+      const productNameShort = product.titleShort || simplifyProductTitle(product.product_name || product.title || "");
 
       // If there's no template, use a default one based on tone
       if (!template || template.trim() === "") {
         finalMessage = `🚀 *OFERTA DO DIA* 🚀\n\n` +
-                       `📦 *${product.product_name}*\n` +
+                       `📦 *${productNameShort}*\n` +
                        `${oldPrice ? `De: ${oldPrice}\n` : ""}` +
                        `Por apenas: ${price}\n` +
                        `${discount ? `Economia de: ${discount}\n` : ""}` +
@@ -100,7 +104,8 @@ router.post("/prepare-message", async (req, res) => {
       } else {
         // Replace variables
         finalMessage = template
-          .replace(/{product_title}/g, product.product_name)
+          .replace(/{product_title}/g, productNameShort)
+          .replace(/{Product_Name}/g, productNameShort) // Also support CamelCase
           .replace(/{product_price}/g, price)
           .replace(/{product_old_price}/g, oldPrice)
           .replace(/{product_discount}/g, discount)
@@ -148,10 +153,15 @@ router.get("/:id/preview-offer", async (req, res) => {
         }
         
         const mlItem = results[Math.floor(Math.random() * results.length)];
+        const fullTitle = mlItem.title;
+        const shortTitle = simplifyProductTitle(fullTitle);
+
         const product = {
             id: mlItem.id,
             external_product_id: mlItem.id,
-            product_title: mlItem.title,
+            product_title: shortTitle, // Used for campaign preview
+            titleOriginal: fullTitle,
+            titleShort: shortTitle,
             product_price: mlItem.price,
             product_old_price: mlItem.original_price,
             product_discount: mlItem.original_price && mlItem.price < mlItem.original_price ? Math.round((1 - (mlItem.price / mlItem.original_price)) * 100) + '%' : null,

@@ -1,5 +1,6 @@
 import { cn } from '../lib/utils';
 import { ShieldCheck, MoreVertical, Paperclip, Send, Camera, ArrowLeft, Phone, Video, Smile, Mic, Lock } from 'lucide-react';
+import { simplifyProductTitle } from '../lib/productUtils';
 
 interface PhonePreviewProps {
   message: string;
@@ -8,17 +9,18 @@ interface PhonePreviewProps {
 }
 
 const DEFAULT_DUMMY_PRODUCT = {
-  product_title: 'Smart TV 55" 4K',
-  product_price: '3500.00',
-  product_old_price: '2999.00',
-  product_discount: '14%',
-  product_link: 'https://exemplo.com/p/tv55',
-  product_affiliate_link: 'https://exemplo.com/aff/tv55',
+  product_title: 'Samsung Galaxy A36 5G 128GB',
+  product_price: '1899.00',
+  product_old_price: '2499.00',
+  product_discount: '24%',
+  product_link: 'https://exemplo.com/p/a36',
+  product_affiliate_link: 'https://exemplo.com/aff/a36',
   product_image: 'https://images.unsplash.com/photo-1593359677879-a4bb92f829d1?auto=format&fit=crop&q=80&w=800'
 };
 
 export default function PhonePreview({ message, imageUrl, dummyProduct }: PhonePreviewProps) {
   const prod = dummyProduct || DEFAULT_DUMMY_PRODUCT;
+  const shortTitle = prod.titleShort || simplifyProductTitle(prod.product_title || prod.title || '');
 
   // Format message to simulate WhatsApp text formatting (*bold*, _italic_, ~strikethrough~)
   const formatText = (text: string) => {
@@ -27,7 +29,8 @@ export default function PhonePreview({ message, imageUrl, dummyProduct }: PhoneP
     // Replace variables in preview
     let replacedText = text;
     if (replacedText.includes('{')) {
-      replacedText = replacedText.replace(/{product_title}/g, prod.product_title || '');
+      replacedText = replacedText.replace(/{product_title}/g, shortTitle);
+      replacedText = replacedText.replace(/{Product_Name}/g, shortTitle);
       replacedText = replacedText.replace(/{product_price}/g, prod.product_price ? `R$ ${Number(prod.product_price).toFixed(2).replace('.', ',')}` : '');
       replacedText = replacedText.replace(/{product_old_price}/g, prod.product_old_price ? `~R$ ${Number(prod.product_old_price).toFixed(2).replace('.', ',')}~` : '');
       replacedText = replacedText.replace(/{product_discount}/g, prod.product_discount || '');

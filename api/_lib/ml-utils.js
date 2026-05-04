@@ -2,6 +2,53 @@ import * as cheerio from 'cheerio';
 import { getAdminDb } from './firebase-admin.js';
 
 /**
+ * Simplifies long SEO titles from Mercado Livre into a commercial version
+ */
+export function simplifyProductTitle(title) {
+  if (!title) return "";
+  
+  let short = title
+    .replace(/Smartphone /gi, "")
+    .replace(/Smart TV /gi, "Smart TV ")
+    .replace(/Fone de Ouvido /gi, "")
+    .replace(/Bluetooth /gi, "")
+    .replace(/Câmera Tripla[^]*?(?=-|$)/gi, "")
+    .replace(/Selfie De[^]*?(?=-|$)/gi, "")
+    .replace(/Super Amoled[^]*?(?=-|$)/gi, "")
+    .replace(/Recursos Ai[^]*?(?=-|$)/gi, "")
+    .replace(/Segurança[^]*?(?=-|$)/gi, "")
+    .replace(/Snapdragon[^]*?(?=-|$)/gi, "")
+    .replace(/NFC/gi, "")
+    .replace(/Android/gi, "")
+    .replace(/Lacrado/gi, "")
+    .replace(/Novo/gi, "")
+    .replace(/Original/gi, "")
+    .replace(/IP67/gi, "")
+    .replace(/\d+GB RAM/gi, "")
+    .replace(/Tela[^]*?(?=-|$)/gi, "")
+    .replace(/Processador[^]*?(?=-|$)/gi, "")
+    .replace(/Gaming Hub/gi, "")
+    .replace(/Crystal/gi, "")
+    .replace(/UHD/gi, "")
+    .replace(/4K/gi, "4K")
+    .replace(/ 0\.5ms/gi, "")
+    .replace(/Basic Microfibra/gi, "")
+    .replace(/Sem Costura/gi, "")
+    .trim();
+
+  // Remove repeated words (common in ML titles)
+  const words = short.split(/\s+/);
+  short = words.filter((word, i) => i === 0 || word.toLowerCase() !== words[i-1].toLowerCase()).join(' ');
+
+  // Limit to 55 chars
+  if (short.length > 55) {
+    short = short.slice(0, 52) + "...";
+  }
+
+  return short || title.slice(0, 55);
+}
+
+/**
  * Standardize and VALIDATE an offer payload for Firestore
  * Returns null if the offer is invalid.
  */
@@ -41,19 +88,23 @@ export function normalizeOffer(item, source = 'auto_collector', category = 'todo
     discountPercent = Math.round(((originalPrice - price) / originalPrice) * 100);
   }
 
-  let cleanTitle = item.title.trim();
-  const half = Math.floor(cleanTitle.length / 2);
-  if (cleanTitle.length > 20 && cleanTitle.slice(0, half) === cleanTitle.slice(half)) {
-    cleanTitle = cleanTitle.slice(0, half).trim();
+  let fullTitle = item.title.trim();
+  const half = Math.floor(fullTitle.length / 2);
+  if (fullTitle.length > 20 && fullTitle.slice(0, half) === fullTitle.slice(half)) {
+    fullTitle = fullTitle.slice(0, half).trim();
   }
 
+  const shortTitle = simplifyProductTitle(fullTitle);
+
   // Determine Category
-  const finalCategory = normalizeOfferCategory(category, cleanTitle, searchTerm);
+  const finalCategory = normalizeOfferCategory(category, fullTitle, searchTerm);
 
   const offer = {
     marketplace: "mercadolivre",
     productId: productId,
-    title: cleanTitle,
+    title: shortTitle, // Default for compatibility
+    titleShort: shortTitle,
+    titleOriginal: fullTitle,
     price: price,
     originalPrice: Number.isFinite(originalPrice) ? originalPrice : null,
     discountPercent: item.discountPercent ?? discountPercent,

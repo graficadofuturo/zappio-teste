@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { getAdminDb } from "../firebaseAdmin.ts";
+import { simplifyProductTitle } from "../../lib/productUtils.ts";
 
 const router = Router();
 
@@ -101,11 +102,16 @@ router.post("/sync", async (req, res) => {
   
             const docId = `mercadolivre_${item.id}`;
             const docRef = db.doc(`offer_bank/${docId}`);
+            
+            const fullTitle = item.title.trim();
+            const shortTitle = simplifyProductTitle(fullTitle);
   
             const payload = {
               marketplace: "mercadolivre",
               marketplaceProductId: item.id,
-              title: item.title,
+              title: shortTitle, // Default for compatibility
+              titleShort: shortTitle,
+              titleOriginal: fullTitle,
               price: price,
               originalPrice: originalPrice,
               currencyId: item.currency_id || "BRL",
