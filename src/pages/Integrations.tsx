@@ -81,7 +81,10 @@ export default function Integrations() {
         
         // Use auth.onAuthStateChanged if currentUser is not immediately available on mount
         const fetchStatus = async () => {
-          const response = await fetch(`/api/integrations/mercadolivre/status`, {
+          const user = auth.currentUser;
+          const url = user ? `/api/mercadolivre?action=status&uid=${user.uid}` : `/api/mercadolivre?action=status`;
+          
+          const response = await fetch(url, {
             method: "GET",
             headers: {
               "Accept": "application/json"
@@ -163,12 +166,15 @@ export default function Integrations() {
 
   const handleConnectML = async () => {
     try {
+      const user = auth.currentUser;
+      if (!user) throw new Error("Usuário não logado");
+      
       setSyncing('ml');
       setMessage(null);
   
       console.log("CONNECT_ML_CLICKED");
   
-      const response = await fetch(`/api/integrations/mercadolivre/auth-url`, {
+      const response = await fetch(`/api/mercadolivre/auth?uid=${user.uid}`, {
         method: "GET",
         headers: {
           "Accept": "application/json"
@@ -217,7 +223,9 @@ export default function Integrations() {
     setCheckingApiStatus(true);
     setMercadoLivreLoading(true);
     try {
-      const res = await fetch(`/api/integrations/mercadolivre/status`);
+      const user = auth.currentUser;
+      const url = user ? `/api/mercadolivre?action=status&uid=${user.uid}` : `/api/mercadolivre?action=status`;
+      const res = await fetch(url);
       const data = await res.json();
       console.log("ML_STATUS_FRONTEND_RESPONSE", data);
       setMlApiStatus(data);
@@ -268,11 +276,16 @@ export default function Integrations() {
 
   const handleDisconnectMl = async () => {
     try {
+      const user = auth.currentUser;
+      if (!user) throw new Error("Usuário não logado");
+      
       setDisconnectingMl(true);
       setShowDisconnectModal(false);
       
-      const response = await fetch(`/api/integrations/mercadolivre/disconnect`, {
-        method: "POST"
+      const response = await fetch(`/api/mercadolivre`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "disconnect", uid: user.uid })
       });
       
       const data = await response.json();

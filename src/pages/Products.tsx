@@ -30,7 +30,7 @@ export default function Products() {
     setLoading(true);
     setSyncStatus(null);
     try {
-      const response = await fetch(`/api/offers/list?category=todos&limit=50`);
+      const response = await fetch(`/api/offers?action=list&category=todos&limit=100`);
       const data = await response.json();
       
       if (response.ok && data.ok) {
@@ -50,7 +50,7 @@ export default function Products() {
       setSyncing(true);
       setSyncStatus(null);
       try {
-          const res = await fetch('/api/offers/collector/run?marketplace=mercadolivre&category=todos&limit=100');
+          const res = await fetch('/api/offers?action=collect&marketplace=mercadolivre&category=todos');
           const data = await res.json();
           
           if (!res.ok || !data.ok) {
@@ -126,41 +126,40 @@ export default function Products() {
                 <img src={image} alt={displayTitle} className="w-full h-full object-contain mix-blend-multiply drop-shadow-sm" />
                 {marketplaceLogo("Mercado Livre")}
             </div>
-            <div className="p-5 flex-1 flex flex-col justify-between">
-                <div>
-                  <div className="mb-2 relative h-[2.6rem] overflow-hidden">
-                       <a 
-                          href={link} 
-                          target="_blank" 
-                          rel="noopener noreferrer" 
-                          className="text-[13.5px] font-bold text-gray-900 hover:text-[#2d3277] transition-colors relative z-10 block leading-tight break-words"
-                          style={{
+            <div className="p-5 flex-1 flex flex-col">
+                <div className="mb-2 h-[3rem] overflow-hidden">
+                     <a 
+                        href={link} 
+                        target="_blank" 
+                        rel="noopener noreferrer" 
+                        className="text-[14px] font-bold text-gray-900 line-clamp-2 hover:text-[#2d3277] transition-colors relative z-10 block leading-tight"
+                        style={{
                             display: '-webkit-box',
                             WebkitLineClamp: 2,
                             WebkitBoxOrient: 'vertical',
-                            width: '100%'
-                          }}
-                          title={originalTitle}
-                        >
-                          {p.titleShort || simplifyProductTitle(originalTitle)}
-                        </a>
-                  </div>
-                  
-                  <div className="flex items-baseline gap-2 mb-4 h-7 overflow-hidden">
-                      <span className="text-[19px] font-extrabold text-gray-900 leading-none">
-                          {formattedPrice}
-                      </span>
-                      {oldPrice && oldPrice > price && (
-                          <span className="text-[11px] text-gray-400 line-through truncate max-w-[80px]">
-                              {formatCurrency(oldPrice)}
-                          </span>
-                      )}
-                      {discount && (
-                          <span className="text-[10px] font-bold text-green-600 bg-green-50 px-1.5 py-0.5 rounded ml-auto whitespace-nowrap">
-                              {discount}
-                          </span>
-                      )}
-                  </div>
+                            overflow: 'hidden',
+                            height: '2.5rem'
+                        }}
+                        title={originalTitle}
+                      >
+                        {p.titleShort || simplifyProductTitle(originalTitle)}
+                      </a>
+                </div>
+                
+                <div className="flex items-baseline gap-2 mb-3 h-7">
+                    <span className="text-[20px] font-extrabold text-gray-900 leading-none">
+                        {formattedPrice !== "Preço indisponível" ? formattedPrice : "Consulte"}
+                    </span>
+                    {oldPrice && oldPrice > price && (
+                        <span className="text-[12px] text-gray-400 line-through mb-0.5 truncate max-w-[80px]">
+                            {formatCurrency(oldPrice)}
+                        </span>
+                    )}
+                    {discount && (
+                        <span className="text-[11px] font-bold text-green-600 ml-auto bg-green-50 px-1.5 py-0.5 rounded whitespace-nowrap">
+                            {discount}
+                        </span>
+                    )}
                 </div>
 
                 <div className="mt-auto pt-4 border-t border-gray-100 space-y-2">

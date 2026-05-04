@@ -1,105 +1,104 @@
 import { Router } from "express";
 import { getAdminDb } from "../firebaseAdmin.ts";
-import { simplifyProductTitle } from "../../lib/productUtils.ts";
+import { simplifyProductTitle, formatCurrency } from "../../lib/productUtils.ts";
+import { collectAutomatedFromML, saveToOfferBank } from "../mlService.ts";
 
 const router = Router();
 
-router.get("/", async (req, res) => {
-  const { marketplace, status, category } = req.query;
-  try {
-    const db = await getAdminDb();
-    let query = db.collection("affiliate_offers") as any;
-
-    if (marketplace) {
-      if (marketplace === "Mercado Livre") {
-         // Handle both variations
-         query = query.where("marketplace", "in", ["mercadolivre", "mercado_livre", "Mercado Livre"]);
-      } else {
-         query = query.where("marketplace", "==", marketplace);
-      }
-    }
-
-    if (status) {
-      query = query.where("status", "==", status);
-    }
+router.all("/", async (req: any, res) => {
+    const action = req.query.action || req.body?.action || 'list';
     
-    if (category && category !== 'Todos') {
-      query = query.where("category", "==", category);
+    try {
+        const db = await getAdminDb();
+        
+        switch (action) {
+            case "list": {
+                const { category, marketplace = "mercadolivre", limit = 100 } = req.query;
+                let query = db.collection("affiliate_offers").where("marketplace", "==", marketplace);
+                
+                if (category && category.toLowerCase() !== "todos") {
+                    query = query.where("category", "==", category);
+                }
+
+                const snapshot = await query.orderBy("updated_at", "desc").limit(Number(limit)).get();
+                const offers = snapshot.docs.map((doc: any) => {
+                    const data = doc.data();
+                    const priceFormatted = formatCurrency(data.product_price || data.price);
+                    
+                    return { 
+                        id: doc.id, 
+                        ...data,
+                        displayPrice: priceFormatted,
+                        displayTitle: data.titleShort || data.product_name || simplifyProductTitle(data.titleOriginal || data.title || "")
+                    }
+                });
+
+                return res.json({ ok: true, count: offers.length, offers });
+            }
+
+            case "categories": {
+                const snapshot = await db.collection("affiliate_offers").get();
+                const categories = new Set<string>();
+                categories.add("Todos");
+                snapshot.forEach((doc: any) => {
+                    const data = doc.data();
+                    if (data.category) categories.add(data.category);
+                });
+                return res.json({ ok: true, categories: Array.from(categories) });
+            }
+
+            case "collect": {
+                console.log("[Offers] Action: collect triggered");
+                const queries = ["ofertas do dia", "smartphone", "smart tv", "notebook", "ferramentas"];
+                const q = queries[Math.floor(Math.random() * queries.length)];
+                
+                const items = await collectAutomatedFromML(q, "Geral");
+                let count = 0;
+                
+                if (items.length > 0) {
+                    count = await saveToOfferBank(items);
+                }
+                
+                return res.json({ ok: true, message: `${count} ofertas coletadas.`, totalSaved: count });
+            }
+
+            case "backfill": {
+                const snapshot = await db.collection("affiliate_offers").get();
+                let count = 0;
+                const batch = db.batch();
+                
+                for (const doc of snapshot.docs) {
+                    const data = doc.data();
+                    const original = data.titleOriginal || data.product_name || data.title || "";
+                    const currentShort = data.titleShort;
+                    const newShort = simplifyProductTitle(original);
+
+                    if (!currentShort || currentShort !== newShort) {
+                        batch.update(doc.ref, {
+                            titleShort: newShort,
+                            product_name: newShort,
+                            updated_at: new Date().toISOString()
+                        });
+                        count++;
+                    }
+                }
+                
+                if (count > 0) await batch.commit();
+                return res.json({ ok: true, message: `${count} ofertas corrigidas.` });
+            }
+
+            default:
+                return res.status(400).json({ ok: false, error: `Action ${action} not supported` });
+        }
+    } catch (error: any) {
+        console.error(`OFFERS_ACTION_ERR_${action}`, error);
+        return res.status(500).json({ ok: false, error: error.message });
     }
-
-    const snapshot = await query.orderBy("updated_at", "desc").limit(100).get();
-    const offers = snapshot.docs.map((doc: any) => ({ id: doc.id, ...doc.data() }));
-
-    res.status(200).json({ ok: true, offers });
-  } catch (error: any) {
-    console.error("OFFERS_GET_ERROR", error);
-    res.status(500).json({ ok: false, error: error.message });
-  }
 });
 
-router.post("/mercadolivre/sync-daily", async (req, res) => {
-  try {
-    // For now we simulate/proxy to the actual logic if needed, 
-    // or just return success if the background job already does it.
-    // In this app, we might want to trigger the real scraping logic.
-    const { fetchMLProductsByKeyword } = await import("../campaignService.ts");
-    const db = await getAdminDb();
-    
-    // Simple sync: fetch some trending items
-    const keywords = ["ofertas do dia", "promoção", "desconto"];
-    const keyword = keywords[Math.floor(Math.random() * keywords.length)];
-    const products = await fetchMLProductsByKeyword(keyword);
-
-    let count = 0;
-    for (const prod of products) {
-        const offerId = `ml_${prod.id}`;
-        const fullTitle = prod.title.trim();
-        const shortTitle = simplifyProductTitle(fullTitle);
-
-        await db.collection("affiliate_offers").doc(offerId).set({
-            marketplace: "mercadolivre",
-            product_name: shortTitle, // Simplified for campaigns
-            titleShort: shortTitle,
-            titleOriginal: fullTitle,
-            product_image: prod.thumbnail.replace("-I.jpg", "-V.jpg"),
-            product_price: prod.price,
-            product_old_price: prod.original_price || null,
-            product_discount: prod.original_price ? `${Math.round((1 - prod.price / prod.original_price) * 100)}% OFF` : null,
-            product_original_link: prod.permalink,
-            product_affiliate_link: prod.permalink, // Real affiliate link would be generated here if we had the API
-            category: "Mercado Livre",
-            status: "active",
-            updated_at: new Date().toISOString()
-        }, { merge: true });
-        count++;
-    }
-
-    res.status(200).json({ ok: true, message: `Sincronização concluída: ${count} ofertas atualizadas.` });
-  } catch (error: any) {
-    console.error("OFFERS_SYNC_ERROR", error);
-    res.status(500).json({ ok: false, error: error.message });
-  }
-});
-
-router.get("/categories", async (req, res) => {
-  try {
-    const db = await getAdminDb();
-    const querySnapshot = await db.collection("affiliate_offers").get();
-    const categories = new Set<string>();
-    categories.add("Todos");
-    
-    querySnapshot.forEach((doc) => {
-      const data = doc.data();
-      if (data.category) {
-        categories.add(data.category);
-      }
-    });
-
-    res.status(200).json({ ok: true, categories: Array.from(categories) });
-  } catch (error: any) {
-    console.error("OFFERS_CATEGORIES_ERROR", error);
-    res.status(500).json({ ok: false, error: error.message });
-  }
-});
+// Legacy routes redirected to the main handler for safety if needed
+router.get("/list", (req, res) => { req.query.action = 'list'; (router as any).handle({ method: 'GET', url: '/', query: req.query }, req, res); });
+router.get("/categories", (req, res) => { req.query.action = 'categories'; (router as any).handle({ method: 'GET', url: '/', query: req.query }, req, res); });
+router.post("/mercadolivre/sync-daily", (req, res) => { req.query.action = 'collect'; (router as any).handle({ method: 'POST', url: '/', query: req.query }, req, res); });
 
 export default router;
