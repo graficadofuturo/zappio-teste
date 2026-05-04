@@ -5,7 +5,7 @@ import { getAdminDb } from './firebase-admin.js';
  * Standardize and VALIDATE an offer payload for Firestore
  * Returns null if the offer is invalid.
  */
-export function normalizeOffer(item, source = 'auto_collector', category = 'todos') {
+export function normalizeOffer(item, source = 'auto_collector', category = 'todos', searchTerm = '') {
   const originalPrice = Number(item.original_price ?? item.originalPrice ?? null);
   const price = Number(item.price ?? null);
   
@@ -47,6 +47,9 @@ export function normalizeOffer(item, source = 'auto_collector', category = 'todo
     cleanTitle = cleanTitle.slice(0, half).trim();
   }
 
+  // Determine Category
+  const finalCategory = normalizeOfferCategory(category, cleanTitle, searchTerm);
+
   const offer = {
     marketplace: "mercadolivre",
     productId: productId,
@@ -57,7 +60,7 @@ export function normalizeOffer(item, source = 'auto_collector', category = 'todo
     imageUrl: imageUrl,
     productUrl: productUrl,
     affiliateUrl: item.affiliateUrl || null,
-    category: category,
+    category: finalCategory,
     status: "active",
     source: source,
     collectedAt: new Date().toISOString(),
@@ -71,6 +74,124 @@ export function normalizeOffer(item, source = 'auto_collector', category = 'todo
       return v !== undefined && v !== null;
     })
   );
+}
+
+/**
+ * Normalizes category based on ML data or inference
+ */
+export function normalizeOfferCategory(rawCategory, title, searchTerm) {
+  const source = String(rawCategory || searchTerm || "").toLowerCase();
+  const productTitle = String(title || "").toLowerCase();
+
+  if (
+    source.includes("tec") ||
+    source.includes("eletr") ||
+    source.includes("inform") ||
+    productTitle.includes("smartphone") ||
+    productTitle.includes("celular") ||
+    productTitle.includes("iphone") ||
+    productTitle.includes("samsung galaxy") ||
+    productTitle.includes("noteb") ||
+    productTitle.includes("laptop") ||
+    productTitle.includes("monit") ||
+    productTitle.includes("fone") ||
+    productTitle.includes("tv ") ||
+    productTitle.includes("smart tv") ||
+    productTitle.includes("tablet") ||
+    productTitle.includes("processador") ||
+    productTitle.includes("placa de vídeo")
+  ) return "Tecnologia";
+
+  if (
+    source.includes("casa") ||
+    source.includes("cozinha") ||
+    source.includes("eletrodom") ||
+    source.includes("decora") ||
+    productTitle.includes("panela") ||
+    productTitle.includes("fritadeira") ||
+    productTitle.includes("air fryer") ||
+    productTitle.includes("cafeteira") ||
+    productTitle.includes("sofá") ||
+    productTitle.includes("mesa") ||
+    productTitle.includes("cadeira") ||
+    productTitle.includes("geladeira") ||
+    productTitle.includes("fogão") ||
+    productTitle.includes("lavadora") ||
+    productTitle.includes("máquina de lavar") ||
+    productTitle.includes("microondas")
+  ) return "Casa e Cozinha";
+
+  if (
+    source.includes("beleza") ||
+    source.includes("saúde") ||
+    source.includes("perfu") ||
+    productTitle.includes("perfume") ||
+    productTitle.includes("shampoo") ||
+    productTitle.includes("secador") ||
+    productTitle.includes("chapinha") ||
+    productTitle.includes("barbeador") ||
+    productTitle.includes("maquiagem") ||
+    productTitle.includes("batom")
+  ) return "Beleza e Saúde";
+
+  if (
+    source.includes("moda") ||
+    source.includes("roupa") ||
+    source.includes("calcado") ||
+    productTitle.includes("camiseta") ||
+    productTitle.includes("camisa") ||
+    productTitle.includes("tenis") ||
+    productTitle.includes("tênis") ||
+    productTitle.includes("calça") ||
+    productTitle.includes("bolsa") ||
+    productTitle.includes("vestido") ||
+    productTitle.includes("mochila") ||
+    productTitle.includes("boné")
+  ) return "Moda";
+
+  if (
+    source.includes("ferramenta") ||
+    productTitle.includes("furadeira") ||
+    productTitle.includes("parafusadeira") ||
+    productTitle.includes("serra") ||
+    productTitle.includes("martelo") ||
+    productTitle.includes("chave de fenda") ||
+    productTitle.includes("esmerilhadeira")
+  ) return "Ferramentas";
+
+  if (
+    source.includes("auto") ||
+    source.includes("carro") ||
+    productTitle.includes("pneu") ||
+    productTitle.includes("capacete") ||
+    productTitle.includes("óleo motor") ||
+    productTitle.includes("palheta") ||
+    productTitle.includes("bateria automotiva") ||
+    productTitle.includes("som automotivo") ||
+    productTitle.includes("multimídia")
+  ) return "Automotivo";
+
+  if (
+    source.includes("brinquedo") ||
+    source.includes("infantil") ||
+    productTitle.includes("boneca") ||
+    productTitle.includes("lego") ||
+    productTitle.includes("carrinho") ||
+    productTitle.includes("jogo") ||
+    productTitle.includes("quebra-cabeça")
+  ) return "Brinquedos";
+
+  if (
+    source.includes("esporte") ||
+    source.includes("fitness") ||
+    productTitle.includes("whey") ||
+    productTitle.includes("creatina") ||
+    productTitle.includes("suplemento") ||
+    productTitle.includes("bicicleta") ||
+    productTitle.includes("bola")
+  ) return "Esporte e Fitness";
+
+  return "Geral";
 }
 
 /**
@@ -159,7 +280,7 @@ export async function collectAutomated(query, category = 'todos') {
                 price,
                 permalink: productUrl,
                 thumbnail: imageUrl
-              }, "auto_collector_search_list", category);
+              }, "auto_collector_search_list", category, query);
               
               if (offer) {
                 enrichedOffers.push(offer);

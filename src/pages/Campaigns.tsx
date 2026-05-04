@@ -104,7 +104,7 @@ export default function Campaigns() {
   const [productUrl, setProductUrl] = useState('');
   const [aiObjective, setAiObjective] = useState('vender_produto');
   const [aiTone, setAiTone] = useState('Amigável');
-  const [offerCategory, setOfferCategory] = useState('todos');
+  const [offerCategory, setOfferCategory] = useState('Geral');
   const [offerMarketplace, setOfferMarketplace] = useState('all');
   const [marketplaces, setMarketplaces] = useState<any[]>([]);
   const [loadingMarketplaces, setLoadingMarketplaces] = useState(false);
@@ -113,7 +113,7 @@ export default function Campaigns() {
   const [categories, setCategories] = useState<string[]>([]);
 
   useEffect(() => {
-    setCategories(["todos", "tecnologia", "casa_moveis", "eletrodomesticos", "esporte_fitness", "ferramentas", "moda", "beleza", "mercado", "brinquedos", "automotivo"]);
+    setCategories(["Todos", "Tecnologia", "Casa e Cozinha", "Beleza e Saúde", "Moda", "Ferramentas", "Automotivo", "Brinquedos", "Esporte e Fitness", "Geral"]);
   }, []);
 
   useEffect(() => {

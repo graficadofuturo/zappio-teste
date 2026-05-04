@@ -275,16 +275,16 @@ export default function Products() {
                     <option value="mercadolivre">Mercado Livre</option>
                   </select>
                   
-                  <select 
-                    value={filterCategory} 
-                    onChange={e => setFilterCategory(e.target.value)}
-                    className="p-2 border border-gray-200 rounded-lg text-[12px] bg-white text-gray-700 outline-none capitalize"
-                  >
-                    <option value="">Todas Categorias</option>
-                    {["todos", "tecnologia", "casa_moveis", "eletrodomesticos", "esporte_fitness", "ferramentas", "moda", "beleza", "automotivo"].map(cat => (
-                      <option key={cat} value={cat}>{cat.replace('_', ' e ')}</option>
-                    ))}
-                  </select>
+                    <select 
+                      value={filterCategory} 
+                      onChange={e => setFilterCategory(e.target.value)}
+                      className="p-2 border border-gray-200 rounded-lg text-[12px] bg-white text-gray-700 outline-none"
+                    >
+                      <option value="">Todas Categorias</option>
+                      {["Tecnologia", "Casa e Cozinha", "Beleza e Saúde", "Moda", "Ferramentas", "Automotivo", "Brinquedos", "Esporte e Fitness", "Geral"].map(cat => (
+                        <option key={cat} value={cat}>{cat}</option>
+                      ))}
+                    </select>
                   
                   <label className="flex items-center gap-2 text-[12px] text-gray-700 font-medium cursor-pointer bg-white border border-gray-200 px-3 py-2 rounded-lg hover:bg-gray-50 transition">
                     <input 

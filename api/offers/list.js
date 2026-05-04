@@ -1,4 +1,5 @@
 import { getAdminDb } from "../_lib/firebase-admin.js";
+import { normalizeOfferCategory } from "../_lib/ml-utils.js";
 
 export default async function handler(req, res) {
   res.setHeader("Content-Type", "application/json; charset=utf-8");
@@ -13,7 +14,7 @@ export default async function handler(req, res) {
     const db = getAdminDb();
     let query = db.collection("offer_bank").where("marketplace", "==", marketplace);
     
-    if (category && category !== "todos") {
+    if (category && category.toLowerCase() !== "todos") {
         query = query.where("category", "==", category);
     }
 
@@ -30,9 +31,19 @@ export default async function handler(req, res) {
       const hasLink = data.productUrl;
 
       if (hasTitle && hasPrice && hasImage && hasLink) {
+        // Fix category on the fly if it is "automotivo" but title suggests otherwise
+        let finalCategory = data.category || "Geral";
+        if (finalCategory.toLowerCase() === "automotivo") {
+           const corrected = normalizeOfferCategory(null, data.title, null);
+           if (corrected !== "Automotivo") {
+              finalCategory = corrected;
+           }
+        }
+
         offers.push({
           id: doc.id,
-          ...data
+          ...data,
+          category: finalCategory
         });
       }
     });

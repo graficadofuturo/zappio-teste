@@ -1,14 +1,14 @@
 import { collectAutomated, saveOffers } from "../../_lib/ml-utils.js";
 
 const CATEGORY_KEYWORDS = {
-  tecnologia: ["smartphone", "notebook", "smart tv", "fone bluetooth", "monitor gamer", "placa de vídeo", "tablet"],
-  casa_moveis: ["mesa escritorio", "cadeira gamer", "sofa retratil", "guarda roupa casal", "colchao queen"],
-  eletrodomesticos: ["air fryer philips", "geladeira frost free", "cooktop 5 bocas", "aspirador robo", "maquina de lavar"],
-  esporte_fitness: ["whey protein isolado", "creatina monoidratada", "bicicleta aro 29", "esteira eletrica", "tenis corrida"],
-  ferramentas: ["furadeira martelete", "parafusadeira bosch", "kit ferramentas stanley", "lavadora alta pressao"],
-  moda: ["tenis nike", "mochila notebook", "relogio masculino", "oculos ray ban", "jaqueta corta vento"],
-  beleza: ["secador taiff", "perfume importado", "barbeador eletrico", "chapinha profissional", "maquiagem kit"],
-  automotivo: ["pneu aro 14", "multimidia android", "lampada led carro", "oleo 5w30 motul", "bateria carro"]
+  "Tecnologia": ["smartphone", "notebook", "smart tv", "fone bluetooth", "monitor gamer", "placa de vídeo", "tablet"],
+  "Casa e Cozinha": ["mesa escritorio", "cadeira gamer", "sofa retratil", "guarda roupa casal", "colchao queen", "air fryer philips", "geladeira frost free", "cooktop 5 bocas"],
+  "Esporte e Fitness": ["whey protein isolado", "creatina monoidratada", "bicicleta aro 29", "esteira eletrica", "tenis corrida"],
+  "Ferramentas": ["furadeira martelete", "parafusadeira bosch", "kit ferramentas stanley", "lavadora alta pressao"],
+  "Moda": ["tenis nike", "mochila notebook", "relogio masculino", "oculos ray ban", "jaqueta corta vento"],
+  "Beleza e Saúde": ["secador taiff", "perfume importado", "barbeador eletrico", "chapinha profissional", "maquiagem kit"],
+  "Automotivo": ["pneu aro 14", "multimidia android", "lampada led carro", "oleo 5w30 motul", "bateria carro"],
+  "Brinquedos": ["lego star wars", "boneca barbie", "pista hot wheels", "quebra cabeça 1000 peças"]
 };
 
 export default async function handler(req, res) {
@@ -20,9 +20,13 @@ export default async function handler(req, res) {
 
   try {
     let totalSaved = 0;
-    const categoriesToProcess = category && category !== "todos" && CATEGORY_KEYWORDS[category]
-      ? { [category]: CATEGORY_KEYWORDS[category] } 
-      : CATEGORY_KEYWORDS;
+    let categoriesToProcess = CATEGORY_KEYWORDS;
+    if (category && category !== "todos" && category !== "Todos") {
+      const foundKey = Object.keys(CATEGORY_KEYWORDS).find(k => k.toLowerCase() === category.toLowerCase());
+      if (foundKey) {
+        categoriesToProcess = { [foundKey]: CATEGORY_KEYWORDS[foundKey] };
+      }
+    }
 
     const allErrors = [];
 
