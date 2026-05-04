@@ -19,8 +19,6 @@ export default function Products() {
   const [sortBy, setSortBy] = useState('recent');
   
   const [syncStatus, setSyncStatus] = useState<{type: 'success' | 'error' | 'warning', text: string} | null>(null);
-  const [manualLinks, setManualLinks] = useState('');
-  const [importing, setImporting] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -31,7 +29,7 @@ export default function Products() {
     setLoading(true);
     setSyncStatus(null);
     try {
-      const response = await fetch(`/api/mercadolivre/offers/list?category=todos&limit=50`);
+      const response = await fetch(`/api/offers/list?category=todos&limit=50`);
       const data = await response.json();
       
       if (response.ok && data.ok) {
@@ -47,74 +45,35 @@ export default function Products() {
     setLoading(false);
   };
 
-  const handleSyncDaily = async () => {
+  const handleCollectorRun = async () => {
       setSyncing(true);
       setSyncStatus(null);
       try {
-          const res = await fetch('/api/mercadolivre/offers/sync', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' }
-          });
-          
+          const res = await fetch('/api/offers/collector/run?marketplace=mercadolivre&category=todos&limit=100');
           const data = await res.json();
           
           if (!res.ok || !data.ok) {
-              setSyncStatus({ type: 'error', text: `Erro ao sincronizar ofertas: ${data.error || 'Erro desconhecido'}` });
+              setSyncStatus({ type: 'error', text: `Erro ao executar o robô: ${data.error || 'Erro desconhecido'}` });
           } else {
               if (data.apiSearchBlocked && data.totalSaved > 0) {
                 setSyncStatus({ 
                   type: 'warning', 
-                  text: `API do Mercado Livre bloqueada, mas ${data.totalSaved} ofertas foram coletadas via fallback HTML.` 
+                  text: `API bloqueada, mas o robô coletou ${data.totalSaved} ofertas via fallback HTML.` 
                 });
               } else if (data.totalSaved === 0 && data.apiSearchBlocked) {
                 setSyncStatus({ 
                   type: 'error', 
-                  text: 'API do Mercado Livre bloqueada e fallback falhou. Tente importar links manualmente.' 
+                  text: 'API bloqueada e fallback falhou. O robô não conseguiu coletar ofertas agora.' 
                 });
               } else {
-                setSyncStatus({ type: 'success', text: `${data.totalSaved || 0} ofertas sincronizadas com sucesso!` });
+                setSyncStatus({ type: 'success', text: `O robô coletou ${data.totalSaved || 0} novas ofertas com sucesso!` });
               }
               await loadProducts();
           }
       } catch (e: any) {
-          setSyncStatus({ type: 'error', text: `Erro ao sincronizar ofertas: ${e.message || 'Erro de conexão'}` });
+          setSyncStatus({ type: 'error', text: `Erro ao executar robô: ${e.message || 'Erro de conexão'}` });
       }
       setSyncing(false);
-  };
-
-  const handleManualImport = async () => {
-    if (!manualLinks.trim()) return;
-    
-    setImporting(true);
-    setSyncStatus(null);
-    try {
-      const links = manualLinks.split('\n').map(l => l.trim()).filter(l => l.startsWith('http'));
-      
-      if (links.length === 0) {
-        setSyncStatus({ type: 'error', text: 'Nenhum link válido encontrado. Os links devem começar com http.' });
-        setImporting(false);
-        return;
-      }
-
-      const res = await fetch('/api/mercadolivre/offers/import-links', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ links, category: 'tecnologia' })
-      });
-
-      const data = await res.json();
-
-      if (res.ok && data.ok) {
-        setSyncStatus({ type: 'success', text: `${data.savedCount} ofertas importadas manualmente!` });
-        setManualLinks('');
-        await loadProducts();
-      } else {
-        setSyncStatus({ type: 'error', text: data.error || 'Falha ao importar links.' });
-      }
-    } catch (e: any) {
-      setSyncStatus({ type: 'error', text: `Erro ao importar links: ${e.message}` });
-    }
-    setImporting(false);
   };
 
   const handleUpdateOffer = async (id: string) => {
@@ -241,43 +200,21 @@ export default function Products() {
             <p className="text-[14px] text-gray-500 mt-1">Produtos reais coletados do Mercado Livre para suas automações.</p>
           </div>
           <button 
-            onClick={handleSyncDaily}
+            onClick={handleCollectorRun}
             disabled={syncing || loading}
-            className="bg-[#ffe600] text-[#2d3277] hover:bg-[#f5dd00] transition-colors px-6 py-3 rounded-xl font-bold flex items-center justify-center gap-2 text-[14px] shadow-sm disabled:opacity-50"
+            className="bg-indigo-600 text-white hover:bg-indigo-700 transition-colors px-6 py-3 rounded-xl font-bold flex items-center justify-center gap-2 text-[14px] shadow-sm disabled:opacity-50"
           >
             {syncing ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />} 
-            Sincronizar Ofertas do Dia
+            Executar coleta agora
           </button>
       </div>
 
       <div className="bg-blue-50 border border-blue-200 text-blue-800 p-4 rounded-xl flex items-start gap-3 shadow-sm">
           <Info className="w-5 h-5 flex-shrink-0 mt-0.5 text-blue-600" />
           <div className="text-[13px] leading-relaxed">
-              <strong>Coleta Automática:</strong> Nosso sistema coleta as melhores ofertas do dia no Mercado Livre. 
-              As ofertas são sincronizadas com preço e imagem reais. Certifique-se de configurar seu link de afiliado na campanha ou integração.
+              <strong>Zappio Offer Collector:</strong> Nosso robô central coleta automaticamente as melhores ofertas do dia. 
+              O Banco de Ofertas é alimentado sem que você precise fazer nada.
           </div>
-      </div>
-
-      <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
-        <h3 className="text-[16px] font-bold text-gray-900 mb-4 flex items-center gap-2">
-          <PlusCircle className="w-5 h-5 text-indigo-600" />
-          Adicionar ofertas por links manualmente
-        </h3>
-        <p className="text-[13px] text-gray-500 mb-4">Cole um link do Mercado Livre por linha para importar produtos específicos.</p>
-        <textarea
-          value={manualLinks}
-          onChange={e => setManualLinks(e.target.value)}
-          placeholder="https://www.mercadolivre.com.br/produto-exemplo-1&#10;https://www.mercadolivre.com.br/produto-exemplo-2"
-          className="w-full h-32 p-3 border border-gray-200 rounded-xl text-[13px] focus:outline-none focus:border-indigo-500 shadow-sm mb-4"
-        />
-        <button
-          onClick={handleManualImport}
-          disabled={importing || !manualLinks.trim()}
-          className="bg-indigo-600 text-white px-6 py-2.5 rounded-xl font-bold text-[13px] hover:bg-indigo-700 transition-all disabled:opacity-50 flex items-center gap-2"
-        >
-          {importing ? <Loader2 className="w-4 h-4 animate-spin" /> : <LinkIcon className="w-4 h-4" />}
-          Importar links
-        </button>
       </div>
 
       {syncStatus && (
@@ -331,7 +268,7 @@ export default function Products() {
                     className="p-2 border border-gray-200 rounded-lg text-[12px] bg-white text-gray-700 outline-none capitalize"
                   >
                     <option value="">Todas Categorias</option>
-                    {["todos", "tecnologia", "casa_moveis", "eletrodomesticos", "esporte_fitness", "ferramentas", "moda", "beleza", "mercado", "brinquedos", "automotivo"].map(cat => (
+                    {["todos", "tecnologia", "casa_moveis", "eletrodomesticos", "esporte_fitness", "ferramentas", "moda", "beleza", "automotivo"].map(cat => (
                       <option key={cat} value={cat}>{cat.replace('_', ' e ')}</option>
                     ))}
                   </select>
@@ -367,8 +304,16 @@ export default function Products() {
                <div className="w-16 h-16 bg-gray-50 border border-gray-100 rounded-2xl flex items-center justify-center mb-5">
                  <Package className="w-8 h-8 text-gray-400" />
                </div>
-               <h3 className="text-[18px] font-bold text-gray-900 mb-2">Nenhuma oferta encontrada ainda.</h3>
-               <p className="text-[14px] text-gray-500 max-w-sm mb-8 leading-relaxed">Clique em Sincronizar Ofertas para buscar produtos do Mercado Livre.</p>
+               <h3 className="text-[18px] font-bold text-gray-900 mb-2">O Banco de Ofertas ainda está vazio.</h3>
+               <p className="text-[14px] text-gray-500 max-w-sm mb-8 leading-relaxed">O robô de ofertas ainda não coletou produtos ou você pode executar a coleta agora.</p>
+               <button 
+                 onClick={handleCollectorRun}
+                 disabled={syncing || loading}
+                 className="bg-indigo-600 text-white px-6 py-2.5 rounded-xl font-bold text-[13px] hover:bg-indigo-700 transition-all flex items-center gap-2"
+               >
+                 {syncing ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+                 Executar coleta agora
+               </button>
             </div>
           ) : filteredProducts.length === 0 ? (
             <div className="bg-white flex flex-col items-center justify-center border border-gray-200 rounded-3xl py-24 text-center shadow-sm">

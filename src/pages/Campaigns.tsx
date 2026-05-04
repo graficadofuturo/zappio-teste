@@ -717,7 +717,7 @@ export default function Campaigns() {
                   </div>
                   <div className="bg-accent/10 p-3 rounded-lg border border-accent/20">
                      <p className="text-[12px] text-accent">
-                        <strong>Disparo Contínuo Ativo:</strong> A campanha vai enviar mensagens ciclicamente respeitando o intervalo definido, substituindo dados das variáveis dinâmicas pelos dados mockados da API de Produtos.
+                        <strong>Disparo Contínuo Ativo:</strong> A campanha vai enviar mensagens ciclicamente respeitando o intervalo definido, selecionando automaticamente produtos variados do <strong>Banco de Ofertas (Robot)</strong>.
                      </p>
                   </div>
                 </div>

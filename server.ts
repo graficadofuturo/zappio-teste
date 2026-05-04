@@ -17,11 +17,10 @@ import shopeeRouter from "./src/api/routes/shopee.ts";
 import integrationsRouter from "./src/api/routes/integrations.ts";
 import offersRouter from "./src/api/routes/offers.ts";
 
-import fetchHandler from "./api/mercadolivre/offers/fetch.js";
-import listHandler from "./api/mercadolivre/offers/list.js";
-import syncHandler from "./api/mercadolivre/offers/sync.js";
-import debugHandler from "./api/mercadolivre/offers/debug.js";
-import importLinksHandler from "./api/mercadolivre/offers/import-links.js";
+import collectorRunHandler from "./api/offers/collector/run.js";
+import collectorStatusHandler from "./api/offers/collector/status.js";
+import offersListHandler from "./api/offers/list.js";
+import offersDebugHandler from "./api/offers/debug.js";
 
 async function startServer() {
   try {
@@ -40,11 +39,23 @@ async function startServer() {
     });
 
     // Mount Vercel-style API Routes directly
-    app.all("/api/mercadolivre/offers/fetch", fetchHandler);
-    app.all("/api/mercadolivre/offers/list", listHandler);
-    app.all("/api/mercadolivre/offers/sync", syncHandler);
-    app.all("/api/mercadolivre/offers/debug", debugHandler);
-    app.all("/api/mercadolivre/offers/import-links", importLinksHandler);
+    // NEW AUTOMATED ROUTES
+    app.all("/api/offers/collector/run", collectorRunHandler);
+    app.all("/api/offers/collector/status", collectorStatusHandler);
+    app.all("/api/offers/list", offersListHandler);
+    app.all("/api/offers/debug", offersDebugHandler);
+
+    /**
+     * VERCEL CRON CONFIGURATION (Add this to vercel.json in root if missing)
+     * {
+     *   "crons": [
+     *     {
+     *       "path": "/api/offers/collector/run",
+     *       "schedule": "0 6 * * *"
+     *     }
+     *   ]
+     * }
+     */
 
     // Mount API Routes
     console.log("[Server] Mounting routes...");

@@ -1,0 +1,41 @@
+import { getAdminDb } from "../_lib/firebase-admin.js";
+
+export default async function handler(req, res) {
+  res.setHeader("Content-Type", "application/json; charset=utf-8");
+
+  if (req.method !== "GET") {
+    return res.status(405).json({ ok: false, error: "Method not allowed" });
+  }
+
+  const { category, marketplace = "mercadolivre", limit = 50 } = req.query;
+
+  try {
+    const db = getAdminDb();
+    let query = db.collection("offer_bank").where("marketplace", "==", marketplace);
+    
+    if (category && category !== "todos") {
+        query = query.where("category", "==", category);
+    }
+
+    const snapshot = await query.limit(Number(limit)).get();
+    
+    let offers = [];
+    snapshot.forEach(doc => {
+      const data = doc.data();
+      offers.push({
+        id: doc.id,
+        ...data
+      });
+    });
+
+    return res.status(200).json({
+      ok: true,
+      count: offers.length,
+      offers: offers
+    });
+
+  } catch (error) {
+    console.error("OFFERS_LIST_ERR", error);
+    return res.status(500).json({ ok: false, error: error.message });
+  }
+}
