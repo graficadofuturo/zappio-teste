@@ -97,7 +97,9 @@ export default function Products() {
     if (!Number.isFinite(number) || number <= 0) return null;
     return number.toLocaleString("pt-BR", {
       style: "currency",
-      currency: "BRL"
+      currency: "BRL",
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
     });
   };
 
@@ -140,20 +142,22 @@ export default function Products() {
                      </a>
                 </div>
                 
-                <div className="flex items-end gap-2 mb-4">
-                    <span className="text-[20px] font-extrabold text-gray-900 leading-none pb-0.5">
-                        {formattedPrice}
-                    </span>
+                <div className="flex flex-col mb-4">
                     {Number(oldPrice) > 0 && Number(oldPrice) > Number(price) && (
-                        <span className="text-[12px] text-gray-400 line-through mb-1">
+                        <span className="text-[12px] text-gray-400 line-through leading-none mb-1">
                             {formatCurrency(oldPrice)}
                         </span>
                     )}
-                    {Boolean(discount) && (
-                        <span className="text-[11px] font-bold text-green-600 mb-1 ml-1 bg-green-50 px-1.5 py-0.5 rounded text-center">
-                            {discount}
+                    <div className="flex items-baseline gap-2">
+                        <span className="text-[22px] font-extrabold text-gray-900 leading-none">
+                            {formattedPrice}
                         </span>
-                    )}
+                        {Boolean(discount) && (
+                            <span className="text-[12px] font-bold text-green-600 bg-green-50 px-1.5 py-0.5 rounded">
+                                {discount}
+                            </span>
+                        )}
+                    </div>
                 </div>
 
                 <div className="mt-auto pt-4 border-t border-gray-100 space-y-2">

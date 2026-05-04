@@ -71,8 +71,17 @@ router.post("/sync", async (req, res) => {
                     const item = itemWrapper.body;
                     const productId = item.id;
                     
-                    const priceNum = Number(item.price);
-                    const oldPriceNum = item.original_price ? Number(item.original_price) : null;
+                    let priceNum = Number(item.price);
+                    let oldPriceNum = item.original_price ? Number(item.original_price) : null;
+                    
+                    if (oldPriceNum && priceNum > oldPriceNum) {
+                        [priceNum, oldPriceNum] = [oldPriceNum, priceNum];
+                    }
+
+                    if (oldPriceNum !== null && oldPriceNum <= priceNum) {
+                        oldPriceNum = null;
+                    }
+
                     const discountStr = oldPriceNum && oldPriceNum > priceNum ? Math.round((1 - priceNum / oldPriceNum) * 100) + '%' : null;
                     
                     const productData = removeUndefinedDeep({
@@ -80,6 +89,7 @@ router.post("/sync", async (req, res) => {
                         product_title: item.title,
                         product_price: priceNum,
                         product_old_price: oldPriceNum,
+                        has_discount: !!(oldPriceNum && oldPriceNum > priceNum),
                         product_discount: discountStr,
                         product_image: item.thumbnail ? item.thumbnail.replace('-I.jpg', '-O.jpg') : null,
                         product_link: item.permalink,

@@ -93,8 +93,17 @@ router.post("/sync", async (req, res) => {
           for (const item of results) {
             if (!item.id || !item.title || !item.price) continue;
             
-            const originalPrice = item.original_price || null;
-            const price = item.price;
+            let originalPrice = item.original_price ? Number(item.original_price) : null;
+            let price = Number(item.price);
+            
+            if (originalPrice && price > originalPrice) {
+              [price, originalPrice] = [originalPrice, price];
+            }
+
+            if (originalPrice !== null && originalPrice <= price) {
+               originalPrice = null;
+            }
+
             let discountPercent = null;
             if (originalPrice && price && originalPrice > price) {
               discountPercent = Math.round(((originalPrice - price) / originalPrice) * 100);
@@ -114,6 +123,7 @@ router.post("/sync", async (req, res) => {
               titleOriginal: fullTitle,
               price: price,
               originalPrice: originalPrice,
+              hasDiscount: !!(originalPrice && originalPrice > price),
               currencyId: item.currency_id || "BRL",
               thumbnail: item.thumbnail || null,
               image: item.thumbnail ? item.thumbnail.replace("-I.jpg", "-O.jpg") : null,

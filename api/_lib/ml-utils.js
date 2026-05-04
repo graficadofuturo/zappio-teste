@@ -99,15 +99,35 @@ export function normalizeOffer(item, source = 'auto_collector', category = 'todo
   // Determine Category
   const finalCategory = normalizeOfferCategory(category, fullTitle, searchTerm);
 
+  // Ensure price logic is sound: price should be the final effective price
+  let finalPrice = price;
+  let finalOriginalPrice = originalPrice;
+
+  if (finalOriginalPrice && finalPrice > finalOriginalPrice) {
+    // If somehow they are swapped, swap them back
+    [finalPrice, finalOriginalPrice] = [finalOriginalPrice, finalPrice];
+  }
+
+  // Ensure originalPrice is null if it's not greater than current price
+  if (finalOriginalPrice !== null && finalOriginalPrice <= finalPrice) {
+    finalOriginalPrice = null;
+  }
+
+  const hasDiscount = !!(finalOriginalPrice && finalOriginalPrice > finalPrice);
+  if (hasDiscount && !discountPercent) {
+    discountPercent = Math.round(((finalOriginalPrice - finalPrice) / finalOriginalPrice) * 100);
+  }
+
   const offer = {
     marketplace: "mercadolivre",
     productId: productId,
     title: shortTitle, // Default for compatibility
     titleShort: shortTitle,
     titleOriginal: fullTitle,
-    price: price,
-    originalPrice: Number.isFinite(originalPrice) ? originalPrice : null,
-    discountPercent: item.discountPercent ?? discountPercent,
+    price: finalPrice,
+    originalPrice: Number.isFinite(finalOriginalPrice) ? finalOriginalPrice : null,
+    hasDiscount: hasDiscount,
+    discountPercent: item.discountPercent ?? (discountPercent ? `${discountPercent}% OFF` : null),
     imageUrl: imageUrl,
     productUrl: productUrl,
     affiliateUrl: item.affiliateUrl || null,
@@ -267,10 +287,26 @@ async function scrapeProductPage(idOrUrl, category = 'todos') {
     // Extract using meta tags (very reliable)
     const title = $('meta[property="og:title"]').attr('content') || $('h1').first().text().trim();
     const imageUrl = $('meta[property="og:image"]').attr('content');
-    const priceText = $('meta[property="product:price:amount"]').attr('content') || 
-                      $('.andes-money-amount__fraction').first().text().replace(/\./g, '');
-    const price = parseFloat(priceText);
     
+    // Better price extraction for current price
+    let price = 0;
+    const metaPrice = $('meta[property="product:price:amount"]').attr('content');
+    if (metaPrice) {
+      price = parseFloat(metaPrice);
+    } else {
+      const fraction = $('.andes-money-amount__fraction').first().text().replace(/\./g, '');
+      const cents = $('.andes-money-amount__cents').first().text() || '00';
+      price = parseFloat(`${fraction}.${cents}`);
+    }
+    
+    // Attempt to extract original price (often in a <del> or specific class)
+    let originalPrice = null;
+    const delPrice = $('del .andes-money-amount__fraction').first().text().replace(/\./g, '');
+    if (delPrice) {
+      const delCents = $('del .andes-money-amount__cents').first().text() || '00';
+      originalPrice = parseFloat(`${delPrice}.${delCents}`);
+    }
+
     const productIdMatch = url.match(/MLB-?(\d+)/);
     const productId = productIdMatch ? `MLB${productIdMatch[1]}` : idOrUrl;
 
@@ -279,6 +315,7 @@ async function scrapeProductPage(idOrUrl, category = 'todos') {
         id: productId,
         title,
         price,
+        original_price: originalPrice,
         permalink: url,
         thumbnail: imageUrl
       }, "auto_collector_scrape", category);
@@ -316,11 +353,27 @@ export async function collectAutomated(query, category = 'todos') {
           const productUrl = $(el).find('a').attr('href');
           const imageUrl = $(el).find('img').attr('data-src') || $(el).find('img').attr('src');
           
-          // Price matching is tricky: look for the fraction part
-          const priceText = $(el).find('.andes-money-amount__fraction, .price-tag-fraction').first().text().replace(/\./g, '');
-          const price = parseFloat(priceText);
+          // Improved price matching: separate Current vs Original
+          let currentPrice = 0;
+          let oldPrice = null;
+
+          // ML Search results current price usually has no <del> wrapper
+          const priceContainers = $(el).find('.andes-money-amount');
           
-          if (title && price > 0 && productUrl && imageUrl) {
+          priceContainers.each((j, pEl) => {
+            const isOld = $(pEl).closest('del').length > 0 || $(pEl).hasClass('ui-search-price__part--del');
+            const fraction = $(pEl).find('.andes-money-amount__fraction').text().replace(/\./g, '');
+            const cents = $(pEl).find('.andes-money-amount__cents').text() || '00';
+            const val = parseFloat(`${fraction}.${cents}`);
+
+            if (isOld) {
+              oldPrice = val;
+            } else if (currentPrice === 0) {
+              currentPrice = val;
+            }
+          });
+
+          if (title && currentPrice > 0 && productUrl && imageUrl) {
             const idMatch = productUrl.match(/MLB-?(\d+)/);
             const productId = idMatch ? `MLB${idMatch[1]}` : null;
             
@@ -328,7 +381,8 @@ export async function collectAutomated(query, category = 'todos') {
               const offer = normalizeOffer({
                 id: productId,
                 title,
-                price,
+                price: currentPrice,
+                original_price: oldPrice,
                 permalink: productUrl,
                 thumbnail: imageUrl
               }, "auto_collector_search_list", category, query);
