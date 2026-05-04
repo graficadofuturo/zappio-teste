@@ -64,6 +64,8 @@ export default function Integrations() {
         showError('Firestore não encontrado. Verifique o banco de dados.');
       } else if (mlParam === 'save_error') {
         showError('A conexão funcionou, mas não foi possível salvar a integração.');
+      } else if (mlParam === 'missing_user') {
+        showError('Usuário não identificado. Tente fazer login novamente antes de conectar.');
       } else if (mlParam === 'error') {
         showError('Não foi possível conectar ao Mercado Livre.');
       } else {
@@ -389,16 +391,16 @@ export default function Integrations() {
                                    <span className="font-semibold">{mlApiStatus.integration.mlUserId}</span>
                                 </div>
                               )}
-                              {mlApiStatus.integration.mlNickname && (
+                              {mlApiStatus.integration.nickname && (
                                 <div className="flex justify-between items-center py-2 border-b border-gray-200/50">
                                    <span className="text-gray-500">Nickname:</span>
-                                   <span className="font-semibold">{mlApiStatus.integration.mlNickname}</span>
+                                   <span className="font-semibold">{mlApiStatus.integration.nickname}</span>
                                 </div>
                               )}
-                              {mlApiStatus.integration.mlEmail && (
+                              {mlApiStatus.integration.email && (
                                 <div className="flex justify-between items-center py-2 border-b border-gray-200/50">
                                    <span className="text-gray-500">E-mail:</span>
-                                   <span className="font-semibold">{mlApiStatus.integration.mlEmail}</span>
+                                   <span className="font-semibold">{mlApiStatus.integration.email}</span>
                                 </div>
                               )}
                            </div>
