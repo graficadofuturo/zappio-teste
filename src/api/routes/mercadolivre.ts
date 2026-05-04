@@ -37,23 +37,23 @@ router.get("/status", async (req, res) => {
       return res.status(200).json({
         ok: true,
         connected: false,
-        provider: "mercadolivre",
-        account: null
+        integration: null
       });
     }
 
-    const docRef = db.collection("users").doc(String(userId)).collection("integrations").doc("mercadolivre");
+    const docRef = db.collection("integrations").doc(`${userId}_mercadolivre`);
       
-    console.log("ML_STATUS_READ_PATH", `users/${userId}/integrations/mercadolivre`);
+    console.log("ML_STATUS_READ_PATH", `integrations/${userId}_mercadolivre`);
 
     const docSnap = await docRef.get();
     
+    console.log("ML_STATUS_RESULT", { exists: docSnap.exists });
+
     if (!docSnap.exists) {
       return res.status(200).json({
         ok: true,
         connected: false,
-        provider: "mercadolivre",
-        account: null
+        integration: null
       });
     }
 
@@ -63,24 +63,23 @@ router.get("/status", async (req, res) => {
       return res.status(200).json({
         ok: true,
         connected: false,
-        provider: "mercadolivre",
-        account: null
+        integration: null
       });
     }
 
     const result = {
       ok: true,
       connected: true,
-      provider: "mercadolivre",
-      account: {
+      integration: {
+        marketplace: "mercadolivre",
         mlUserId: docData.mlUserId || null,
-        nickname: docData.nickname || null,
-        email: docData.email || null,
-      },
-      updatedAt: docData.updatedAt || null,
+        mlNickname: docData.mlNickname || null,
+        mlEmail: docData.mlEmail || null,
+        connectedAt: docData.connectedAt || null,
+        updatedAt: docData.updatedAt || null,
+      }
     };
 
-    console.log("ML_STATUS_RESULT", { ok: true, connected: true, provider: "mercadolivre", account: { mlUserId: result.account.mlUserId } });
     return res.status(200).json(result);
   } catch (error: any) {
     console.error("ML_STATUS_ERROR", error.message);
@@ -88,8 +87,8 @@ router.get("/status", async (req, res) => {
     return res.status(500).json({
       ok: false,
       connected: false,
-      provider: "mercadolivre",
-      error: error.message,
+      integration: null,
+      error: error.message || "Unknown error",
     });
   }
 });
@@ -109,7 +108,7 @@ router.get("/debug-status", async (req, res) => {
     };
 
     if (userId && userId !== "undefined") {
-      const path = `users/${userId}/integrations/mercadolivre`;
+      const path = `integrations/${userId}_mercadolivre`;
       response.pathConsultado = path;
       const docRef = db.doc(path);
       const docSnap = await docRef.get();
@@ -274,12 +273,15 @@ router.get("/callback", async (req, res) => {
     const { getAdminFirestore } = await import("../firebaseAdmin.ts");
     const db = getAdminFirestore();
 
+    console.log("ML_CALLBACK_START", { userId });
+
     const data: any = {
-      provider: "mercadolivre",
+      userId: userId,
+      marketplace: "mercadolivre",
       connected: true,
       mlUserId: String(mlUser.id),
-      nickname: mlUser.nickname || null,
-      email: mlUser.email || null,
+      mlNickname: mlUser.nickname || null,
+      mlEmail: mlUser.email || null,
       accessToken: tokenData.access_token || null,
       refreshToken: tokenData.refresh_token || null,
       tokenType: tokenData.token_type || null,
@@ -293,22 +295,31 @@ router.get("/callback", async (req, res) => {
       data.expiresAt = new Date(Date.now() + tokenData.expires_in * 1000).toISOString();
     }
 
-    const savePath = `users/${userId}/integrations/mercadolivre`;
-    console.log("ML_CALLBACK_SAVE_PATH", savePath);
+    const savePath = `integrations/${userId}_mercadolivre`;
+    console.log("ML_FIRESTORE_SAVE_PATH", savePath);
     console.log("ML_CALLBACK_SAVE_DATA", { ...data, accessToken: "***", refreshToken: "***" });
 
     // Save to the standardized path
     try {
       await db.doc(savePath).set(data, { merge: true });
-      console.log("ML_CALLBACK_SAVE_SUCCESS");
-    } catch (dbErr) {
+      console.log("ML_FIRESTORE_SAVE_OK", { path: savePath });
+      
+      const verifySnap = await db.doc(savePath).get();
+      if (!verifySnap.exists) {
+        throw new Error("Document was not found after saving");
+      }
+      console.log("ML_FIRESTORE_VERIFY_OK", { exists: verifySnap.exists });
+    } catch (dbErr: any) {
       console.error("ML_CALLBACK_SAVE_ERROR", dbErr);
       return sendHtml("save_error");
     }
 
     return sendHtml("connected");
   } catch (error: any) {
-    console.error("ML_CALLBACK_ERROR", error.message);
+    console.error("ML_CALLBACK_ERROR", {
+      message: error.message,
+      stack: error.stack
+    });
     return sendHtml("error");
   }
 });
@@ -322,11 +333,11 @@ router.post("/disconnect", async (req, res) => {
       return res.status(400).json({ ok: false, error: "Missing user ID" });
     }
 
-    const docPath = `users/${userId}/integrations/mercadolivre`;
+    const docPath = `integrations/${userId}_mercadolivre`;
     const docRef = db.doc(docPath);
     await docRef.set(
       {
-        provider: "mercadolivre",
+        marketplace: "mercadolivre",
         connected: false,
         accessToken: null,
         refreshToken: null,

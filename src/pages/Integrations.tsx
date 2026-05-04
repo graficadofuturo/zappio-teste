@@ -381,24 +381,24 @@ export default function Integrations() {
                              </button>
                          </div>
                          
-                         {mlApiStatus && mlApiStatus.connected && mlApiStatus.account && (
+                         {mlApiStatus && mlApiStatus.connected && mlApiStatus.integration && (
                            <div className="text-[13px] text-gray-700 space-y-2 bg-gray-50 p-4 rounded-xl border border-gray-100">
-                              {mlApiStatus.account.mlUserId && (
+                              {mlApiStatus.integration.mlUserId && (
                                 <div className="flex justify-between items-center pb-2 border-b border-gray-200/50">
                                    <span className="text-gray-500">User ID:</span>
-                                   <span className="font-semibold">{mlApiStatus.account.mlUserId}</span>
+                                   <span className="font-semibold">{mlApiStatus.integration.mlUserId}</span>
                                 </div>
                               )}
-                              {mlApiStatus.account.nickname && (
+                              {mlApiStatus.integration.mlNickname && (
                                 <div className="flex justify-between items-center py-2 border-b border-gray-200/50">
                                    <span className="text-gray-500">Nickname:</span>
-                                   <span className="font-semibold">{mlApiStatus.account.nickname}</span>
+                                   <span className="font-semibold">{mlApiStatus.integration.mlNickname}</span>
                                 </div>
                               )}
-                              {mlApiStatus.account.email && (
+                              {mlApiStatus.integration.mlEmail && (
                                 <div className="flex justify-between items-center py-2 border-b border-gray-200/50">
                                    <span className="text-gray-500">E-mail:</span>
-                                   <span className="font-semibold">{mlApiStatus.account.email}</span>
+                                   <span className="font-semibold">{mlApiStatus.integration.mlEmail}</span>
                                 </div>
                               )}
                            </div>
