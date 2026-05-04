@@ -126,34 +126,41 @@ export default function Products() {
                 <img src={image} alt={displayTitle} className="w-full h-full object-contain mix-blend-multiply drop-shadow-sm" />
                 {marketplaceLogo("Mercado Livre")}
             </div>
-            
-            <div className="p-5 flex-1 flex flex-col">
-                <div className="flex justify-between items-start mb-2 gap-2 h-[2.5rem]">
-                     <a 
-                        href={link} 
-                        target="_blank" 
-                        rel="noopener noreferrer" 
-                        className="text-[14px] font-bold text-gray-900 line-clamp-2 hover:text-[#2d3277] transition-colors relative z-10 block mb-1 leading-snug"
-                        title={originalTitle}
-                      >
-                        {displayTitle}
-                     </a>
-                </div>
-                
-                <div className="flex items-end gap-2 mb-4">
-                    <span className="text-[20px] font-extrabold text-gray-900 leading-none pb-0.5">
-                        {formattedPrice}
-                    </span>
-                    {oldPrice && oldPrice > price && (
-                        <span className="text-[12px] text-gray-400 line-through mb-1">
-                            {formatCurrency(oldPrice)}
-                        </span>
-                    )}
-                    {discount && (
-                        <span className="text-[11px] font-bold text-green-600 mb-1 ml-1 bg-green-50 px-1.5 py-0.5 rounded text-center">
-                            {discount}
-                        </span>
-                    )}
+            <div className="p-5 flex-1 flex flex-col justify-between">
+                <div>
+                  <div className="mb-2 relative h-[2.6rem] overflow-hidden">
+                       <a 
+                          href={link} 
+                          target="_blank" 
+                          rel="noopener noreferrer" 
+                          className="text-[13.5px] font-bold text-gray-900 hover:text-[#2d3277] transition-colors relative z-10 block leading-tight break-words"
+                          style={{
+                            display: '-webkit-box',
+                            WebkitLineClamp: 2,
+                            WebkitBoxOrient: 'vertical',
+                            width: '100%'
+                          }}
+                          title={originalTitle}
+                        >
+                          {p.titleShort || simplifyProductTitle(originalTitle)}
+                        </a>
+                  </div>
+                  
+                  <div className="flex items-baseline gap-2 mb-4 h-7 overflow-hidden">
+                      <span className="text-[19px] font-extrabold text-gray-900 leading-none">
+                          {formattedPrice}
+                      </span>
+                      {oldPrice && oldPrice > price && (
+                          <span className="text-[11px] text-gray-400 line-through truncate max-w-[80px]">
+                              {formatCurrency(oldPrice)}
+                          </span>
+                      )}
+                      {discount && (
+                          <span className="text-[10px] font-bold text-green-600 bg-green-50 px-1.5 py-0.5 rounded ml-auto whitespace-nowrap">
+                              {discount}
+                          </span>
+                      )}
+                  </div>
                 </div>
 
                 <div className="mt-auto pt-4 border-t border-gray-100 space-y-2">

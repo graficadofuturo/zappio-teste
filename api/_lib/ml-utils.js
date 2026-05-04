@@ -5,7 +5,7 @@ import { getAdminDb } from './firebase-admin.js';
  * Simplifies long SEO titles from Mercado Livre into a commercial version
  */
 export function simplifyProductTitle(title) {
-  if (!title) return "";
+  if (!title || title.includes("Produto Mercado Livre")) return "Produto";
   
   let short = title
     .replace(/Smartphone /gi, "")
@@ -15,7 +15,7 @@ export function simplifyProductTitle(title) {
     .replace(/Câmera Tripla[^]*?(?=-|$)/gi, "")
     .replace(/Selfie De[^]*?(?=-|$)/gi, "")
     .replace(/Super Amoled[^]*?(?=-|$)/gi, "")
-    .replace(/Recursos Ai[^]*?(?=-|$)/gi, "")
+    .replace(/Recursos AI[^]*?(?=-|$)/gi, "")
     .replace(/Segurança[^]*?(?=-|$)/gi, "")
     .replace(/Snapdragon[^]*?(?=-|$)/gi, "")
     .replace(/NFC/gi, "")
@@ -23,6 +23,7 @@ export function simplifyProductTitle(title) {
     .replace(/Lacrado/gi, "")
     .replace(/Novo/gi, "")
     .replace(/Original/gi, "")
+    .replace(/Pronta Entrega/gi, "")
     .replace(/IP67/gi, "")
     .replace(/\d+GB RAM/gi, "")
     .replace(/Tela[^]*?(?=-|$)/gi, "")
@@ -34,15 +35,24 @@ export function simplifyProductTitle(title) {
     .replace(/ 0\.5ms/gi, "")
     .replace(/Basic Microfibra/gi, "")
     .replace(/Sem Costura/gi, "")
+    .replace(/\|/g, "-")
+    .replace(/\s+/g, " ")
     .trim();
 
-  // Remove repeated words (common in ML titles)
+  // Remove trailing separators
+  short = short.replace(/[-–—/\\\]\s]+$/, "");
+
+  // Remove repeated words
   const words = short.split(/\s+/);
   short = words.filter((word, i) => i === 0 || word.toLowerCase() !== words[i-1].toLowerCase()).join(' ');
 
-  // Limit to 55 chars
+  // Limit to 55 chars sensibly
   if (short.length > 55) {
-    short = short.slice(0, 52) + "...";
+    const parts = short.slice(0, 55).split(' ');
+    if (parts.length > 1) parts.pop();
+    short = parts.join(' ').trim();
+    if (short.length > 52) short = short.slice(0, 52);
+    short += "...";
   }
 
   return short || title.slice(0, 55);
@@ -89,6 +99,7 @@ export function normalizeOffer(item, source = 'auto_collector', category = 'todo
   }
 
   let fullTitle = item.title.trim();
+  // ML titles often repeat the title twice
   const half = Math.floor(fullTitle.length / 2);
   if (fullTitle.length > 20 && fullTitle.slice(0, half) === fullTitle.slice(half)) {
     fullTitle = fullTitle.slice(0, half).trim();
@@ -102,7 +113,7 @@ export function normalizeOffer(item, source = 'auto_collector', category = 'todo
   const offer = {
     marketplace: "mercadolivre",
     productId: productId,
-    title: shortTitle, // Default for compatibility
+    title: shortTitle, // Default display title
     titleShort: shortTitle,
     titleOriginal: fullTitle,
     price: price,
