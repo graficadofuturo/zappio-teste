@@ -29,35 +29,23 @@ router.get("/ping", (req, res) => {
 router.get("/status", async (req, res) => {
   try {
     const db = getAdminFirestore();
-    const { userId } = req.query;
 
-    console.log("ML_STATUS_RESULT", { userId });
-
-    let docData: any = null;
-
-    if (userId && userId !== "undefined") {
-      const docRef = db
-        .collection("integrations")
-        .doc(String(userId))
-        .collection("marketplaces")
-        .doc("mercadolivre");
-      
-      const docSnap = await docRef.get();
-      if (docSnap.exists) {
-        docData = docSnap.data();
-      }
-    }
+    const docRef = db.collection("marketplace_integrations").doc("mercadolivre");
+    const docSnap = await docRef.get();
     
-    // Fallback if not found or no userId
-    if (!docData) {
-      const fallbackRef = db.collection("marketplace_integrations").doc("mercadolivre");
-      const fallbackSnap = await fallbackRef.get();
-      if (fallbackSnap.exists) {
-        // If it was saved with a specific userId but read globally, we might want to check it, 
-        // but let's just return it if it's the global fallback
-        docData = fallbackSnap.data();
-      }
+    console.log("ML_STATUS_READ_PATH", "marketplace_integrations/mercadolivre");
+    console.log("ML_STATUS_DOC_EXISTS", docSnap.exists);
+
+    if (!docSnap.exists) {
+      return res.status(200).json({
+        ok: true,
+        connected: false,
+        marketplace: "mercadolivre",
+      });
     }
+
+    const docData = docSnap.data();
+    console.log("ML_STATUS_DOC_DATA", { ...docData, accessToken: "***" });
 
     if (!docData || (docData.connected !== true && docData.status !== "connected")) {
       return res.status(200).json({
@@ -75,6 +63,7 @@ router.get("/status", async (req, res) => {
       nickname: docData.nickname || null,
       email: docData.email || null,
       connectedAt: docData.connectedAt || docData.connected_at || null,
+      updatedAt: docData.updatedAt || docData.updated_at || null,
     };
 
     console.log("ML_STATUS_RESULT", result);
@@ -235,34 +224,31 @@ router.get("/callback", async (req, res) => {
     const data: any = {
       marketplace: "mercadolivre",
       connected: true,
-      status: "connected",
       mlUserId: String(mlUser.id),
-      nickname: mlUser.nickname,
-      accessToken: tokenData.access_token,
+      nickname: mlUser.nickname || null,
+      email: mlUser.email || null,
+      accessToken: tokenData.access_token || null,
+      refreshToken: tokenData.refresh_token || null,
+      tokenType: tokenData.token_type || null,
+      expiresIn: tokenData.expires_in || null,
+      scope: tokenData.scope || null,
       connectedAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
 
-    if (mlUser.email) data.email = mlUser.email;
-    if (tokenData.refresh_token) data.refreshToken = tokenData.refresh_token;
-    if (tokenData.expires_in) {
-      data.expiresIn = tokenData.expires_in;
-      data.expiresAt = new Date(Date.now() + tokenData.expires_in * 1000).toISOString();
-    }
-    
+    console.log("ML_CALLBACK_SAVE_PATH", "marketplace_integrations/mercadolivre");
+    console.log("ML_CALLBACK_SAVE_DATA", { ...data, accessToken: "***" });
+
     // Save to the standardized path
-    if (userId && userId !== "unknown") {
-      await db
-        .collection("integrations")
-        .doc(userId)
-        .collection("marketplaces")
-        .doc("mercadolivre")
-        .set(data, { merge: true });
-    } else {
+    try {
       await db
         .collection("marketplace_integrations")
         .doc("mercadolivre")
         .set(data, { merge: true });
+      console.log("ML_CALLBACK_SAVE_SUCCESS");
+    } catch (dbErr) {
+      console.error("ML_CALLBACK_SAVE_ERROR", dbErr);
+      return sendHtml("save_error");
     }
 
     return sendHtml("connected");
@@ -274,32 +260,9 @@ router.get("/callback", async (req, res) => {
 router.post("/disconnect", async (req, res) => {
   try {
     const db = getAdminFirestore();
-    const { userId } = req.query;
 
     const batch = db.batch();
 
-    // 1. New user path
-    if (userId && userId !== "undefined") {
-      const docRef = db
-        .collection("integrations")
-        .doc(String(userId))
-        .collection("marketplaces")
-        .doc("mercadolivre");
-      batch.set(
-        docRef,
-        {
-          status: "disconnected",
-          connected: false,
-          accessToken: null,
-          refreshToken: null,
-          disconnectedAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        },
-        { merge: true },
-      );
-    }
-
-    // 2. Global fallback path
     const fallbackRef = db.collection("marketplace_integrations").doc("mercadolivre");
     batch.set(
       fallbackRef,
@@ -314,39 +277,9 @@ router.post("/disconnect", async (req, res) => {
       { merge: true },
     );
 
-    // 3. Legacy path just in case we still have ecommerce_keys sticking around locally
-    if (userId && userId !== "undefined") {
-      const query = db
-        .collection("ecommerce_keys")
-        .where("platform", "==", "mercadolivre")
-        .where("user_id", "==", String(userId));
-
-      const qs = await query.get();
-
-      if (!qs.empty) {
-        qs.docs.forEach((doc) => {
-          batch.set(
-            doc.ref,
-            {
-              status: "disconnected",
-              connected: false,
-              access_token: null,
-              refresh_token: null,
-              accessToken: null,
-              refreshToken: null,
-              disconnectedAt: new Date().toISOString(),
-              updated_at: new Date().toISOString(),
-              updatedAt: new Date().toISOString(),
-            },
-            { merge: true },
-          );
-        });
-      }
-    }
-
     await batch.commit();
 
-    console.log("ML_DISCONNECT_SUCCESS", { userId });
+    console.log("ML_DISCONNECT_SUCCESS");
 
     return res.status(200).json({
       ok: true,
