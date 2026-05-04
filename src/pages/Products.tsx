@@ -144,12 +144,12 @@ export default function Products() {
                     <span className="text-[20px] font-extrabold text-gray-900 leading-none pb-0.5">
                         {formattedPrice}
                     </span>
-                    {oldPrice && oldPrice > price && (
+                    {Number(oldPrice) > 0 && Number(oldPrice) > Number(price) && (
                         <span className="text-[12px] text-gray-400 line-through mb-1">
                             {formatCurrency(oldPrice)}
                         </span>
                     )}
-                    {discount && (
+                    {Boolean(discount) && (
                         <span className="text-[11px] font-bold text-green-600 mb-1 ml-1 bg-green-50 px-1.5 py-0.5 rounded text-center">
                             {discount}
                         </span>
