@@ -29,12 +29,22 @@ router.get("/ping", (req, res) => {
 router.get("/status", async (req, res) => {
   try {
     const db = getAdminFirestore();
+    const { userId } = req.query;
 
     res.setHeader("Content-Type", "application/json; charset=utf-8");
 
-    const docRef = db.collection("marketplace_integrations").doc("mercadolivre");
+    if (!userId || userId === "undefined") {
+      return res.status(200).json({
+        ok: true,
+        connected: false,
+        provider: "mercadolivre",
+        account: null
+      });
+    }
+
+    const docRef = db.collection("users").doc(String(userId)).collection("integrations").doc("mercadolivre");
       
-    console.log("ML_STATUS_READ_PATH", "marketplace_integrations/mercadolivre");
+    console.log("ML_STATUS_READ_PATH", `users/${userId}/integrations/mercadolivre`);
 
     const docSnap = await docRef.get();
     
@@ -70,7 +80,7 @@ router.get("/status", async (req, res) => {
       updatedAt: docData.updatedAt || null,
     };
 
-    console.log("ML_STATUS_RESULT", result);
+    console.log("ML_STATUS_RESULT", { ok: true, connected: true, provider: "mercadolivre", account: { mlUserId: result.account.mlUserId } });
     return res.status(200).json(result);
   } catch (error: any) {
     console.error("ML_STATUS_ERROR", error.message);
@@ -81,6 +91,38 @@ router.get("/status", async (req, res) => {
       provider: "mercadolivre",
       error: error.message,
     });
+  }
+});
+
+router.get("/debug-status", async (req, res) => {
+  try {
+    const db = getAdminFirestore();
+    const { userId } = req.query;
+
+    res.setHeader("Content-Type", "application/json; charset=utf-8");
+
+    const response: any = {
+      uid: userId || null,
+      pathConsultado: null,
+      existe: false,
+      dados: null,
+    };
+
+    if (userId && userId !== "undefined") {
+      const path = `users/${userId}/integrations/mercadolivre`;
+      response.pathConsultado = path;
+      const docRef = db.doc(path);
+      const docSnap = await docRef.get();
+      response.existe = docSnap.exists;
+      if (docSnap.exists) {
+        const data = docSnap.data() || {};
+        response.dados = { ...data, accessToken: "***", refreshToken: "***" };
+      }
+    }
+
+    return res.status(200).json(response);
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message });
   }
 });
 
@@ -135,6 +177,7 @@ router.get("/callback", async (req, res) => {
     `${req.headers["x-forwarded-proto"] || req.protocol}://${req.headers.host}`;
 
   const sendHtml = (status: string) => {
+    // Return early closing script window or redirecting
     const success = status === "connected";
     res.send(`
     <html>
@@ -150,14 +193,14 @@ router.get("/callback", async (req, res) => {
         <div class="container">
           <div style="font-size: 32px; margin-bottom: 1rem">${success ? "✅" : "❌"}</div>
           <h2 style="margin-top: 0">${success ? "Conectado com sucesso!" : "Erro na conexão"}</h2>
-          <p style="color: #4b5563; margin-bottom: 0;">Esta janela deve fechar automaticamente.</p>
+          <p style="color: #4b5563; margin-bottom: 0;">Redirecionando...</p>
         </div>
         <script>
           if (window.opener) {
             ${success ? `window.opener.postMessage({ type: 'OAUTH_AUTH_SUCCESS' }, '*');` : ""}
             setTimeout(function() { window.close(); }, 1500);
           } else {
-            window.location.href = '${APP_BASE_URL}/integrations?mercadolivre=${status}';
+            window.location.replace('${APP_BASE_URL}/integrations?mercadolivre=${status}');
           }
         </script>
       </body>
@@ -218,6 +261,16 @@ router.get("/callback", async (req, res) => {
 
     const mlUser: any = await userRes.json();
 
+    let userId = "unknown";
+    if (state && typeof state === 'string' && state.includes("__")) {
+      userId = state.split("__")[1];
+    }
+    
+    if (userId === "unknown") {
+       console.error("ML_CALLBACK_SAVE_ERROR", "User ID not found in state");
+       return sendHtml("save_error");
+    }
+
     const { getAdminFirestore } = await import("../firebaseAdmin.ts");
     const db = getAdminFirestore();
 
@@ -240,15 +293,13 @@ router.get("/callback", async (req, res) => {
       data.expiresAt = new Date(Date.now() + tokenData.expires_in * 1000).toISOString();
     }
 
-    console.log("ML_CALLBACK_SAVE_PATH", "marketplace_integrations/mercadolivre");
-    console.log("ML_CALLBACK_SAVE_DATA", { ...data, accessToken: "***" });
+    const savePath = `users/${userId}/integrations/mercadolivre`;
+    console.log("ML_CALLBACK_SAVE_PATH", savePath);
+    console.log("ML_CALLBACK_SAVE_DATA", { ...data, accessToken: "***", refreshToken: "***" });
 
     // Save to the standardized path
     try {
-      await db
-        .collection("marketplace_integrations")
-        .doc("mercadolivre")
-        .set(data, { merge: true });
+      await db.doc(savePath).set(data, { merge: true });
       console.log("ML_CALLBACK_SAVE_SUCCESS");
     } catch (dbErr) {
       console.error("ML_CALLBACK_SAVE_ERROR", dbErr);
@@ -257,6 +308,7 @@ router.get("/callback", async (req, res) => {
 
     return sendHtml("connected");
   } catch (error: any) {
+    console.error("ML_CALLBACK_ERROR", error.message);
     return sendHtml("error");
   }
 });
@@ -264,12 +316,15 @@ router.get("/callback", async (req, res) => {
 router.post("/disconnect", async (req, res) => {
   try {
     const db = getAdminFirestore();
+    const { userId } = req.query;
 
-    const batch = db.batch();
+    if (!userId || userId === "undefined") {
+      return res.status(400).json({ ok: false, error: "Missing user ID" });
+    }
 
-    const docRef = db.collection("marketplace_integrations").doc("mercadolivre");
-    batch.set(
-      docRef,
+    const docPath = `users/${userId}/integrations/mercadolivre`;
+    const docRef = db.doc(docPath);
+    await docRef.set(
       {
         provider: "mercadolivre",
         connected: false,
@@ -281,9 +336,7 @@ router.post("/disconnect", async (req, res) => {
       { merge: true },
     );
 
-    await batch.commit();
-
-    console.log("ML_DISCONNECT_SUCCESS");
+    console.log("ML_DISCONNECT_SUCCESS", { path: docPath });
 
     return res.status(200).json({
       ok: true,

@@ -18,7 +18,6 @@ export default function Integrations() {
   const [disconnectingMl, setDisconnectingMl] = useState(false);
   const [mlApiStatus, setMlApiStatus] = useState<any>(null);
   const [showDisconnectModal, setShowDisconnectModal] = useState(false);
-  const [showManageModal, setShowManageModal] = useState(false);
 
   const [shopeeAppId, setShopeeAppId] = useState('');
   const [shopeeAppSecret, setShopeeAppSecret] = useState('');
@@ -48,24 +47,28 @@ export default function Integrations() {
     console.log("ML_URL_PARAM", mlParam);
     console.log("ML_CONNECTED_FROM_URL", mlParam === "connected");
 
-    if (mlParam === "connected") {
-      showSuccess('Mercado Livre conectado com sucesso.');
-    } else if (mlParam === 'missing_code') {
-      showError('O Mercado Livre não retornou o código de autorização. Tente conectar novamente.');
-    } else if (mlParam === 'invalid_state') {
-      showError('Sessão de conexão expirada. Tente conectar novamente.');
-    } else if (mlParam === 'token_error') {
-      showError('Erro ao trocar autorização por token. Verifique as configurações do Mercado Livre.');
-    } else if (mlParam === 'config_error') {
-      showError('As configurações do Mercado Livre estão incompletas.');
-    } else if (mlParam === 'firestore_not_found') {
-      showError('Firestore não encontrado. Verifique o banco de dados.');
-    } else if (mlParam === 'save_error') {
-      showError('A conexão funcionou, mas não foi possível salvar a integração.');
-    } else if (mlParam === 'error') {
-      showError('Não foi possível conectar ao Mercado Livre.');
-    } else if (mlParam) {
-      showError(`Erro Mercado Livre: ${mlParam}`);
+    if (mlParam) {
+      window.history.replaceState({}, '', '/integrations');
+    }
+
+    if (mlParam && mlParam !== "connected") {
+      if (mlParam === 'missing_code') {
+        showError('O Mercado Livre não retornou o código de autorização. Tente conectar novamente.');
+      } else if (mlParam === 'invalid_state') {
+        showError('Sessão de conexão expirada. Tente conectar novamente.');
+      } else if (mlParam === 'token_error') {
+        showError('Erro ao trocar autorização por token. Verifique as configurações do Mercado Livre.');
+      } else if (mlParam === 'config_error') {
+        showError('As configurações do Mercado Livre estão incompletas.');
+      } else if (mlParam === 'firestore_not_found') {
+        showError('Firestore não encontrado. Verifique o banco de dados.');
+      } else if (mlParam === 'save_error') {
+        showError('A conexão funcionou, mas não foi possível salvar a integração.');
+      } else if (mlParam === 'error') {
+        showError('Não foi possível conectar ao Mercado Livre.');
+      } else {
+        showError(`Erro Mercado Livre: ${mlParam}`);
+      }
     }
 
     async function checkStatus() {
@@ -83,13 +86,18 @@ export default function Integrations() {
           });
 
           const data = await response.json();
-          console.log("ML_STATUS_FRONTEND", data);
+          console.log("ML_STATUS_FRONTEND_RESPONSE", data);
           
           setMlApiStatus(data);
-          setMercadoLivreConnected(data.connected === true);
+          const isReallyConnected = data.connected === true;
+          setMercadoLivreConnected(isReallyConnected);
 
-          if (data.connected && mlParam) {
-            window.history.replaceState({}, '', '/integrations');
+          if (mlParam === "connected") {
+            if (isReallyConnected) {
+              showSuccess('Mercado Livre conectado com sucesso.');
+            } else {
+              showError("Conexão autorizada, mas não foi encontrada no banco de dados. Tente conectar novamente.");
+            }
           }
         };
 
@@ -196,7 +204,7 @@ export default function Integrations() {
       const user = auth.currentUser;
       const res = await fetch(`/api/integrations/mercadolivre/status${user ? `?userId=${user.uid}` : ''}`);
       const data = await res.json();
-      console.log("ML_STATUS_FRONTEND", data);
+      console.log("ML_STATUS_FRONTEND_RESPONSE", data);
       setMlApiStatus(data);
       if (data.ok && data.connected) {
          setMercadoLivreConnected(true);
@@ -393,29 +401,11 @@ export default function Integrations() {
                                    <span className="font-semibold">{mlApiStatus.account.email}</span>
                                 </div>
                               )}
-                              <div className="flex justify-between items-center pt-1">
-                                 <span className="text-gray-500">Autorizado:</span>
-                                 <span className="font-medium text-[12px]">{mlApiStatus.updatedAt ? new Date(mlApiStatus.updatedAt).toLocaleDateString() : 'Desconhecido'}</span>
-                              </div>
                            </div>
                          )}
                          
                          <div className="flex flex-col gap-2 pt-2">
-                             <button 
-                               onClick={() => setShowManageModal(true)}
-                               className="w-full bg-white border border-gray-200 text-gray-700 py-2 rounded-lg font-medium text-[13px] flex items-center justify-center gap-2 hover:bg-gray-50 transition-colors shadow-sm"
-                             >
-                               Gerenciar Mercado Livre
-                             </button>
                              <div className="flex flex-col sm:flex-row gap-2">
-                               <button 
-                                 onClick={handleSyncMl}
-                                 disabled={syncingMl}
-                                 className="flex-1 bg-indigo-50 text-indigo-600 border border-indigo-100 py-2 rounded-lg text-[13px] font-medium transition-colors hover:bg-indigo-100 flex items-center justify-center gap-2 shadow-sm disabled:opacity-50"
-                               >
-                                 <RefreshCw className={`w-4 h-4 ${syncingMl ? 'animate-spin' : ''}`} /> 
-                                 {syncingMl ? 'Sincronizando...' : 'Sincronizar'}
-                               </button>
                                <button 
                                  onClick={() => setShowDisconnectModal(true)}
                                  disabled={disconnectingMl}
@@ -537,75 +527,7 @@ export default function Integrations() {
       </div>
       )}
 
-      {/* Manage ML Modal */}
-      {showManageModal && mlApiStatus && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl w-full max-w-lg p-6 shadow-2xl animate-in zoom-in-95 duration-200 relative">
-            <button onClick={() => setShowManageModal(false)} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 p-1">
-               <ChevronDown className="w-6 h-6 rotate-180" />
-            </button>
-            
-            <div className="flex items-center gap-3 mb-6">
-              <div className="w-12 h-12 rounded-xl bg-yellow-50 flex items-center justify-center">
-                <ShoppingBag className="w-7 h-7 text-yellow-600" />
-              </div>
-              <div>
-                <h2 className="text-[18px] font-bold text-gray-900">Gerenciar Mercado Livre</h2>
-                <div className="flex items-center gap-1.5 text-green-600 text-[12px] font-semibold">
-                   <Sparkles className="w-3.5 h-3.5" /> CONECTADO
-                </div>
-              </div>
-            </div>
-            
-            <div className="space-y-4 mb-8">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="p-4 rounded-xl bg-gray-50 border border-gray-100">
-                  <span className="text-[11px] text-gray-500 font-bold uppercase tracking-wider block mb-1">Nickname</span>
-                  <span className="text-[14px] font-semibold text-gray-900">{mlApiStatus.account?.nickname || 'N/A'}</span>
-                </div>
-                <div className="p-4 rounded-xl bg-gray-50 border border-gray-100">
-                  <span className="text-[11px] text-gray-500 font-bold uppercase tracking-wider block mb-1">Seller ID</span>
-                  <span className="text-[14px] font-semibold text-gray-900">{mlApiStatus.account?.mlUserId || 'N/A'}</span>
-                </div>
-              </div>
-              
-              <div className="p-4 rounded-xl bg-gray-50 border border-gray-100">
-                <span className="text-[11px] text-gray-500 font-bold uppercase tracking-wider block mb-1">E-mail da Conta</span>
-                <span className="text-[14px] font-semibold text-gray-900">{mlApiStatus.account?.email || 'Não informado'}</span>
-              </div>
-              
-              <div className="grid grid-cols-2 gap-4">
-                <div className="p-4 rounded-xl bg-gray-50 border border-gray-100">
-                  <span className="text-[11px] text-gray-500 font-bold uppercase tracking-wider block mb-1">Região (Site)</span>
-                  <span className="text-[14px] font-semibold text-gray-900">MLB</span>
-                </div>
-                <div className="p-4 rounded-xl bg-gray-50 border border-gray-100">
-                  <span className="text-[11px] text-gray-500 font-bold uppercase tracking-wider block mb-1">Conectado em</span>
-                  <span className="text-[14px] font-semibold text-gray-900">{mlApiStatus.updatedAt ? new Date(mlApiStatus.updatedAt).toLocaleDateString() : 'N/A'}</span>
-                </div>
-              </div>
-            </div>
-            
-            <div className="flex gap-3">
-              <button 
-                onClick={() => setShowManageModal(false)}
-                className="flex-1 px-4 py-2.5 border border-gray-200 text-gray-700 rounded-xl font-semibold text-[14px] hover:bg-gray-50 transition-colors"
-              >
-                Fechar
-              </button>
-              <button 
-                onClick={() => {
-                  setShowManageModal(false);
-                  setShowDisconnectModal(true);
-                }}
-                className="flex-1 px-4 py-2.5 bg-red-50 text-red-600 rounded-xl font-semibold text-[14px] hover:bg-red-100 transition-colors border border-red-100 flex items-center justify-center gap-2"
-              >
-                <Trash2 className="w-4 h-4" /> Desconectar
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Manage ML Modal removed as per user request */}
 
       {/* Disconnect Modal */}
       {showDisconnectModal && (
