@@ -21,6 +21,7 @@ import fetchHandler from "./api/mercadolivre/offers/fetch.js";
 import listHandler from "./api/mercadolivre/offers/list.js";
 import syncHandler from "./api/mercadolivre/offers/sync.js";
 import debugHandler from "./api/mercadolivre/offers/debug.js";
+import importLinksHandler from "./api/mercadolivre/offers/import-links.js";
 
 async function startServer() {
   try {
@@ -43,6 +44,7 @@ async function startServer() {
     app.all("/api/mercadolivre/offers/list", listHandler);
     app.all("/api/mercadolivre/offers/sync", syncHandler);
     app.all("/api/mercadolivre/offers/debug", debugHandler);
+    app.all("/api/mercadolivre/offers/import-links", importLinksHandler);
 
     // Mount API Routes
     console.log("[Server] Mounting routes...");

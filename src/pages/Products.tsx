@@ -18,7 +18,9 @@ export default function Products() {
   const [filterDiscount, setFilterDiscount] = useState(false);
   const [sortBy, setSortBy] = useState('recent');
   
-  const [syncStatus, setSyncStatus] = useState<{type: 'success' | 'error', text: string} | null>(null);
+  const [syncStatus, setSyncStatus] = useState<{type: 'success' | 'error' | 'warning', text: string} | null>(null);
+  const [manualLinks, setManualLinks] = useState('');
+  const [importing, setImporting] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -59,13 +61,60 @@ export default function Products() {
           if (!res.ok || !data.ok) {
               setSyncStatus({ type: 'error', text: `Erro ao sincronizar ofertas: ${data.error || 'Erro desconhecido'}` });
           } else {
-              setSyncStatus({ type: 'success', text: `${data.totalSaved || 0} ofertas sincronizadas com sucesso!` });
+              if (data.apiSearchBlocked && data.totalSaved > 0) {
+                setSyncStatus({ 
+                  type: 'warning', 
+                  text: `API do Mercado Livre bloqueada, mas ${data.totalSaved} ofertas foram coletadas via fallback HTML.` 
+                });
+              } else if (data.totalSaved === 0 && data.apiSearchBlocked) {
+                setSyncStatus({ 
+                  type: 'error', 
+                  text: 'API do Mercado Livre bloqueada e fallback falhou. Tente importar links manualmente.' 
+                });
+              } else {
+                setSyncStatus({ type: 'success', text: `${data.totalSaved || 0} ofertas sincronizadas com sucesso!` });
+              }
               await loadProducts();
           }
       } catch (e: any) {
           setSyncStatus({ type: 'error', text: `Erro ao sincronizar ofertas: ${e.message || 'Erro de conexão'}` });
       }
       setSyncing(false);
+  };
+
+  const handleManualImport = async () => {
+    if (!manualLinks.trim()) return;
+    
+    setImporting(true);
+    setSyncStatus(null);
+    try {
+      const links = manualLinks.split('\n').map(l => l.trim()).filter(l => l.startsWith('http'));
+      
+      if (links.length === 0) {
+        setSyncStatus({ type: 'error', text: 'Nenhum link válido encontrado. Os links devem começar com http.' });
+        setImporting(false);
+        return;
+      }
+
+      const res = await fetch('/api/mercadolivre/offers/import-links', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ links, category: 'tecnologia' })
+      });
+
+      const data = await res.json();
+
+      if (res.ok && data.ok) {
+        setSyncStatus({ type: 'success', text: `${data.savedCount} ofertas importadas manualmente!` });
+        setManualLinks('');
+        await loadProducts();
+      } else {
+        setSyncStatus({ type: 'error', text: data.error || 'Falha ao importar links.' });
+      }
+    } catch (e: any) {
+      setSyncStatus({ type: 'error', text: `Erro ao importar links: ${e.message}` });
+    }
+    setImporting(false);
   };
 
   const handleUpdateOffer = async (id: string) => {
@@ -209,10 +258,38 @@ export default function Products() {
           </div>
       </div>
 
+      <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
+        <h3 className="text-[16px] font-bold text-gray-900 mb-4 flex items-center gap-2">
+          <PlusCircle className="w-5 h-5 text-indigo-600" />
+          Adicionar ofertas por links manualmente
+        </h3>
+        <p className="text-[13px] text-gray-500 mb-4">Cole um link do Mercado Livre por linha para importar produtos específicos.</p>
+        <textarea
+          value={manualLinks}
+          onChange={e => setManualLinks(e.target.value)}
+          placeholder="https://www.mercadolivre.com.br/produto-exemplo-1&#10;https://www.mercadolivre.com.br/produto-exemplo-2"
+          className="w-full h-32 p-3 border border-gray-200 rounded-xl text-[13px] focus:outline-none focus:border-indigo-500 shadow-sm mb-4"
+        />
+        <button
+          onClick={handleManualImport}
+          disabled={importing || !manualLinks.trim()}
+          className="bg-indigo-600 text-white px-6 py-2.5 rounded-xl font-bold text-[13px] hover:bg-indigo-700 transition-all disabled:opacity-50 flex items-center gap-2"
+        >
+          {importing ? <Loader2 className="w-4 h-4 animate-spin" /> : <LinkIcon className="w-4 h-4" />}
+          Importar links
+        </button>
+      </div>
+
       {syncStatus && (
           <div className="animate-in slide-in-from-top-2 duration-300">
-            <div className={`p-4 rounded-lg border text-[13px] font-medium flex items-center gap-2 ${syncStatus.type === 'success' ? 'bg-green-50 border-green-200 text-green-700' : 'bg-red-50 border-red-200 text-red-700'}`}>
-                {syncStatus.type === 'success' ? <CheckCircle2 className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
+            <div className={`p-4 rounded-lg border text-[13px] font-medium flex items-center gap-2 ${
+              syncStatus.type === 'success' ? 'bg-green-50 border-green-200 text-green-700' : 
+              syncStatus.type === 'warning' ? 'bg-yellow-50 border-yellow-200 text-yellow-700' :
+              'bg-red-50 border-red-200 text-red-700'
+            }`}>
+                {syncStatus.type === 'success' ? <CheckCircle2 className="w-4 h-4" /> : 
+                 syncStatus.type === 'warning' ? <AlertCircle className="w-4 h-4" /> :
+                 <AlertCircle className="w-4 h-4" />}
                 {syncStatus.text}
             </div>
           </div>

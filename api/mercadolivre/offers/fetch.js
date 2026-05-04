@@ -1,4 +1,4 @@
-import { getAdminDb } from "../../_lib/firebase-admin.js";
+import { searchByAPI, searchByHTML, saveOffers } from "../../_lib/ml-utils.js";
 
 const CATEGORY_MAP = {
   todos: ["ofertas", "promoção", "desconto"],
@@ -25,74 +25,52 @@ export default async function handler(req, res) {
 
   try {
     const terms = CATEGORY_MAP[category] || CATEGORY_MAP["todos"];
-    const queryTerm = terms[0] || "smartphones"; // pick first for simplicity or random
+    const queryTerm = terms[0] || "smartphones";
 
-    const mlRes = await fetch(`https://api.mercadolibre.com/sites/MLB/search?q=${encodeURIComponent(queryTerm)}&limit=${limit}`);
-    
-    if (!mlRes.ok) {
-        const errText = await mlRes.text();
-        throw new Error(`Mercado Livre API error: ${mlRes.status} - ${errText}`);
+    let offers = [];
+    let apiSearchBlocked = false;
+    let fallbackUsed = null;
+    let errors = [];
+
+    // 1. Try API Search
+    try {
+      offers = await searchByAPI(queryTerm, limit, category);
+    } catch (e) {
+      console.error("API Search failed:", e);
+      apiSearchBlocked = true;
+      errors.push({ source: "api_search", status: e.status || 500, message: e.body || e.message });
+      
+      // 2. Fallback to HTML Search
+      try {
+        offers = await searchByHTML(queryTerm, category);
+        fallbackUsed = "html_search";
+      } catch (htmlError) {
+        console.error("HTML Search failed:", htmlError);
+        errors.push({ source: "html_search", message: htmlError.message });
+      }
     }
 
-    const body = await mlRes.json();
-    const results = body.results || [];
-    
-    const db = getAdminDb();
-    let savedCount = 0;
-    let sample = null;
-    
-    for (const item of results) {
-        if (!item.id || !item.title || !item.price) continue;
-        
-        const originalPrice = item.original_price ?? null;
-        const price = item.price ?? null;
-        let discountPercent = null;
-        if (originalPrice && price && originalPrice > price) {
-          discountPercent = Math.round(((originalPrice - price) / originalPrice) * 100);
-        }
-
-        const offer = {
-          marketplace: "mercadolivre",
-          marketplaceProductId: item.id,
-          title: item.title || null,
-          price: price,
-          originalPrice: originalPrice,
-          currencyId: item.currency_id || "BRL",
-          thumbnail: item.thumbnail || null,
-          image: item.thumbnail ? item.thumbnail.replace("-I.jpg", "-O.jpg") : null,
-          productUrl: item.permalink || null,
-          affiliateUrl: null,
-          category: category,
-          sellerId: item.seller?.id ? String(item.seller.id) : null,
-          sellerNickname: item.seller?.nickname || null,
-          condition: item.condition || null,
-          availableQuantity: item.available_quantity ?? null,
-          soldQuantity: item.sold_quantity ?? null,
-          discountPercent: discountPercent,
-          source: "mercadolivre_search",
-          fetchedAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString()
-        };
-
-        const cleanOffer = Object.fromEntries(
-          Object.entries(offer).filter(([_, v]) => v !== undefined)
-        );
-
-        await db.collection("offer_bank")
-          .doc(`mercadolivre_${offer.marketplaceProductId}`)
-          .set(cleanOffer, { merge: true });
-          
-        savedCount++;
-        if (!sample) sample = cleanOffer;
+    if (offers.length > 0) {
+      const savedCount = await saveOffers(offers);
+      return res.status(200).json({
+        ok: true,
+        category,
+        query: queryTerm,
+        fetchedCount: offers.length,
+        savedCount,
+        apiSearchBlocked,
+        fallbackUsed,
+        errors: errors.length > 0 ? errors : undefined,
+        sample: offers[0]
+      });
     }
 
-    return res.status(200).json({
-      ok: true,
-      category: category,
-      query: queryTerm,
-      fetchedCount: results.length,
-      savedCount: savedCount,
-      sample: sample
+    // If still no offers, return failure if API was blocked and HTML failed
+    return res.status(apiSearchBlocked ? 200 : 500).json({
+      ok: offers.length > 0,
+      totalSaved: 0,
+      apiSearchBlocked,
+      errors
     });
 
   } catch (error) {

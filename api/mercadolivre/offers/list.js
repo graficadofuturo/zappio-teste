@@ -44,18 +44,10 @@ export default async function handler(req, res) {
 
     console.log("ML_OFFERS_LIST_COUNT", offers.length);
 
-    if (offers.length === 0) {
-      return res.status(200).json({
-        ok: true,
-        count: 0,
-        offers: []
-      });
-    }
-
     return res.status(200).json({
-        ok: true,
-        count: offers.length,
-        offers: offers
+      ok: true,
+      count: offers.length,
+      offers: offers
     });
 
   } catch (error) {

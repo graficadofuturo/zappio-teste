@@ -21,18 +21,34 @@ export default async function handler(req, res) {
         sampleOffer = { id: sampleSnap.docs[0].id, ...sampleSnap.docs[0].data() };
     }
     
-    // 3. Testar API Mercado Livre
-    let mercadoLivreApiTest = { ok: false, status: null, resultsCount: 0 };
+    // 3. Testar API Search
+    let apiSearch = { ok: false, status: null, bodyPreview: "" };
     try {
         const mlRes = await fetch("https://api.mercadolibre.com/sites/MLB/search?q=smartphone&limit=1");
-        mercadoLivreApiTest.status = mlRes.status;
+        apiSearch.status = mlRes.status;
+        const bodyText = await mlRes.text();
+        apiSearch.bodyPreview = bodyText.slice(0, 100);
         if (mlRes.ok) {
-            mercadoLivreApiTest.ok = true;
-            const data = await mlRes.json();
-            mercadoLivreApiTest.resultsCount = data.results ? data.results.length : 0;
+            apiSearch.ok = true;
         }
     } catch (apiError) {
-        mercadoLivreApiTest.error = apiError.message;
+        apiSearch.error = apiError.message;
+    }
+
+    // 4. Testar HTML Search
+    let htmlSearch = { ok: false, status: null, htmlLength: 0, productsExtracted: 0 };
+    try {
+        const res = await fetch("https://lista.mercadolivre.com.br/smartphone");
+        htmlSearch.status = res.status;
+        if (res.ok) {
+            htmlSearch.ok = true;
+            const html = await res.text();
+            htmlSearch.htmlLength = html.length;
+            // Simple check
+            htmlSearch.productsExtracted = (html.match(/ui-search-result__wrapper/g) || []).length;
+        }
+    } catch (e) {
+        htmlSearch.error = e.message;
     }
 
     return res.status(200).json({
@@ -40,7 +56,12 @@ export default async function handler(req, res) {
       collection: "offer_bank",
       offersCount: offersCount,
       sampleOffer: sampleOffer,
-      mercadoLivreApiTest: mercadoLivreApiTest
+      apiSearch,
+      htmlSearch,
+      firestore: {
+          ok: true,
+          offersCount: offersCount
+      }
     });
 
   } catch (error) {
