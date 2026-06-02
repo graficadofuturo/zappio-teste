@@ -26,6 +26,6 @@
   },
   "include": [
     "src",
-    "server.ts"
+    "api/index.ts"
   ]
 }
