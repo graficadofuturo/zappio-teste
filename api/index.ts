@@ -17,14 +17,14 @@ import integrationsRouter from "../src/api/routes/integrations";
 import offersRouter from "../src/api/routes/offers";
 
 // Import Vercel handlers from renamed folder
-import offersHandler from "../api_handlers/offers.js";
-import mlHandler from "../api_handlers/mercadolivre.js";
+import offersHandler from "../api_handlers/offers";
+import mlHandler from "../api_handlers/mercadolivre";
 
-import collectorRunHandler from "../api_handlers/offers/collector/run.js";
-import collectorCheckHandler from "../api_handlers/cron/collect-offers.js";
-import collectorStatusHandler from "../api_handlers/offers/collector/status.js";
-import offersListHandler from "../api_handlers/offers/list.js";
-import offersDebugHandler from "../api_handlers/offers/debug.js";
+import collectorRunHandler from "../api_handlers/offers/collector/run";
+import collectorCheckHandler from "../api_handlers/cron/collect-offers";
+import collectorStatusHandler from "../api_handlers/offers/collector/status";
+import offersListHandler from "../api_handlers/offers/list";
+import offersDebugHandler from "../api_handlers/offers/debug";
 
 async function startServer() {
   try {

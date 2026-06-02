@@ -1,4 +1,4 @@
-import { getAdminDb } from "../_lib/firebase-admin.js";
+import { getAdminDb } from "../_lib/firebase-admin";
 
 export default async function handler(req, res) {
   res.setHeader("Content-Type", "application/json; charset=utf-8");
@@ -16,19 +16,19 @@ export default async function handler(req, res) {
     sampleSnapshot.forEach(doc => samples.push(doc.data()));
     
     // 2. Testar API Search
-    let apiSearch = { ok: false, status: null, bodyPreview: "" };
+    let apiSearch: { ok: boolean; status: number | null; bodyPreview: string; error?: string } = { ok: false, status: null, bodyPreview: "" };
     try {
         const mlRes = await fetch("https://api.mercadolibre.com/sites/MLB/search?q=smartphone&limit=1");
         apiSearch.status = mlRes.status;
         const bodyText = await mlRes.text();
         apiSearch.bodyPreview = bodyText.slice(0, 100);
         if (mlRes.ok) apiSearch.ok = true;
-    } catch (apiError) {
+    } catch (apiError: any) {
         apiSearch.error = apiError.message;
     }
 
     // 3. Testar HTML Search
-    let htmlSearch = { ok: false, status: null, htmlLength: 0, productsExtracted: 0 };
+    let htmlSearch: { ok: boolean; status: number | null; htmlLength: number; productsExtracted: number; error?: string } = { ok: false, status: null, htmlLength: 0, productsExtracted: 0 };
     try {
         const res = await fetch("https://lista.mercadolivre.com.br/smartphone");
         htmlSearch.status = res.status;
@@ -38,7 +38,7 @@ export default async function handler(req, res) {
             htmlSearch.htmlLength = html.length;
             htmlSearch.productsExtracted = (html.match(/ui-search-result__wrapper/g) || []).length;
         }
-    } catch (e) {
+    } catch (e: any) {
         htmlSearch.error = e.message;
     }
 

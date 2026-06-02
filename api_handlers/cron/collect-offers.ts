@@ -1,5 +1,5 @@
-import { collectAutomated, saveOffers } from "../_lib/ml-utils.js";
-import { getAdminDb } from "../_lib/firebase-admin.js";
+import { collectAutomated, saveOffers } from "../_lib/ml-utils";
+import { getAdminDb } from "../_lib/firebase-admin";
 
 const CATEGORY_KEYWORDS = [
   { category: "tecnologia", term: "smartphone" },

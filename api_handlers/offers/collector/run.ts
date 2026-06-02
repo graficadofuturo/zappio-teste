@@ -1,8 +1,8 @@
-import { collectAutomated, saveOffers, convertToAffiliateLink } from "../../_lib/ml-utils.js";
-import { getAdminDb } from "../../_lib/firebase-admin.js";
+import { collectAutomated, saveOffers, convertToAffiliateLink } from "../../_lib/ml-utils";
+import { getAdminDb } from "../../_lib/firebase-admin";
 
 
-const CATEGORY_KEYWORDS = {
+const CATEGORY_KEYWORDS: Record<string, string[]> = {
   "Tecnologia": ["smartphone", "notebook", "smart tv", "fone bluetooth", "monitor gamer", "placa de vídeo", "tablet"],
   "Casa e Cozinha": ["mesa escritorio", "cadeira gamer", "sofa retratil", "guarda roupa casal", "colchao queen", "air fryer philips", "geladeira frost free", "cooktop 5 bocas"],
   "Esporte e Fitness": ["whey protein isolado", "creatina monoidratada", "bicicleta aro 29", "esteira eletrica", "tenis corrida"],
@@ -22,7 +22,7 @@ export default async function handler(req, res) {
 
   try {
     let totalSaved = 0;
-    let categoriesToProcess = CATEGORY_KEYWORDS;
+    let categoriesToProcess: Record<string, string[]> = CATEGORY_KEYWORDS;
     if (category && category !== "todos" && category !== "Todos") {
       const foundKey = Object.keys(CATEGORY_KEYWORDS).find(k => k.toLowerCase() === category.toLowerCase());
       if (foundKey) {

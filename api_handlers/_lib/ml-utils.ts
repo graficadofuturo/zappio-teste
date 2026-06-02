@@ -1,5 +1,5 @@
 import * as cheerio from 'cheerio';
-import { getAdminDb } from './firebase-admin.js';
+import { getAdminDb } from './firebase-admin';
 import axios from 'axios';
 
 // --- Affiliate Regex Extraction ---
@@ -203,7 +203,7 @@ export async function convertToAffiliateLink(url, uid) {
   }
 }
 
-export function normalizeOfferCategory(category, title, defaultCat) {
+export function normalizeOfferCategory(category?: string | null, title?: string | null, defaultCat?: string | null) {
   const normTitle = (title || '').toLowerCase();
   if (normTitle.includes('tênis') || normTitle.includes('sapato')) return 'Moda e Acessórios';
   if (normTitle.includes('celular') || normTitle.includes('iphone') || normTitle.includes('samsung') || normTitle.includes('smartphone')) return 'Smartphones';
@@ -211,12 +211,12 @@ export function normalizeOfferCategory(category, title, defaultCat) {
   return defaultCat || category || 'Geral';
 }
 
-export async function collectAutomated(keyword, category) {
+export async function collectAutomated(keyword: string, category?: string | null) {
   try {
      const url = 'https://api.mercadolibre.com/sites/MLB/search?q=' + encodeURIComponent(keyword) + '&limit=20';
      const resp = await axios.get(url);
      const items = resp.data.results || [];
-     return items.map(item => ({
+     return items.map((item: any) => ({
         id: item.id,
         title: item.title,
         price: item.price,
@@ -230,7 +230,7 @@ export async function collectAutomated(keyword, category) {
   }
 }
 
-export async function saveOffers(offers, uid = null) {
+export async function saveOffers(offers: any[], uid: string | null = null) {
   if (!offers || !offers.length) return 0;
   
   const db = getAdminDb();

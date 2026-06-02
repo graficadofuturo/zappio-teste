@@ -1,5 +1,5 @@
-import { getAdminDb } from "../_lib/firebase-admin.js";
-import { createAffiliateLinkFromFirestore } from "../_lib/ml-utils.js";
+import { getAdminDb } from "../_lib/firebase-admin";
+import { createAffiliateLinkFromFirestore } from "../_lib/ml-utils";
 
 export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
