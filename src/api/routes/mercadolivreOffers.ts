@@ -1,7 +1,7 @@
 import { Router } from "express";
-import { getAdminDb } from "../firebaseAdmin.ts";
-import { simplifyProductTitle } from "../../lib/productUtils.ts";
-import { normalizeMercadoLivreProductUrl } from "../../services/affiliateService.ts";
+import { getAdminDb } from "../firebaseAdmin";
+import { simplifyProductTitle } from "../../lib/productUtils";
+import { normalizeMercadoLivreProductUrl } from "../../services/affiliateService";
 
 const router = Router();
 

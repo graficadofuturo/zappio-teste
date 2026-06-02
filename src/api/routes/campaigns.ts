@@ -1,8 +1,8 @@
 import { Router } from "express";
-import { getAdminDb } from "../firebaseAdmin.ts";
-import { getRandomKeyword, CAMPAIGN_CATEGORIES, getNextProductForCampaign, recordProductSent, resolveProductLinkForSending } from "../campaignService.ts";
+import { getAdminDb } from "../firebaseAdmin";
+import { getRandomKeyword, CAMPAIGN_CATEGORIES, getNextProductForCampaign, recordProductSent, resolveProductLinkForSending } from "../campaignService";
 import { GoogleGenAI } from "@google/genai";
-import { simplifyProductTitle } from "../../lib/productUtils.ts";
+import { simplifyProductTitle } from "../../lib/productUtils";
 
 const router = Router();
 
@@ -119,7 +119,7 @@ router.post("/prepare-message", async (req, res) => {
       finalMessage = finalMessage.replace(/{{[^{}]+}}/g, '');
     }
 
-    const { validateCampaignLinksBeforeSending, replaceOriginalLinksWithAffiliateLinks } = await import('../../lib/affiliate/affiliate-resolver.ts');
+    const { validateCampaignLinksBeforeSending, replaceOriginalLinksWithAffiliateLinks } = await import('../../lib/affiliate/affiliate-resolver');
     
     const validationResult = await validateCampaignLinksBeforeSending(finalMessage, userId, campaignId);
     
@@ -196,7 +196,7 @@ router.get("/:id/preview-offer", async (req, res) => {
         let affiliatePending = false;
         
         if (typeof userId === 'string') {
-            const { resolveAffiliateLinkForSending } = await import('../../lib/affiliate/affiliate-resolver.ts');
+            const { resolveAffiliateLinkForSending } = await import('../../lib/affiliate/affiliate-resolver');
             const result = await resolveAffiliateLinkForSending({
                 originalUrl: prodData.productUrl || finalProductLink,
                 provider: prodData.marketplace || 'unknown',

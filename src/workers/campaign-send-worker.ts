@@ -1,7 +1,7 @@
 import { initializeApp, cert, getApps } from 'firebase-admin/app';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import fs from 'fs';
-import { sendMessage } from '../../whatsappService.ts';
+import { sendMessage } from '../../whatsappService';
 
 let db: any;
 

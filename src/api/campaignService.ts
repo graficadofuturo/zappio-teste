@@ -102,7 +102,7 @@ export async function recordProductSent(db: any, campaignId: string, productId: 
   });
 }
 
-import { resolveAffiliateLinkForSending as resolveAffiliate } from '../services/affiliateService.ts';
+import { resolveAffiliateLinkForSending as resolveAffiliate } from '../services/affiliateService';
 
 export async function resolveProductLinkForSending(db: any, product: any, userId: string, campaignId?: string): Promise<string> {
     const originalUrl = product.productUrl || product.url || product.permalink || product.product_original_link;

@@ -1,5 +1,5 @@
-import { getAdminFirestore, removeUndefinedDeep } from '../../api/firebaseAdmin.ts';
-import { normalizeMercadoLivreProductUrl } from '../../services/affiliateService.ts';
+import { getAdminFirestore, removeUndefinedDeep } from '../../api/firebaseAdmin';
+import { normalizeMercadoLivreProductUrl } from '../../services/affiliateService';
 
 export async function getMLAuthUrl(origin: string, state: string, redirectUri: string) {
     const clientId = process.env.ML_CLIENT_ID;

@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { getAdminDb, removeUndefinedDeep } from "../firebaseAdmin.ts";
+import { getAdminDb, removeUndefinedDeep } from "../firebaseAdmin";
 import crypto from "crypto";
 
 const router = Router();
@@ -665,7 +665,7 @@ router.post("/sync", async (req, res) => {
   try {
     const { integrationId } = req.body;
     const { syncMLProducts } =
-      await import("../../lib/mercadolivre/mlService.ts");
+      await import("../../lib/mercadolivre/mlService");
     const count = await syncMLProducts(integrationId);
     res.json({ success: true, count });
   } catch (e: any) {

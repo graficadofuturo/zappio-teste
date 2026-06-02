@@ -1,7 +1,7 @@
 import "dotenv/config";
-import { adminDb } from "../lib/affiliate/firebase-admin.ts";
-import { AffiliateLinkConverter } from "../lib/affiliate/converter.ts";
-import { AffiliateLinkJob } from "../lib/affiliate/job-service.ts";
+import { adminDb } from "../lib/affiliate/firebase-admin";
+import { AffiliateLinkConverter } from "../lib/affiliate/converter";
+import { AffiliateLinkJob } from "../lib/affiliate/job-service";
 
 async function runWorker() {
   if (!adminDb) {

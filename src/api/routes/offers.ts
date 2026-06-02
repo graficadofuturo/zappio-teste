@@ -1,6 +1,6 @@
 import { Router } from "express";
-import { getAdminDb } from "../firebaseAdmin.ts";
-import { simplifyProductTitle } from "../../lib/productUtils.ts";
+import { getAdminDb } from "../firebaseAdmin";
+import { simplifyProductTitle } from "../../lib/productUtils";
 
 const router = Router();
 
@@ -42,7 +42,7 @@ router.post("/mercadolivre/sync-daily", async (req, res) => {
     // For now we simulate/proxy to the actual logic if needed, 
     // or just return success if the background job already does it.
     // In this app, we might want to trigger the real scraping logic.
-    const { fetchMLProductsByKeyword } = await import("../campaignService.ts");
+    const { fetchMLProductsByKeyword } = await import("../campaignService");
     const db = await getAdminDb();
     
     // Simple sync: fetch some trending items
