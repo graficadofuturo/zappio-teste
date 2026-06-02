@@ -555,7 +555,7 @@ router.post('/create-affiliate-link', async (req, res) => {
     }
 
     const { getAdminDb } = await import('../firebaseAdmin.js');
-    const { createAffiliateLinkFromFirestore } = await import('../../../api/_lib/ml-utils.js');
+    const { createAffiliateLinkFromFirestore } = await import('../../../api_handlers/_lib/ml-utils.js');
     
     const db = getAdminDb();
     const result = await createAffiliateLinkFromFirestore(url, uid, db);
