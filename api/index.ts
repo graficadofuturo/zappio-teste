@@ -5,26 +5,27 @@ import { createServer as createViteServer } from "vite";
 import path from "path";
 
 // Import Routers
-import aiRoutes from "./src/api/routes/ai.ts";
-import whatsappRoutes from "./src/api/routes/whatsapp.ts";
-import mercadolivreRoutes from "./src/api/routes/mercadolivre.ts";
-import productRoutes from "./src/api/routes/products.ts";
-import webhookRoutes from "./src/api/routes/webhooks.ts";
-import campaignRoutes from "./src/api/routes/campaigns.ts";
-import subscriptionRoutes from "./src/api/routes/subscriptions.ts";
+import aiRoutes from "../src/api/routes/ai.ts";
+import whatsappRoutes from "../src/api/routes/whatsapp.ts";
+import mercadolivreRoutes from "../src/api/routes/mercadolivre.ts";
+import productRoutes from "../src/api/routes/products.ts";
+import webhookRoutes from "../src/api/routes/webhooks.ts";
+import campaignRoutes from "../src/api/routes/campaigns.ts";
+import subscriptionRoutes from "../src/api/routes/subscriptions.ts";
 
-import shopeeRouter from "./src/api/routes/shopee.ts";
-import integrationsRouter from "./src/api/routes/integrations.ts";
-import offersRouter from "./src/api/routes/offers.ts";
+import shopeeRouter from "../src/api/routes/shopee.ts";
+import integrationsRouter from "../src/api/routes/integrations.ts";
+import offersRouter from "../src/api/routes/offers.ts";
 
-import offersHandler from "./api/offers.js";
-import mlHandler from "./api/mercadolivre.js";
+// Import Vercel handlers from renamed folder
+import offersHandler from "../api_handlers/offers.js";
+import mlHandler from "../api_handlers/mercadolivre.js";
 
-import collectorRunHandler from "./api/offers/collector/run.js";
-import collectorCheckHandler from "./api/cron/collect-offers.js";
-import collectorStatusHandler from "./api/offers/collector/status.js";
-import offersListHandler from "./api/offers/list.js";
-import offersDebugHandler from "./api/offers/debug.js";
+import collectorRunHandler from "../api_handlers/offers/collector/run.js";
+import collectorCheckHandler from "../api_handlers/cron/collect-offers.js";
+import collectorStatusHandler from "../api_handlers/offers/collector/status.js";
+import offersListHandler from "../api_handlers/offers/list.js";
+import offersDebugHandler from "../api_handlers/offers/debug.js";
 
 async function startServer() {
   try {
@@ -51,18 +52,6 @@ async function startServer() {
     app.all("/api/offers/collector/status", collectorStatusHandler);
     app.all("/api/offers/list", offersListHandler);
     app.all("/api/offers/debug", offersDebugHandler);
-
-    /**
-     * VERCEL CRON CONFIGURATION (Add this to vercel.json in root if missing)
-     * {
-     *   "crons": [
-     *     {
-     *       "path": "/api/offers/collector/run",
-     *       "schedule": "0 6 * * *"
-     *     }
-     *   ]
-     * }
-     */
 
     // Mount API Routes
     console.log("[Server] Mounting routes...");
@@ -102,21 +91,21 @@ async function startServer() {
         console.log(`[Server] Web server listening on port ${PORT}`);
         
         try {
-          const { loadExistingInstances } = await import("./whatsappService.ts");
+          const { loadExistingInstances } = await import("../whatsappService.ts");
           loadExistingInstances().catch(e => console.error("[Server] Auto-load instances error:", e));
 
           // Campaign Scheduler
-          const { startScheduler } = await import("./campaignScheduler.ts");
+          const { startScheduler } = await import("../campaignScheduler.ts");
           startScheduler();
           console.log("[Server] Scheduler started");
 
           // Campaign Send Worker
-          const { startCampaignSendWorker } = await import("./src/workers/campaign-send-worker.ts");
+          const { startCampaignSendWorker } = await import("../src/workers/campaign-send-worker.ts");
           startCampaignSendWorker();
           console.log("[Server] Campaign Send Worker started");
 
           // Affiliate Link Worker
-          const { runWorker: startAffiliateWorker } = await import("./src/workers/affiliate-link-worker.ts");
+          const { runWorker: startAffiliateWorker } = await import("../src/workers/affiliate-link-worker.ts");
           startAffiliateWorker();
           console.log("[Server] Affiliate Link Worker started");
         } catch (e) {
