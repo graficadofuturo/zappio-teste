@@ -5,17 +5,17 @@ import { createServer as createViteServer } from "vite";
 import path from "path";
 
 // Import Routers
-import aiRoutes from "../src/api/routes/ai.ts";
-import whatsappRoutes from "../src/api/routes/whatsapp.ts";
-import mercadolivreRoutes from "../src/api/routes/mercadolivre.ts";
-import productRoutes from "../src/api/routes/products.ts";
-import webhookRoutes from "../src/api/routes/webhooks.ts";
-import campaignRoutes from "../src/api/routes/campaigns.ts";
-import subscriptionRoutes from "../src/api/routes/subscriptions.ts";
+import aiRoutes from "../src/api/routes/ai";
+import whatsappRoutes from "../src/api/routes/whatsapp";
+import mercadolivreRoutes from "../src/api/routes/mercadolivre";
+import productRoutes from "../src/api/routes/products";
+import webhookRoutes from "../src/api/routes/webhooks";
+import campaignRoutes from "../src/api/routes/campaigns";
+import subscriptionRoutes from "../src/api/routes/subscriptions";
 
-import shopeeRouter from "../src/api/routes/shopee.ts";
-import integrationsRouter from "../src/api/routes/integrations.ts";
-import offersRouter from "../src/api/routes/offers.ts";
+import shopeeRouter from "../src/api/routes/shopee";
+import integrationsRouter from "../src/api/routes/integrations";
+import offersRouter from "../src/api/routes/offers";
 
 // Import Vercel handlers from renamed folder
 import offersHandler from "../api_handlers/offers.js";
@@ -91,21 +91,21 @@ async function startServer() {
         console.log(`[Server] Web server listening on port ${PORT}`);
         
         try {
-          const { loadExistingInstances } = await import("../whatsappService.ts");
+          const { loadExistingInstances } = await import("../whatsappService");
           loadExistingInstances().catch(e => console.error("[Server] Auto-load instances error:", e));
 
           // Campaign Scheduler
-          const { startScheduler } = await import("../campaignScheduler.ts");
+          const { startScheduler } = await import("../campaignScheduler");
           startScheduler();
           console.log("[Server] Scheduler started");
 
           // Campaign Send Worker
-          const { startCampaignSendWorker } = await import("../src/workers/campaign-send-worker.ts");
+          const { startCampaignSendWorker } = await import("../src/workers/campaign-send-worker");
           startCampaignSendWorker();
           console.log("[Server] Campaign Send Worker started");
 
           // Affiliate Link Worker
-          const { runWorker: startAffiliateWorker } = await import("../src/workers/affiliate-link-worker.ts");
+          const { runWorker: startAffiliateWorker } = await import("../src/workers/affiliate-link-worker");
           startAffiliateWorker();
           console.log("[Server] Affiliate Link Worker started");
         } catch (e) {
