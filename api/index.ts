@@ -1,7 +1,6 @@
 import "dotenv/config";
 import express from "express";
 import cookieParser from "cookie-parser";
-import { createServer as createViteServer } from "vite";
 import path from "path";
 
 // Import Routers
@@ -72,6 +71,7 @@ async function startServer() {
     // Vite middleware for development
     if (process.env.NODE_ENV !== "production") {
       console.log("[Server] Starting Vite in dev mode...");
+      const { createServer: createViteServer } = await import("vite");
       const vite = await createViteServer({
         server: { middlewareMode: true },
         appType: "spa",
