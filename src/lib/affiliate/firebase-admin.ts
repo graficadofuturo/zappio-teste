@@ -1,12 +1,9 @@
 import { initializeApp, applicationDefault, getApps, cert } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 import { getAuth } from 'firebase-admin/auth';
-import fs from 'fs';
-import path from 'path';
-
-const firebaseConfig = JSON.parse(
-  fs.readFileSync(path.resolve(process.cwd(), 'firebase-applet-config.json'), 'utf8')
-);
+import { createRequire } from 'module';
+const require = createRequire(import.meta.url);
+const firebaseConfig = require('../../../firebase-applet-config.json');
 
 let adminDb: any = null;
 let auth: any = null;
