@@ -1,0 +1,53 @@
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import ClientDashboardLayout from './components/layout/ClientDashboardLayout';
+import AdminDashboardLayout from './components/layout/AdminDashboardLayout';
+import Overview from './pages/Overview';
+import WhatsAppInstances from './pages/Instances';
+import Campaigns from './pages/Campaigns';
+import Integrations from './pages/Integrations';
+import Products from './pages/Products';
+import Subscription from './pages/Subscription';
+import AdminOverview from './pages/admin/AdminOverview';
+import { useState } from 'react';
+
+
+function App() {
+  const [isAdmin, setIsAdmin] = useState(true);
+  const [loading, setLoading] = useState(false);
+
+  return (
+    <Router>
+      <Routes>
+        {/* Root redirects straight to Overview (Dashboard) */}
+        <Route path="/" element={<Navigate to="/overview" replace />} />
+        
+        {/* Bypass login/register paths and redirect straight to Overview */}
+        <Route path="/auth/login" element={<Navigate to="/overview" replace />} />
+        <Route path="/auth/register" element={<Navigate to="/overview" replace />} />
+        <Route path="/pricing" element={<Navigate to="/overview" replace />} />
+
+        {/* Dashboard Routes */}
+        <Route element={<ClientDashboardLayout />}>
+          <Route path="/overview" element={<Overview />} />
+          <Route path="/instances" element={<WhatsAppInstances />} />
+          <Route path="/campaigns" element={<Campaigns />} />
+          <Route path="/integrations" element={<Integrations />} />
+          <Route path="/products" element={<Products />} />
+          <Route path="/subscription" element={<Subscription />} />
+          {/* Fallback to overview if user was at old dashboard route */}
+          <Route path="/dashboard/*" element={<Navigate to="/overview" replace />} />
+        </Route>
+        
+        {/* Admin Routes */}
+        <Route path="/admin" element={isAdmin ? <AdminDashboardLayout /> : <Navigate to="/overview" />}>
+          <Route index element={<AdminOverview />} />
+        </Route>
+
+        {/* Fallback for all other routes */}
+        <Route path="*" element={<Navigate to="/overview" replace />} />
+      </Routes>
+    </Router>
+  );
+}
+
+export default App;

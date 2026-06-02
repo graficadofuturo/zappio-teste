@@ -1,0 +1,270 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "A user profile",
+      "type": "object",
+      "properties": {
+        "is_admin": {
+          "type": "boolean"
+        },
+        "email": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "is_admin",
+        "email"
+      ]
+    },
+    "WhatsappInstance": {
+      "title": "WhatsApp Instance",
+      "description": "A connected WhatsApp instance",
+      "type": "object",
+      "properties": {
+        "user_id": {
+          "type": "string"
+        },
+        "instance_name": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        },
+        "phone_number": {
+          "type": "string"
+        },
+        "created_at": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "user_id",
+        "instance_name",
+        "status",
+        "phone_number"
+      ]
+    },
+    "WhatsappGroup": {
+      "title": "WhatsApp Contacts Group",
+      "description": "A group of contacts",
+      "type": "object",
+      "properties": {
+        "user_id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "user_id",
+        "name",
+        "type"
+      ]
+    },
+    "Campaign": {
+      "title": "Campaign",
+      "description": "An automated campaign",
+      "type": "object",
+      "properties": {
+        "user_id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "instance_id": {
+          "type": "string"
+        },
+        "target_group_id": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        },
+        "message_mode": {
+          "type": "string",
+          "enum": ["personalized", "automatic"]
+        },
+        "instruction_ia": {
+          "type": "string"
+        },
+        "image_url": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["draft", "scheduled", "sending", "sent", "failed", "paused"]
+        },
+        "trigger_type": {
+          "type": "string",
+          "enum": ["manual", "scheduled"]
+        },
+        "is_recurring": {
+          "type": "boolean"
+        },
+        "scheduled_days": {
+          "type": "array",
+          "items": { "type": "number" }
+        },
+        "scheduled_times": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "scheduled_dates": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "next_run": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "last_run": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "user_id",
+        "name",
+        "instance_id",
+        "target_group_id",
+        "message",
+        "status",
+        "trigger_type"
+      ]
+    },
+    "EcommerceKey": {
+      "title": "E-commerce Integration Key",
+      "description": "Credentials for affiliate integrations",
+      "type": "object",
+      "properties": {
+        "user_id": { "type": "string" },
+        "platform": { "type": "string" },
+        "status": { "type": "string" },
+        "api_key": { "type": "string" },
+        "api_secret": { "type": "string" },
+        "seller_id": { "type": "string" },
+        "ml_user_id": { "type": "string" },
+        "nickname": { "type": "string" },
+        "account_name": { "type": "string" },
+        "email": { "type": "string" },
+        "access_token": { "type": "string" },
+        "refresh_token": { "type": "string" },
+        "expires_in": { "type": "number" },
+        "token_expires_at": { "type": "string" },
+        "scope": { "type": "string" },
+        "site_id": { "type": "string" },
+        "permalink": { "type": "string" },
+        "connected_at": { "type": "string" },
+        "updated_at": { "type": "string" }
+      },
+      "required": [
+        "user_id",
+        "platform",
+        "status"
+      ]
+    },
+    "AffiliateOffer": {
+      "title": "Affiliate Offer",
+      "description": "An offer collected from marketplaces",
+      "type": "object",
+      "properties": {
+        "marketplace": { "type": "string" },
+        "category": { "type": "string" },
+        "product_id": { "type": "string" },
+        "product_name": { "type": "string" },
+        "product_image": { "type": "string" },
+        "product_price": { "type": "number" },
+        "product_old_price": { "type": "number" },
+        "product_discount": { "type": "string" },
+        "product_original_link": { "type": "string" },
+        "product_affiliate_link": { "type": "string" },
+        "status": { "type": "string" },
+        "source_url": { "type": "string" },
+        "collected_at": { "type": "string" },
+        "updated_at": { "type": "string" }
+      }
+    },
+    "CampaignProductHistory": {
+      "title": "Campaign Product History",
+      "description": "Records of products sent in campaigns",
+      "type": "object",
+      "properties": {
+        "campaign_id": { "type": "string" },
+        "offer_id": { "type": "string" },
+        "product_id": { "type": "string" },
+        "product_name": { "type": "string" },
+        "marketplace": { "type": "string" },
+        "category": { "type": "string" },
+        "product_image": { "type": "string" },
+        "product_original_link": { "type": "string" },
+        "product_affiliate_link": { "type": "string" },
+        "whatsapp_instance_id": { "type": "string" },
+        "recipient_id": { "type": "string" },
+        "sent_at": { "type": "string" },
+        "status": { "type": "string" }
+      }
+    },
+    "AffiliateLink": {
+      "title": "Affiliate Link",
+      "description": "A user-specific affiliate link for a product",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "marketplace": { "type": "string" },
+        "productUrl": { "type": "string" },
+        "affiliateUrl": { "type": "string" },
+        "source": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      }
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "#/entities/User",
+      "description": "User profiles"
+    },
+    "/offers/{offerId}/affiliateLinks/{uid}": {
+      "schema": "#/entities/AffiliateLink",
+      "description": "User-specific affiliate links for an offer"
+    },
+    "/whatsapp_instances/{instanceId}": {
+      "schema": "#/entities/WhatsappInstance",
+      "description": "User whatsapp instances"
+    },
+    "/whatsapp_contacts_groups/{groupId}": {
+      "schema": "#/entities/WhatsappGroup",
+      "description": "User contact groups"
+    },
+    "/campaigns/{campaignId}": {
+      "schema": "#/entities/Campaign",
+      "description": "User campaigns"
+    },
+    "/ecommerce_keys/{keyId}": {
+      "schema": "#/entities/EcommerceKey",
+      "description": "User integration keys"
+    },
+    "/affiliate_offers/{offerId}": {
+      "schema": "#/entities/AffiliateOffer",
+      "description": "Global affiliate offers"
+    },
+    "/campaign_product_history/{historyId}": {
+      "schema": "#/entities/CampaignProductHistory",
+      "description": "Send history"
+    }
+  }
+}
