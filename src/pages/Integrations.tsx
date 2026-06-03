@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { auth, db, GLOBAL_USER_ID } from '../lib/firebase.js';
 import { collection, query, where, getDocs, addDoc, updateDoc, doc, deleteDoc } from 'firebase/firestore';
 import { handleFirestoreError, OperationType } from '../lib/firestore-utils.js';
-import { ShoppingBag, Loader2, Sparkles, AlertCircle, Trash2, RefreshCw, ExternalLink, CheckCircle2, Settings, Zap, Link2, Package } from 'lucide-react';
+import { ShoppingBag, Loader2, Sparkles, AlertCircle, Trash2, RefreshCw, ExternalLink, CheckCircle2, Settings, Zap, Link2, Package, Download } from 'lucide-react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { fetchJson } from '../utils/apiUtils.js';
 
@@ -328,6 +328,46 @@ export default function Integrations() {
           <span>{message.text}</span>
         </div>
       )}
+
+      {/* Extension Sync Download Banner */}
+      <div style={{
+        background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.08) 0%, rgba(9, 9, 11, 0.4) 100%)',
+        border: '1px solid rgba(16, 185, 129, 0.25)',
+        borderRadius: 16,
+        padding: '20px 24px',
+        marginBottom: 24,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        flexWrap: 'wrap',
+        gap: 20
+      }}>
+        <div style={{ flex: 1, minWidth: 280 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+            <Zap size={20} style={{ color: 'var(--green)' }} />
+            <h3 style={{ fontFamily: 'Space Grotesk, sans-serif', fontSize: 16, fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>
+              Extensão Zappio ML Sync (Sincronização Automática)
+            </h3>
+          </div>
+          <p style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.6, margin: 0 }}>
+            Simplifique a sua operação e evite copiar cookies manualmente. Baixe a nossa extensão, faça login no Mercado Livre e sincronize seus cookies de afiliado instantaneamente com apenas um clique!
+          </p>
+          <div style={{ display: 'flex', gap: 16, marginTop: 12, fontSize: 11, color: 'var(--text-muted)' }}>
+            <span>1. Baixe o arquivo (.zip)</span>
+            <span>2. Extraia os arquivos</span>
+            <span>3. Carregue em Extensões no modo Desenvolvedor</span>
+          </div>
+        </div>
+        <a
+          href="/zappio-extension.zip"
+          download="zappio-extension.zip"
+          className="btn btn-primary"
+          style={{ padding: '12px 24px', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 8, flexShrink: 0 }}
+        >
+          <Download size={16} />
+          Download da Extensão
+        </a>
+      </div>
 
       {/* Cards Grid */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 20 }}>
