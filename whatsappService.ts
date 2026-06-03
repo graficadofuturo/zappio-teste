@@ -281,13 +281,43 @@ export async function disconnectWhatsApp(instanceId: string) {
 }
 
 export async function loadExistingInstances() {
-  const fs = await import('fs');
-  const dirs = fs.readdirSync('.');
-  const authDirs = dirs.filter(d => d.startsWith('baileys_auth_info_'));
-  for (const dir of authDirs) {
-    const instanceId = dir.replace('baileys_auth_info_', '');
-    console.log('[Auto-Load] Reconnecting instance:', instanceId);
-    connectWhatsApp(instanceId).catch(console.error);
+  try {
+    const { getAdminDb } = await import("./src/api/firebaseAdmin.js");
+    const db = getAdminDb();
+    console.log('[Auto-Load] Fetching active instances from Firestore...');
+    const snapshot = await db.collection('whatsapp_instances').get();
+    
+    const activeInstanceIds = new Set<string>();
+    
+    snapshot.forEach(doc => {
+      activeInstanceIds.add(doc.id);
+    });
+
+    console.log(`[Auto-Load] Found ${activeInstanceIds.size} instances in Firestore.`);
+
+    // 1. Reconnect only the active ones from Firestore
+    for (const instanceId of activeInstanceIds) {
+      console.log('[Auto-Load] Reconnecting instance:', instanceId);
+      connectWhatsApp(instanceId).catch(err => console.error(`[Auto-Load] Failed to connect instance ${instanceId}:`, err));
+    }
+
+    // 2. Clean up any stale local auth folders that are NOT in Firestore
+    const fs = await import('fs');
+    const dirs = fs.readdirSync('.');
+    const authDirs = dirs.filter(d => d.startsWith('baileys_auth_info_'));
+    for (const dir of authDirs) {
+      const instanceId = dir.replace('baileys_auth_info_', '');
+      if (!activeInstanceIds.has(instanceId)) {
+        console.log(`[Auto-Load] Cleaning up stale session directory on disk for deleted instance: ${instanceId}`);
+        try {
+          fs.rmSync(dir, { recursive: true, force: true });
+        } catch (e) {
+          console.error(`[Auto-Load] Failed to delete stale directory ${dir}:`, e);
+        }
+      }
+    }
+  } catch (error) {
+    console.error("[Auto-Load] Error during instance auto-load:", error);
   }
 }
 
