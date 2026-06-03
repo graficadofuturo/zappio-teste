@@ -29,6 +29,13 @@ export default async function handler(req, res) {
 
     console.log(`REPROCESS_ITEMS: Found ${offers.length} items to reprocess`);
 
+    // Sort by oldest updatedAt/collectedAt/fetchedAt first to cycle through all items on successive runs
+    offers.sort((a: any, b: any) => {
+      const timeA = new Date(a.updatedAt || a.collectedAt || a.fetchedAt || 0).getTime() || 0;
+      const timeB = new Date(b.updatedAt || b.collectedAt || b.fetchedAt || 0).getTime() || 0;
+      return timeA - timeB;
+    });
+
     let updated = 0;
     let removed = 0;
     const errors = [];

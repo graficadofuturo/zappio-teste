@@ -49,7 +49,7 @@ export default function Products() {
     setSyncing('reprocess');
     setSyncStatus(null);
     try {
-      const data = await fetchJson('/api/offers?action=reprocess', { method: 'POST' });
+      const data = await fetchJson(`/api/offers?action=reprocess&uid=${GLOBAL_USER_ID}`, { method: 'POST' });
       if (data.ok) {
         setSyncStatus({
           type: 'success',

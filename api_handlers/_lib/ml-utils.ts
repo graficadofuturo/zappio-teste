@@ -350,14 +350,38 @@ export async function saveOffers(offers: any[], uid: string | null = null) {
   return count;
 }
 
-export async function scrapeProductPage(url, defaultCategory, uid?: string | null) {
-  let finalUrl = url;
-  if (url.includes('click1.mercadolivre.com.br') || url.includes('/count') || url.includes('mclics/clicks')) {
+async function resolveRedirect(url: string): Promise<string> {
+  if (!url) return "";
+  if (!url.startsWith("http")) return url;
+  if (url.includes("produto.mercadolivre.com.br") || url.includes("www.mercadolivre.com.br/p/")) {
+    return url;
+  }
+  try {
+    const res = await fetch(url, { method: "HEAD", redirect: "follow" });
+    return res.url || url;
+  } catch (err) {
     try {
-      const redirRes = await fetch(url);
+      const res = await fetch(url, { method: "GET", redirect: "follow" });
+      return res.url || url;
+    } catch (e) {
+      return url;
+    }
+  }
+}
+
+export async function scrapeProductPage(url, defaultCategory, uid?: string | null) {
+  let resolvedUrl = url;
+  try {
+    resolvedUrl = await resolveRedirect(url);
+  } catch (e) {}
+
+  let finalUrl = resolvedUrl;
+  if (resolvedUrl.includes('click1.mercadolivre.com.br') || resolvedUrl.includes('/count') || resolvedUrl.includes('mclics/clicks')) {
+    try {
+      const redirRes = await fetch(resolvedUrl);
       if (redirRes.status >= 300 && redirRes.status < 400 && redirRes.headers.get('location')) {
          finalUrl = redirRes.headers.get('location');
-      } else if (redirRes.url && redirRes.url !== url) {
+      } else if (redirRes.url && redirRes.url !== resolvedUrl) {
          finalUrl = redirRes.url;
       }
     } catch (err) {}
