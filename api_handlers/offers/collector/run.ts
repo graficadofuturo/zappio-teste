@@ -1,5 +1,5 @@
-import { collectAutomated, saveOffers, convertToAffiliateLink } from "../../_lib/ml-utils";
-import { getAdminDb } from "../../_lib/firebase-admin";
+import { collectAutomated, saveOffers, convertToAffiliateLink } from "../../_lib/ml-utils.js";
+import { getAdminDb } from "../../_lib/firebase-admin.js";
 
 
 const CATEGORY_KEYWORDS: Record<string, string[]> = {

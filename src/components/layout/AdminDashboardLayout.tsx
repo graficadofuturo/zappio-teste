@@ -1,7 +1,7 @@
 import { Outlet, Link, useNavigate, useLocation } from 'react-router-dom';
-import { auth } from '../../lib/firebase';
+import { auth } from '../../lib/firebase.js';
 import { ShieldAlert, Users, LogOut, ArrowLeft } from 'lucide-react';
-import { cn } from '../../lib/utils';
+import { cn } from '../../lib/utils.js';
 
 export default function AdminDashboardLayout() {
   const navigate = useNavigate();

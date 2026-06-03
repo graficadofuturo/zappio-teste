@@ -1,10 +1,10 @@
 import { Outlet, Link, useNavigate, useLocation } from 'react-router-dom';
-import { auth } from '../../lib/firebase';
+import { auth } from '../../lib/firebase.js';
 import {
   LayoutDashboard, Smartphone, Megaphone, Link as LinkIcon,
   CreditCard, LogOut, ShoppingCart, Zap, Menu, Bell, X, ChevronRight
 } from 'lucide-react';
-import { cn } from '../../lib/utils';
+import { cn } from '../../lib/utils.js';
 import { useState } from 'react';
 
 const navItems = [

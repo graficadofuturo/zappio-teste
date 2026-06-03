@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
-import { auth, db, GLOBAL_USER_ID } from '../lib/firebase';
+import { auth, db, GLOBAL_USER_ID } from '../lib/firebase.js';
 import { collection, query, where, getDocs, addDoc, deleteDoc, doc, setDoc, serverTimestamp, orderBy, updateDoc } from 'firebase/firestore';
-import { handleFirestoreError, OperationType } from '../lib/firestore-utils';
+import { handleFirestoreError, OperationType } from '../lib/firestore-utils.js';
 import { QRCodeSVG } from 'qrcode.react';
 
 interface Instance {

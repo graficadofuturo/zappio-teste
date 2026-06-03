@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { collection, query, where, getDocs, addDoc, updateDoc, doc, serverTimestamp, onSnapshot } from 'firebase/firestore';
-import { db, auth, GLOBAL_USER_ID } from '../lib/firebase';
-import { MarketplaceDetector } from '../lib/affiliate/marketplace-detector';
+import { db, auth, GLOBAL_USER_ID } from '../lib/firebase.js';
+import { MarketplaceDetector } from '../lib/affiliate/marketplace-detector.js';
 import { Search, Link, Check, ExternalLink, RefreshCw } from 'lucide-react';
 
 export function AffiliateLinkResolverWidget({ campaign, onResolved }: { campaign: any, onResolved?: () => void }) {

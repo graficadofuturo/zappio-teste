@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
-import { auth, db, GLOBAL_USER_ID } from '../lib/firebase';
+import { auth, db, GLOBAL_USER_ID } from '../lib/firebase.js';
 import { collection, query, where, getDocs, addDoc, updateDoc, doc, deleteDoc } from 'firebase/firestore';
-import { handleFirestoreError, OperationType } from '../lib/firestore-utils';
+import { handleFirestoreError, OperationType } from '../lib/firestore-utils.js';
 import { ShoppingBag, Loader2, Sparkles, AlertCircle, Trash2, RefreshCw, ExternalLink, CheckCircle2, Settings, Zap, Link2, Package } from 'lucide-react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { fetchJson } from '../utils/apiUtils';
+import { fetchJson } from '../utils/apiUtils.js';
 
 export default function Integrations() {
   const [integrations, setIntegrations] = useState<any[]>([]);

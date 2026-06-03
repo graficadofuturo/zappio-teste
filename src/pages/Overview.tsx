@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
-import { auth, db, GLOBAL_USER_ID } from '../lib/firebase';
+import { auth, db, GLOBAL_USER_ID } from '../lib/firebase.js';
 import { collection, query, where, getDocs } from 'firebase/firestore';
-import { handleFirestoreError, OperationType } from '../lib/firestore-utils';
+import { handleFirestoreError, OperationType } from '../lib/firestore-utils.js';
 import { Calendar, MousePointerClick, Users, ShoppingCart, Tag, AlertCircle, TrendingUp, HelpCircle, Smartphone, Send, CheckCircle2, XCircle, Loader2, Zap, MessageSquare, DollarSign } from 'lucide-react';
 import { Link } from 'react-router-dom';
 

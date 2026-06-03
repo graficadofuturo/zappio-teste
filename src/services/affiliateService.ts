@@ -1,8 +1,8 @@
 import axios from 'axios';
 import { load } from 'cheerio';
 
-import { getAdminFirestore } from '../api/firebaseAdmin';
-import { convertMercadoLivreAffiliateLink } from '../lib/mercadolivre/mlService';
+import { getAdminFirestore } from '../api/firebaseAdmin.js';
+import { convertMercadoLivreAffiliateLink } from '../lib/mercadolivre/mlService.js';
 
 export type AffiliateLinkProvider = {
   name: string;

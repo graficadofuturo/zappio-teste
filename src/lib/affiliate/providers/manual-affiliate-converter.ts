@@ -1,4 +1,4 @@
-import { AffiliateLinkJob } from "../job-service";
+import { AffiliateLinkJob } from "../job-service.js";
 
 export class ManualAffiliateConverter {
   static convert(job: AffiliateLinkJob): { error_code: string; error_message: string } {

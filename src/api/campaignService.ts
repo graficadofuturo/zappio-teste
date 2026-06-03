@@ -102,7 +102,7 @@ export async function recordProductSent(db: any, campaignId: string, productId: 
   });
 }
 
-import { resolveAffiliateLinkForSending as resolveAffiliate } from '../services/affiliateService';
+import { resolveAffiliateLinkForSending as resolveAffiliate } from '../services/affiliateService.js';
 
 export async function resolveProductLinkForSending(db: any, product: any, userId: string, campaignId?: string): Promise<string> {
     const originalUrl = product.productUrl || product.url || product.permalink || product.product_original_link;
@@ -170,7 +170,7 @@ export async function applyAffiliateLinks(messageText: string, uid: string): Pro
     const matches = messageText.match(mlRegex);
     if (matches && matches.length > 0) {
         try {
-            const { convertToAffiliateLink } = await import('../../api_handlers/_lib/ml-utils');
+            const { convertToAffiliateLink } = await import('../../api_handlers/_lib/ml-utils.js');
             for (const mlUrl of matches) {
                 const shortUrl = await convertToAffiliateLink(mlUrl, uid);
                 if (shortUrl && shortUrl.includes('meli.la')) {

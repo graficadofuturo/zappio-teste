@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { getAdminDb, removeUndefinedDeep } from "../firebaseAdmin";
+import { getAdminDb, removeUndefinedDeep } from "../firebaseAdmin.js";
 
 const router = Router();
 

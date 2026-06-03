@@ -1,6 +1,6 @@
-import { adminDb } from './firebase-admin';
-import { MarketplaceDetector } from './marketplace-detector';
-import { convertURLWithFirestoreCredentials } from './ml-affiliate-service';
+import { adminDb } from './firebase-admin.js';
+import { MarketplaceDetector } from './marketplace-detector.js';
+import { convertURLWithFirestoreCredentials } from './ml-affiliate-service.js';
 
 export interface ResolveAffiliateInput {
   originalUrl: string;

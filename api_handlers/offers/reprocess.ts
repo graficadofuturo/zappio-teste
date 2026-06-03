@@ -1,5 +1,5 @@
-import { getAdminDb } from "../_lib/firebase-admin";
-import { scrapeProductPage, saveOffers } from "../_lib/ml-utils";
+import { getAdminDb } from "../_lib/firebase-admin.js";
+import { scrapeProductPage, saveOffers } from "../_lib/ml-utils.js";
 
 export default async function handler(req, res) {
   res.setHeader("Content-Type", "application/json; charset=utf-8");

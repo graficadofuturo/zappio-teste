@@ -1,4 +1,4 @@
-import { adminDb } from "./firebase-admin";
+import { adminDb } from "./firebase-admin.js";
 
 export interface LogEntry {
   jobId: string;

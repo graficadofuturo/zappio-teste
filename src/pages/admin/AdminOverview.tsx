@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
-import { db } from '../../lib/firebase';
+import { db } from '../../lib/firebase.js';
 import { collection, getCountFromServer } from 'firebase/firestore';
 import { ShieldCheck, Users, HardDrive } from 'lucide-react';
-import { handleFirestoreError, OperationType } from '../../lib/firestore-utils';
+import { handleFirestoreError, OperationType } from '../../lib/firestore-utils.js';
 
 export default function AdminOverview() {
   const [usersCount, setUsersCount] = useState(0);

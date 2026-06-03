@@ -6,7 +6,7 @@ import {
   listAffiliateLinkJobs,
   retryAffiliateLinkJob,
   saveManualAffiliateUrl
-} from "./actions";
+} from "./actions.js";
 
 export default function AffiliateLinksPage() {
   const [jobs, setJobs] = useState<any[]>([]);

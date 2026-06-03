@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react';
-import { auth, db, GLOBAL_USER_ID } from '../lib/firebase';
+import { auth, db, GLOBAL_USER_ID } from '../lib/firebase.js';
 import { updateDoc, doc } from 'firebase/firestore';
-import { handleFirestoreError, OperationType } from '../lib/firestore-utils';
+import { handleFirestoreError, OperationType } from '../lib/firestore-utils.js';
 import { Loader2, Package, Link as LinkIcon, RefreshCw, AlertCircle, Search, PlusCircle, CheckCircle2, Wand2, Info, Sparkles } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { simplifyProductTitle } from '../lib/productUtils';
-import { fetchJson } from '../utils/apiUtils';
+import { simplifyProductTitle } from '../lib/productUtils.js';
+import { fetchJson } from '../utils/apiUtils.js';
 
 export default function Products() {
   const [products, setProducts] = useState<any[]>([]);

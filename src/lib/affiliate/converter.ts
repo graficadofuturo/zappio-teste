@@ -1,7 +1,7 @@
-import { AffiliateLinkJob, AffiliateLinkJobService } from "./job-service";
-import { PlaywrightAffiliateConverter } from "./providers/playwright-affiliate-converter";
-import { ManualAffiliateConverter } from "./providers/manual-affiliate-converter";
-import { UrlValidator } from "./url-validator";
+import { AffiliateLinkJob, AffiliateLinkJobService } from "./job-service.js";
+import { PlaywrightAffiliateConverter } from "./providers/playwright-affiliate-converter.js";
+import { ManualAffiliateConverter } from "./providers/manual-affiliate-converter.js";
+import { UrlValidator } from "./url-validator.js";
 
 export class AffiliateLinkConverter {
   static async processJob(job: AffiliateLinkJob) {

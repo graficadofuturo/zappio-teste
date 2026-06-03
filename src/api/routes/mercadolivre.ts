@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { getAdminDb, removeUndefinedDeep } from "../firebaseAdmin";
+import { getAdminDb, removeUndefinedDeep } from "../firebaseAdmin.js";
 import crypto from "crypto";
 
 const router = Router();
@@ -554,8 +554,8 @@ router.post('/create-affiliate-link', async (req, res) => {
       return res.status(400).json({ error: 'Missing uid or url', fallback: url });
     }
 
-    const { getAdminDb } = await import('../firebaseAdmin');
-    const { createAffiliateLinkFromFirestore } = await import('../../../api_handlers/_lib/ml-utils');
+    const { getAdminDb } = await import('../firebaseAdmin.js');
+    const { createAffiliateLinkFromFirestore } = await import('../../../api_handlers/_lib/ml-utils.js');
     
     const db = getAdminDb();
     const result = await createAffiliateLinkFromFirestore(url, uid, db);
@@ -665,7 +665,7 @@ router.post("/sync", async (req, res) => {
   try {
     const { integrationId } = req.body;
     const { syncMLProducts } =
-      await import("../../lib/mercadolivre/mlService");
+      await import("../../lib/mercadolivre/mlService.js");
     const count = await syncMLProducts(integrationId);
     res.json({ success: true, count });
   } catch (e: any) {
@@ -682,7 +682,7 @@ router.post('/convert-affiliate', async (req, res) => {
     }
 
     const db = getAdminDb();
-    const { convertURLWithFirestoreCredentials } = await import('../../lib/affiliate/ml-affiliate-service');
+    const { convertURLWithFirestoreCredentials } = await import('../../lib/affiliate/ml-affiliate-service.js');
     const result = await convertURLWithFirestoreCredentials(url, uid, db);
 
     return res.json({

@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { getAdminDb } from '../firebaseAdmin';
+import { getAdminDb } from '../firebaseAdmin.js';
 import crypto from 'crypto';
 
 const router = Router();

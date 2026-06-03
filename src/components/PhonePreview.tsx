@@ -1,7 +1,7 @@
-import { cn } from '../lib/utils';
+import { cn } from '../lib/utils.js';
 import { ShieldCheck, MoreVertical, Paperclip, Send, Camera, ArrowLeft, Phone, Video, Smile, Mic, Lock } from 'lucide-react';
-import { simplifyProductTitle } from '../lib/productUtils';
-import { renderOfferMessage } from '../utils/messageFormatter';
+import { simplifyProductTitle } from '../lib/productUtils.js';
+import { renderOfferMessage } from '../utils/messageFormatter.js';
 
 interface PhonePreviewProps {
   message: string;

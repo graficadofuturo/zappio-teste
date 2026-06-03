@@ -1,14 +1,14 @@
 import { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { auth, db, GLOBAL_USER_ID } from '../lib/firebase';
+import { auth, db, GLOBAL_USER_ID } from '../lib/firebase.js';
 import { collection, query, where, getDocs, addDoc, onSnapshot, serverTimestamp, orderBy, deleteDoc, doc, updateDoc, limit } from 'firebase/firestore';
-import { handleFirestoreError, OperationType } from '../lib/firestore-utils';
-import PhonePreview from '../components/PhonePreview';
+import { handleFirestoreError, OperationType } from '../lib/firestore-utils.js';
+import PhonePreview from '../components/PhonePreview.js';
 import { Send, Bot, Loader2, Sparkles, Image as ImageIcon, Plus, Trash2, Calendar, Megaphone, Edit2, Clock, CheckCircle2, AlertCircle, Play, Pause, ChevronDown, ChevronUp, Copy, Wand2, Type, Zap, BookOpen, Quote } from 'lucide-react';
-import { fetchWithTimeout, fetchJson } from '../utils/apiUtils';
-import { renderOfferMessage } from '../utils/messageFormatter';
-import { normalizeTarget } from '../utils/targetUtils';
-import { AffiliateLinkResolverWidget } from '../components/AffiliateLinkResolverWidget';
+import { fetchWithTimeout, fetchJson } from '../utils/apiUtils.js';
+import { renderOfferMessage } from '../utils/messageFormatter.js';
+import { normalizeTarget } from '../utils/targetUtils.js';
+import { AffiliateLinkResolverWidget } from '../components/AffiliateLinkResolverWidget.js';
 
 export default function Campaigns() {
   const location = useLocation();

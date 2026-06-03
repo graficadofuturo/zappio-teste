@@ -1,5 +1,5 @@
 import "dotenv/config";
-import { getAdminFirestore, removeUndefinedDeep } from "./src/api/firebaseAdmin";
+import { getAdminFirestore, removeUndefinedDeep } from "./src/api/firebaseAdmin.js";
 
 async function run() {
   try {

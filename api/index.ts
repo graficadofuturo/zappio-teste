@@ -4,26 +4,26 @@ import cookieParser from "cookie-parser";
 import path from "path";
 
 // Import Vercel handlers from renamed folder statically to ensure Vercel bundles them
-import offersHandler from "../api_handlers/offers_handler";
-import mlHandler from "../api_handlers/mercadolivre_handler";
+import offersHandler from "../api_handlers/offers_handler.js";
+import mlHandler from "../api_handlers/mercadolivre_handler.js";
 
-import collectorRunHandler from "../api_handlers/offers/collector/run";
-import collectorCheckHandler from "../api_handlers/cron/collect-offers";
-import collectorStatusHandler from "../api_handlers/offers/collector/status";
-import offersListHandler from "../api_handlers/offers/list";
-import offersDebugHandler from "../api_handlers/offers/debug";
+import collectorRunHandler from "../api_handlers/offers/collector/run.js";
+import collectorCheckHandler from "../api_handlers/cron/collect-offers.js";
+import collectorStatusHandler from "../api_handlers/offers/collector/status.js";
+import offersListHandler from "../api_handlers/offers/list.js";
+import offersDebugHandler from "../api_handlers/offers/debug.js";
 
 // Import Routers dynamically inside startServer or statically
-import shopeeRouter from "../src/api/routes/shopee";
-import aiRoutes from "../src/api/routes/ai";
-import whatsappRoutes from "../src/api/routes/whatsapp";
-import mercadolivreRoutes from "../src/api/routes/mercadolivre";
-import productRoutes from "../src/api/routes/products";
-import webhookRoutes from "../src/api/routes/webhooks";
-import campaignRoutes from "../src/api/routes/campaigns";
-import subscriptionRoutes from "../src/api/routes/subscriptions";
-import integrationsRouter from "../src/api/routes/integrations";
-import offersRouter from "../src/api/routes/offers";
+import shopeeRouter from "../src/api/routes/shopee.js";
+import aiRoutes from "../src/api/routes/ai.js";
+import whatsappRoutes from "../src/api/routes/whatsapp.js";
+import mercadolivreRoutes from "../src/api/routes/mercadolivre.js";
+import productRoutes from "../src/api/routes/products.js";
+import webhookRoutes from "../src/api/routes/webhooks.js";
+import campaignRoutes from "../src/api/routes/campaigns.js";
+import subscriptionRoutes from "../src/api/routes/subscriptions.js";
+import integrationsRouter from "../src/api/routes/integrations.js";
+import offersRouter from "../src/api/routes/offers.js";
 
 async function startServer() {
   try {
@@ -90,21 +90,21 @@ async function startServer() {
         console.log(`[Server] Web server listening on port ${PORT}`);
         
         try {
-          const { loadExistingInstances } = await import("../whatsappService");
+          const { loadExistingInstances } = await import("../whatsappService.js");
           loadExistingInstances().catch(e => console.error("[Server] Auto-load instances error:", e));
 
           // Campaign Scheduler
-          const { startScheduler } = await import("../campaignScheduler");
+          const { startScheduler } = await import("../campaignScheduler.js");
           startScheduler();
           console.log("[Server] Scheduler started");
 
           // Campaign Send Worker
-          const { startCampaignSendWorker } = await import("../src/workers/campaign-send-worker");
+          const { startCampaignSendWorker } = await import("../src/workers/campaign-send-worker.js");
           startCampaignSendWorker();
           console.log("[Server] Campaign Send Worker started");
 
           // Affiliate Link Worker
-          const { runWorker: startAffiliateWorker } = await import("../src/workers/affiliate-link-worker");
+          const { runWorker: startAffiliateWorker } = await import("../src/workers/affiliate-link-worker.js");
           startAffiliateWorker();
           console.log("[Server] Affiliate Link Worker started");
         } catch (e) {
@@ -121,7 +121,7 @@ async function startServer() {
   } catch (error: any) {
     console.error("[Server] Critical startup error:", error);
     try {
-      const { getAdminDb } = await import("../src/api/firebaseAdmin");
+      const { getAdminDb } = await import("../src/api/firebaseAdmin.js");
       const db = getAdminDb();
       await db.collection("vercel_startup_errors").add({
         error: error.message || String(error),

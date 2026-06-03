@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { auth, db } from '../../lib/firebase';
+import { auth, db } from '../../lib/firebase.js';
 import { createUserWithEmailAndPassword, signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
 import { doc, setDoc, getDoc } from 'firebase/firestore';
 import { useNavigate, Link } from 'react-router-dom';

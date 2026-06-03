@@ -1,5 +1,5 @@
 import { chromium, BrowserContext, Page } from "playwright";
-import { AffiliateLinkJob } from "../job-service";
+import { AffiliateLinkJob } from "../job-service.js";
 import path from "path";
 
 export class PlaywrightAffiliateConverter {

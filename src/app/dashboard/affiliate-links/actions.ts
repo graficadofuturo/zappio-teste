@@ -1,7 +1,7 @@
-import { auth, db } from "../../../lib/firebase";
+import { auth, db } from "../../../lib/firebase.js";
 import { collection, addDoc, updateDoc, doc, getDoc, getDocs, query, where, orderBy, serverTimestamp } from "firebase/firestore";
-import { MarketplaceDetector } from "../../../lib/affiliate/marketplace-detector";
-import { UrlValidator } from "../../../lib/affiliate/url-validator";
+import { MarketplaceDetector } from "../../../lib/affiliate/marketplace-detector.js";
+import { UrlValidator } from "../../../lib/affiliate/url-validator.js";
 
 export async function createAffiliateLinkJob(originalUrl: string) {
   try {

@@ -1,4 +1,4 @@
-import { getAdminDb } from "../../_lib/firebase-admin";
+import { getAdminDb } from "../../_lib/firebase-admin.js";
 
 export default async function handler(req, res) {
   res.setHeader("Content-Type", "application/json; charset=utf-8");

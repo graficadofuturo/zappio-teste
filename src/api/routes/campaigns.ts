@@ -1,8 +1,8 @@
 import { Router } from "express";
-import { getAdminDb } from "../firebaseAdmin";
-import { getRandomKeyword, CAMPAIGN_CATEGORIES, getNextProductForCampaign, recordProductSent, resolveProductLinkForSending } from "../campaignService";
+import { getAdminDb } from "../firebaseAdmin.js";
+import { getRandomKeyword, CAMPAIGN_CATEGORIES, getNextProductForCampaign, recordProductSent, resolveProductLinkForSending } from "../campaignService.js";
 import { GoogleGenAI } from "@google/genai";
-import { simplifyProductTitle } from "../../lib/productUtils";
+import { simplifyProductTitle } from "../../lib/productUtils.js";
 
 const router = Router();
 
@@ -110,7 +110,7 @@ router.post("/prepare-message", async (req, res) => {
 
       
       // Render message using shared utility
-      const { renderOfferMessage } = await import('../../utils/messageFormatter');
+      const { renderOfferMessage } = await import('../../utils/messageFormatter.js');
       finalMessage = renderOfferMessage(template, product);
 
       console.log("SEND_NOW_RENDERED_MESSAGE", finalMessage);
@@ -119,7 +119,7 @@ router.post("/prepare-message", async (req, res) => {
       finalMessage = finalMessage.replace(/{{[^{}]+}}/g, '');
     }
 
-    const { validateCampaignLinksBeforeSending, replaceOriginalLinksWithAffiliateLinks } = await import('../../lib/affiliate/affiliate-resolver');
+    const { validateCampaignLinksBeforeSending, replaceOriginalLinksWithAffiliateLinks } = await import('../../lib/affiliate/affiliate-resolver.js');
     
     const validationResult = await validateCampaignLinksBeforeSending(finalMessage, userId, campaignId);
     
@@ -196,7 +196,7 @@ router.get("/:id/preview-offer", async (req, res) => {
         let affiliatePending = false;
         
         if (typeof userId === 'string') {
-            const { resolveAffiliateLinkForSending } = await import('../../lib/affiliate/affiliate-resolver');
+            const { resolveAffiliateLinkForSending } = await import('../../lib/affiliate/affiliate-resolver.js');
             const result = await resolveAffiliateLinkForSending({
                 originalUrl: prodData.productUrl || finalProductLink,
                 provider: prodData.marketplace || 'unknown',

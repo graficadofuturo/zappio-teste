@@ -1,7 +1,7 @@
-import { adminDb } from "./firebase-admin";
-import { MarketplaceDetector } from "./marketplace-detector";
-import { AffiliateLinkLogger } from "./logger";
-import { UrlValidator } from "./url-validator";
+import { adminDb } from "./firebase-admin.js";
+import { MarketplaceDetector } from "./marketplace-detector.js";
+import { AffiliateLinkLogger } from "./logger.js";
+import { UrlValidator } from "./url-validator.js";
 
 export type AffiliateJobStatus = "pending" | "processing" | "success" | "failed" | "needs_manual_action";
 

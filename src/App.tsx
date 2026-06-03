@@ -1,13 +1,13 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import ClientDashboardLayout from './components/layout/ClientDashboardLayout';
-import AdminDashboardLayout from './components/layout/AdminDashboardLayout';
-import Overview from './pages/Overview';
-import WhatsAppInstances from './pages/Instances';
-import Campaigns from './pages/Campaigns';
-import Integrations from './pages/Integrations';
-import Products from './pages/Products';
-import Subscription from './pages/Subscription';
-import AdminOverview from './pages/admin/AdminOverview';
+import ClientDashboardLayout from './components/layout/ClientDashboardLayout.js';
+import AdminDashboardLayout from './components/layout/AdminDashboardLayout.js';
+import Overview from './pages/Overview.js';
+import WhatsAppInstances from './pages/Instances.js';
+import Campaigns from './pages/Campaigns.js';
+import Integrations from './pages/Integrations.js';
+import Products from './pages/Products.js';
+import Subscription from './pages/Subscription.js';
+import AdminOverview from './pages/admin/AdminOverview.js';
 import { useState } from 'react';
 
 

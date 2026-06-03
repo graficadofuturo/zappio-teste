@@ -1,10 +1,10 @@
 import { initializeApp, cert, getApps } from 'firebase-admin/app';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import fs from 'fs';
-import { sendMessage } from './whatsappService';
-import { resolveProductLinkForSending } from './src/api/campaignService';
-import { convertToAffiliateLink } from './api_handlers/_lib/ml-utils';
-import { validateCampaignLinksBeforeSending, replaceOriginalLinksWithAffiliateLinks, resolveCampaignMessageBeforeSending } from './src/lib/affiliate/affiliate-resolver';
+import { sendMessage } from './whatsappService.js';
+import { resolveProductLinkForSending } from './src/api/campaignService.js';
+import { convertToAffiliateLink } from './api_handlers/_lib/ml-utils.js';
+import { validateCampaignLinksBeforeSending, replaceOriginalLinksWithAffiliateLinks, resolveCampaignMessageBeforeSending } from './src/lib/affiliate/affiliate-resolver.js';
 
 
 let db: any;

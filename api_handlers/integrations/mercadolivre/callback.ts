@@ -1,4 +1,4 @@
-import { getAdminDb } from "../../_lib/firebase-admin";
+import { getAdminDb } from "../../_lib/firebase-admin.js";
 
 export default async function handler(req, res) {
   const APP_BASE_URL = process.env.APP_BASE_URL || process.env.NEXT_PUBLIC_APP_URL || "https://zappio-teste.vercel.app";

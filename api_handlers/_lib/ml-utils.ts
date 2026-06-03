@@ -1,5 +1,5 @@
 import * as cheerio from 'cheerio';
-import { getAdminDb } from './firebase-admin';
+import { getAdminDb } from './firebase-admin.js';
 import axios from 'axios';
 
 // --- Affiliate Regex Extraction ---
