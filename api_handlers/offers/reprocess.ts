@@ -47,20 +47,17 @@ export default async function handler(req, res) {
     const errors = [];
     const enrichedBatch = [];
 
-    // Process in small sequential batches or one by one to avoid rate limiting/timeout
-    // For simplicity and safety in this environment, we'll do them one by one but limit the total to avoid long runs
-    const maxToProcess = 30; 
+    const maxToProcess = 30;
     const toProcess = offers.slice(0, maxToProcess);
 
-    for (const offer of toProcess) {
+    // Process in parallel to prevent Vercel serverless function timeouts (10s limit)
+    await Promise.all(toProcess.map(async (offer) => {
       const url = offer.productUrl || offer.url || offer.permalink;
       
       if (!url) {
         console.warn(`REPROCESS_SKIPPING: No URL for document ${offer.id}`);
-        // Optional: remove if no URL
-        // await db.collection("offer_bank").doc(offer.id).delete();
         removed++;
-        continue;
+        return;
       }
 
       try {
@@ -73,13 +70,12 @@ export default async function handler(req, res) {
           updated++;
         } else {
           console.warn(`REPROCESS_FAILED: Could not enrich ${url}`);
-          // If we can't scrape, at least we tried. We don't remove unless it's a 404 perhaps.
         }
-      } catch (err) {
+      } catch (err: any) {
         console.error(`REPROCESS_ERROR: ${url}`, err.message);
         errors.push({ id: offer.id, url, error: err.message });
       }
-    }
+    }));
 
     if (enrichedBatch.length > 0) {
       await saveOffers(enrichedBatch, uid);
