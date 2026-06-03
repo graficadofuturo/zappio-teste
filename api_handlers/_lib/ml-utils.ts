@@ -190,17 +190,11 @@ export function extractAffiliateTag(htmlOrScript) {
 
 export function cleanCookies(cookieString: string): string {
   if (!cookieString) return "";
-  const allowedKeys = [
-    'ssid',
-    '_csrf',
-    'orguserid',
-    'orguseridp',
-    'orgnickp',
-    'x-meli-session-id',
-    '_d2id',
-    'cookiesPreferencesLogged',
-    'cookiesPreferencesLoggedFallback',
-    'nsa_rotok'
+  const blacklistedKeys = [
+    '_ga', '_gcl_au', '_gcl_aw', '_gcl_gs', '_gid',
+    '_pin_unauth', '_derived_epik', '_ttp', '_tt_enable_cookie',
+    'cto_bundle', '__rtbh.uid', '__rtbh.lid', '_uetsid', '_uetvid',
+    'g_state'
   ];
   return cookieString
     .split(';')
@@ -208,7 +202,11 @@ export function cleanCookies(cookieString: string): string {
     .filter(c => {
       const parts = c.split('=');
       const name = parts[0] ? parts[0].trim() : '';
-      return allowedKeys.includes(name);
+      if (!name) return false;
+      if (blacklistedKeys.includes(name)) return false;
+      if (name.startsWith('_hj')) return false; // Hotjar
+      if (name.startsWith('ttcsid')) return false; // TikTok
+      return true;
     })
     .join('; ');
 }
@@ -349,8 +347,13 @@ export async function createAffiliateLinkFromFirestore(url, uid, db) {
     const csrfMatch = cleanedCookie.match(/(?:^|;)\s*_csrf=([^;]+)/);
     const csrfToken = csrfMatch ? csrfMatch[1] : 'sNEauQE4--r3JZa8_x1blVKCw8Srjb7syJ9U';
 
-    const endpoint = affiliateCreateEndpoint || "https://www.mercadolivre.com.br/afiliados/linkbuilder/api/create";
+    const endpoint = affiliateCreateEndpoint || "https://www.mercadolivre.com.br/origin-navigation/api/affiliate-program/affiliate/createLink";
     console.log(`[ML-UTILS] attemptRequest using endpoint: ${endpoint}`);
+
+    const isOriginEndpoint = endpoint.includes("origin-navigation");
+    const requestBody = isOriginEndpoint 
+      ? { url: targetUrl, tag: affiliateTag }
+      : { url: targetUrl, tag: affiliateTag, _csrf: csrfToken };
 
     return fetch(endpoint, {
        method: "POST",
@@ -365,11 +368,7 @@ export async function createAffiliateLinkFromFirestore(url, uid, db) {
          "x-csrf": csrfToken,
          "x-requested-with": "XMLHttpRequest"
        },
-       body: JSON.stringify({
-         url: targetUrl,
-         tag: affiliateTag,
-         _csrf: csrfToken
-       })
+       body: JSON.stringify(requestBody)
     });
   };
 

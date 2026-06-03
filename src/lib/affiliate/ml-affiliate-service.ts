@@ -93,17 +93,11 @@ function getCookieValue(cookieString: string, name: string): string | null {
 
 export function cleanCookies(cookieString: string): string {
   if (!cookieString) return "";
-  const allowedKeys = [
-    'ssid',
-    '_csrf',
-    'orguserid',
-    'orguseridp',
-    'orgnickp',
-    'x-meli-session-id',
-    '_d2id',
-    'cookiesPreferencesLogged',
-    'cookiesPreferencesLoggedFallback',
-    'nsa_rotok'
+  const blacklistedKeys = [
+    '_ga', '_gcl_au', '_gcl_aw', '_gcl_gs', '_gid',
+    '_pin_unauth', '_derived_epik', '_ttp', '_tt_enable_cookie',
+    'cto_bundle', '__rtbh.uid', '__rtbh.lid', '_uetsid', '_uetvid',
+    'g_state'
   ];
   return cookieString
     .split(';')
@@ -111,7 +105,11 @@ export function cleanCookies(cookieString: string): string {
     .filter(c => {
       const parts = c.split('=');
       const name = parts[0] ? parts[0].trim() : '';
-      return allowedKeys.includes(name);
+      if (!name) return false;
+      if (blacklistedKeys.includes(name)) return false;
+      if (name.startsWith('_hj')) return false; // Hotjar
+      if (name.startsWith('ttcsid')) return false; // TikTok
+      return true;
     })
     .join('; ');
 }
@@ -190,7 +188,7 @@ async function convertMLWithCookie(
   }, { merge: true });
 
   // 2. POST to Link Builder API to shorten link
-  const createEndpoint = 'https://www.mercadolivre.com.br/afiliados/linkbuilder/api/create';
+  const createEndpoint = 'https://www.mercadolivre.com.br/origin-navigation/api/affiliate-program/affiliate/createLink';
   const csrfToken = metaCsrfToken || getCookieValue(updatedCookie, "_csrf") || "";
   
   const postHeaders: Record<string, string> = {
@@ -215,8 +213,7 @@ async function convertMLWithCookie(
       headers: postHeaders,
       body: JSON.stringify({
         url: cleanProductUrl,
-        tag: userTag,
-        _csrf: csrfToken
+        tag: userTag
       }),
       signal: AbortSignal.timeout(10000)
     });
