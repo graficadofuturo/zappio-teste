@@ -1,6 +1,7 @@
 import makeWASocket, { DisconnectReason, useMultiFileAuthState, fetchLatestBaileysVersion } from '@whiskeysockets/baileys';
 import Pino from 'pino';
 import NodeCache from 'node-cache';
+import fs from 'fs';
 
 // Mute known noisy libsignal/Baileys errors that are handled internally by retries
 if (!(console as any).__libsignalSuppressed) {
@@ -30,6 +31,19 @@ async function saveStatusToFirestore(instanceId: string, data: Record<string, an
     }, { merge: true });
   } catch (e) {
     console.error("[WA-SERVICE] Failed to save status to Firestore:", e);
+  }
+}
+
+// Helper: clear auth credentials directory
+function clearAuthDir(instanceId: string) {
+  const dir = `baileys_auth_info_${instanceId}`;
+  try {
+    if (fs.existsSync(dir)) {
+      fs.rmSync(dir, { recursive: true, force: true });
+      console.log(`[Instance ${instanceId}] Cleared invalid/logged out credentials directory.`);
+    }
+  } catch (e) {
+    console.error(`[Instance ${instanceId}] Failed to clear credentials directory:`, e);
   }
 }
 
@@ -177,6 +191,7 @@ export async function connectWhatsApp(instanceId: string) {
           const current = instanceStatus.get(instanceId) || { status: 'initializing' };
           instanceStatus.set(instanceId, { ...current, status: 'disconnected' });
           await saveStatusToFirestore(instanceId, { wa_status: 'disconnected', wa_qr: null, status: 'disconnected' });
+          clearAuthDir(instanceId);
         }
       } else if (connection === 'open') {
         console.log(`[Instance ${instanceId}] Connected!`);
@@ -250,10 +265,11 @@ export async function disconnectWhatsApp(instanceId: string) {
       await sock.logout();
     } catch (e) {}
     instances.delete(instanceId);
-    const cur = instanceStatus.get(instanceId) || { status: 'disconnected' };
-    instanceStatus.set(instanceId, { ...cur, status: 'disconnected' });
-    await saveStatusToFirestore(instanceId, { wa_status: 'disconnected', wa_qr: null, status: 'disconnected' });
   }
+  const cur = instanceStatus.get(instanceId) || { status: 'disconnected' };
+  instanceStatus.set(instanceId, { ...cur, status: 'disconnected' });
+  await saveStatusToFirestore(instanceId, { wa_status: 'disconnected', wa_qr: null, status: 'disconnected' });
+  clearAuthDir(instanceId);
 }
 
 export async function loadExistingInstances() {

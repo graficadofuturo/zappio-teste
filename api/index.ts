@@ -32,6 +32,10 @@ async function startServer() {
 
     app.use(express.json());
     app.use(cookieParser());
+    app.use((req, res, next) => {
+      console.log(`[HTTP] ${req.method} ${req.url}`, req.method === 'POST' ? req.body : '');
+      next();
+    });
     
     console.log("[Server] Middleware initialized");
 
