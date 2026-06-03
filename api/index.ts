@@ -3,29 +3,6 @@ import express from "express";
 import cookieParser from "cookie-parser";
 import path from "path";
 
-// Import Routers
-import aiRoutes from "../src/api/routes/ai";
-import whatsappRoutes from "../src/api/routes/whatsapp";
-import mercadolivreRoutes from "../src/api/routes/mercadolivre";
-import productRoutes from "../src/api/routes/products";
-import webhookRoutes from "../src/api/routes/webhooks";
-import campaignRoutes from "../src/api/routes/campaigns";
-import subscriptionRoutes from "../src/api/routes/subscriptions";
-
-import shopeeRouter from "../src/api/routes/shopee";
-import integrationsRouter from "../src/api/routes/integrations";
-import offersRouter from "../src/api/routes/offers";
-
-// Import Vercel handlers from renamed folder
-import offersHandler from "../api_handlers/offers";
-import mlHandler from "../api_handlers/mercadolivre";
-
-import collectorRunHandler from "../api_handlers/offers/collector/run";
-import collectorCheckHandler from "../api_handlers/cron/collect-offers";
-import collectorStatusHandler from "../api_handlers/offers/collector/status";
-import offersListHandler from "../api_handlers/offers/list";
-import offersDebugHandler from "../api_handlers/offers/debug";
-
 async function startServer() {
   try {
     const app = express();
@@ -42,7 +19,16 @@ async function startServer() {
       res.json({ key: process.env.GEMINI_API_KEY ? "Set" : "Not Set" });
     });
 
-    // Mount Vercel-style API Routes directly
+    // Mount Vercel-style API Routes dynamically
+    const offersHandler = (await import("../api_handlers/offers")).default;
+    const mlHandler = (await import("../api_handlers/mercadolivre")).default;
+    
+    const collectorRunHandler = (await import("../api_handlers/offers/collector/run")).default;
+    const collectorCheckHandler = (await import("../api_handlers/cron/collect-offers")).default;
+    const collectorStatusHandler = (await import("../api_handlers/offers/collector/status")).default;
+    const offersListHandler = (await import("../api_handlers/offers/list")).default;
+    const offersDebugHandler = (await import("../api_handlers/offers/debug")).default;
+
     app.all("/api/offers", offersHandler);
     app.all("/api/mercadolivre", mlHandler);
     
@@ -52,8 +38,19 @@ async function startServer() {
     app.all("/api/offers/list", offersListHandler);
     app.all("/api/offers/debug", offersDebugHandler);
 
-    // Mount API Routes
+    // Mount API Routes dynamically
     console.log("[Server] Mounting routes...");
+    const shopeeRouter = (await import("../src/api/routes/shopee")).default;
+    const aiRoutes = (await import("../src/api/routes/ai")).default;
+    const whatsappRoutes = (await import("../src/api/routes/whatsapp")).default;
+    const mercadolivreRoutes = (await import("../src/api/routes/mercadolivre")).default;
+    const productRoutes = (await import("../src/api/routes/products")).default;
+    const webhookRoutes = (await import("../src/api/routes/webhooks")).default;
+    const campaignRoutes = (await import("../src/api/routes/campaigns")).default;
+    const subscriptionRoutes = (await import("../src/api/routes/subscriptions")).default;
+    const integrationsRouter = (await import("../src/api/routes/integrations")).default;
+    const offersRouter = (await import("../src/api/routes/offers")).default;
+
     app.use("/api/shopee", shopeeRouter);
     app.use("/api/ai", aiRoutes);
     app.use("/api/whatsapp", whatsappRoutes);
@@ -119,9 +116,31 @@ async function startServer() {
     }
     
     return app;
-  } catch (error) {
+  } catch (error: any) {
     console.error("[Server] Critical startup error:", error);
-    process.exit(1);
+    try {
+      const { getAdminDb } = await import("../src/api/firebaseAdmin");
+      const db = getAdminDb();
+      await db.collection("vercel_startup_errors").add({
+        error: error.message || String(error),
+        stack: error.stack || null,
+        timestamp: new Date().toISOString()
+      });
+      console.log("[Server] Error logged to Firestore successfully.");
+    } catch (logErr) {
+      console.error("[Server] Failed to log error to Firestore:", logErr);
+    }
+    
+    const errorApp = express();
+    errorApp.all("*", (req, res) => {
+      res.status(500).json({
+        ok: false,
+        error: "CRITICAL_STARTUP_ERROR",
+        details: error.message || String(error),
+        stack: error.stack || null
+      });
+    });
+    return errorApp;
   }
 }
 
