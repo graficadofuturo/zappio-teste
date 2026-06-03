@@ -1,9 +1,18 @@
 import { initializeApp, applicationDefault, getApps, cert } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 import { getAuth } from 'firebase-admin/auth';
-import { createRequire } from 'module';
-const require = createRequire(import.meta.url);
-const firebaseConfig = require('../../../firebase-applet-config.json');
+import fs from 'fs';
+import path from 'path';
+
+let firebaseConfig: any = {};
+try {
+  const cwdPath = path.resolve(process.cwd(), 'firebase-applet-config.json');
+  if (fs.existsSync(cwdPath)) {
+    firebaseConfig = JSON.parse(fs.readFileSync(cwdPath, 'utf8'));
+  }
+} catch (err: any) {
+  console.warn('[Firebase Admin Config] Could not load config:', err.message);
+}
 
 let adminDb: any = null;
 let auth: any = null;
@@ -32,7 +41,7 @@ if (credential) {
   if (!(getApps() || []).length) {
     initializeApp({
       credential,
-      projectId: firebaseConfig.projectId,
+      projectId: firebaseConfig.projectId || 'zappio-2a8af',
     });
   }
 
