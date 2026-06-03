@@ -7,7 +7,8 @@ export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
 export const auth = {
   currentUser: {
     email: 'convidado@zappio.com.br',
-    isAnonymous: true
+    isAnonymous: true,
+    uid: 'default_user'
   },
   signOut: async () => {}
 } as any;
