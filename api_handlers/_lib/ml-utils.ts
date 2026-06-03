@@ -541,6 +541,19 @@ export async function scrapeProductPage(url, defaultCategory, uid?: string | nul
     } catch (err) {}
   }
   url = finalUrl;
+  
+  // Extract variation ID from URL
+  let variationId: string | null = null;
+  try {
+    const parsedUrl = new URL(url);
+    variationId = parsedUrl.searchParams.get('searchVariation') || parsedUrl.searchParams.get('variation');
+  } catch (e) {
+    const matchVar = url.match(/[?&](searchVariation|variation)=(\d+)/);
+    if (matchVar) {
+      variationId = matchVar[2];
+    }
+  }
+
   const match = url.match(/MLB[-]?\d+/i);
   if (!match) return null;
   const id = match[0].replace('-', '');
@@ -561,36 +574,57 @@ export async function scrapeProductPage(url, defaultCategory, uid?: string | nul
     if (item && item.price) {
       let price = Number(item.price);
       let originalPrice = item.original_price ? Number(item.original_price) : (item.base_price ? Number(item.base_price) : null);
-        if (originalPrice && price > originalPrice) {
-          [price, originalPrice] = [originalPrice, price];
+      
+      // Override with variation price if variationId is present and found
+      if (variationId && Array.isArray(item.variations) && item.variations.length > 0) {
+        const matchedVar = item.variations.find((v: any) => String(v.id) === variationId);
+        if (matchedVar) {
+          console.log(`[SCRAPER] Found matched variation ${variationId}. Price: ${matchedVar.price}`);
+          if (matchedVar.price !== undefined && matchedVar.price !== null) {
+            price = Number(matchedVar.price);
+          }
+          if (matchedVar.original_price !== undefined && matchedVar.original_price !== null) {
+            originalPrice = Number(matchedVar.original_price);
+          } else if (matchedVar.base_price !== undefined && matchedVar.base_price !== null) {
+            originalPrice = Number(matchedVar.base_price);
+          } else {
+            originalPrice = null;
+          }
+        } else {
+          console.warn(`[SCRAPER] Variation ID ${variationId} was specified but not found in item.variations`);
         }
-        if (originalPrice !== null && originalPrice <= price) {
-          originalPrice = null;
-        }
-        let discountPercent = null;
-        if (originalPrice && price && originalPrice > price) {
-          discountPercent = Math.round(((originalPrice - price) / originalPrice) * 100);
-        }
-        const fullTitle = (item.title || '').trim();
-        const shortTitle = simplifyProductTitle(fullTitle);
-
-        return {
-          id: item.id,
-          productId: item.id,
-          title: shortTitle,
-          titleShort: shortTitle,
-          titleOriginal: fullTitle,
-          price: price,
-          originalPrice: originalPrice,
-          discountPercent: discountPercent,
-          hasDiscount: !!(originalPrice && originalPrice > price),
-          imageUrl: item.pictures && item.pictures.length > 0 ? item.pictures[0].url : item.thumbnail,
-          productUrl: item.permalink,
-          category: normalizeOfferCategory(defaultCategory, item.title, 'Geral'),
-          marketplace: 'mercadolivre',
-          updatedAt: new Date().toISOString()
-        };
       }
+
+      if (originalPrice && price > originalPrice) {
+        [price, originalPrice] = [originalPrice, price];
+      }
+      if (originalPrice !== null && originalPrice <= price) {
+        originalPrice = null;
+      }
+      let discountPercent = null;
+      if (originalPrice && price && originalPrice > price) {
+        discountPercent = Math.round(((originalPrice - price) / originalPrice) * 100);
+      }
+      const fullTitle = (item.title || '').trim();
+      const shortTitle = simplifyProductTitle(fullTitle);
+
+      return {
+        id: item.id,
+        productId: item.id,
+        title: shortTitle,
+        titleShort: shortTitle,
+        titleOriginal: fullTitle,
+        price: price,
+        originalPrice: originalPrice,
+        discountPercent: discountPercent,
+        hasDiscount: !!(originalPrice && originalPrice > price),
+        imageUrl: item.pictures && item.pictures.length > 0 ? item.pictures[0].url : item.thumbnail,
+        productUrl: item.permalink,
+        category: normalizeOfferCategory(defaultCategory, item.title, 'Geral'),
+        marketplace: 'mercadolivre',
+        updatedAt: new Date().toISOString()
+      };
+    }
   } catch (apiErr: any) {
     console.warn(`[SCRAPER] API method failed for ${id}:`, apiErr.message);
   }
