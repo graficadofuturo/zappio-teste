@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Zappio Sync",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Sincroniza automaticamente seus cookies de afiliado do Mercado Livre e do AliExpress com o painel do Zappio.",
   "permissions": [
     "cookies",
@@ -13,6 +13,9 @@
     "http://localhost:3000/*",
     "https://zappio-teste.vercel.app/*"
   ],
+  "background": {
+    "service_worker": "background.js"
+  },
   "action": {
     "default_popup": "popup.html",
     "default_icon": "icon.png"
