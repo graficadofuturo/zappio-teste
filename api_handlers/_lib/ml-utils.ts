@@ -431,6 +431,11 @@ export async function collectAutomated(keyword: string, category?: string | null
           discountPercent = Math.round(((originalPrice - price) / originalPrice) * 100);
         }
         
+        let isLightningDeal = false;
+        if (Array.isArray(item.tags) && (item.tags.includes('lightning_deal') || item.tags.includes('deal_of_the_day'))) {
+          isLightningDeal = true;
+        }
+
         const fullTitle = (item.title || '').trim();
         const shortTitle = simplifyProductTitle(fullTitle);
 
@@ -444,6 +449,7 @@ export async function collectAutomated(keyword: string, category?: string | null
           originalPrice: originalPrice,
           discountPercent: discountPercent,
           hasDiscount: !!(originalPrice && originalPrice > price),
+          isLightningDeal: isLightningDeal,
           imageUrl: item.thumbnail ? item.thumbnail.replace('-I.jpg', '-O.jpg') : null,
           productUrl: item.permalink,
           category: normalizeOfferCategory(category, item.title, 'Geral'),
@@ -629,6 +635,12 @@ export async function scrapeProductPage(url, defaultCategory, uid?: string | nul
       if (originalPrice && price && originalPrice > price) {
         discountPercent = Math.round(((originalPrice - price) / originalPrice) * 100);
       }
+
+      let isLightningDeal = false;
+      if (Array.isArray(item.tags) && (item.tags.includes('lightning_deal') || item.tags.includes('deal_of_the_day'))) {
+        isLightningDeal = true;
+      }
+
       const fullTitle = (item.title || '').trim();
       const shortTitle = simplifyProductTitle(fullTitle);
 
@@ -642,6 +654,7 @@ export async function scrapeProductPage(url, defaultCategory, uid?: string | nul
         originalPrice: originalPrice,
         discountPercent: discountPercent,
         hasDiscount: !!(originalPrice && originalPrice > price),
+        isLightningDeal: isLightningDeal,
         imageUrl: item.pictures && item.pictures.length > 0 ? item.pictures[0].url : item.thumbnail,
         productUrl: item.permalink,
         category: normalizeOfferCategory(defaultCategory, item.title, 'Geral'),
@@ -769,6 +782,18 @@ export async function scrapeProductPage(url, defaultCategory, uid?: string | nul
          }
     }
 
+    let isLightningDeal = false;
+    const bodyText = $('body').text();
+    const lightningContainer = $('.ui-pdp-promotions-pill, .ui-pdp-color--LIGHTNING_DEAL, [class*="lightning"]');
+    if (lightningContainer.length && lightningContainer.text().toUpperCase().includes("OFERTA RELÂMPAGO")) {
+      isLightningDeal = true;
+    } else if (bodyText.toUpperCase().includes("OFERTA RELÂMPAGO")) {
+      const topText = $('html').html()?.substring(0, 40000) || "";
+      if (topText.toUpperCase().includes("OFERTA RELÂMPAGO")) {
+        isLightningDeal = true;
+      }
+    }
+
     if (title && price > 0) {
       const fullTitle = title.trim();
       const shortTitle = simplifyProductTitle(fullTitle);
@@ -783,6 +808,7 @@ export async function scrapeProductPage(url, defaultCategory, uid?: string | nul
         originalPrice: originalPrice,
         discountPercent: discountPercent,
         hasDiscount: !!(originalPrice && originalPrice > price),
+        isLightningDeal: isLightningDeal,
         imageUrl: imageUrl || null,
         productUrl: url,
         category: normalizeOfferCategory(defaultCategory, title, 'Geral'),

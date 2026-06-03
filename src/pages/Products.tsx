@@ -355,6 +355,21 @@ export default function Products() {
                       color: 'var(--yellow)'
                     }}>ML</span>
                   )}
+                  {product.isLightningDeal && (
+                    <span style={{
+                      position: 'absolute',
+                      top: 10,
+                      left: 45,
+                      background: 'rgba(255, 153, 0, 0.25)',
+                      border: '1px solid rgba(255, 153, 0, 0.4)',
+                      borderRadius: 6,
+                      padding: '2px 8px',
+                      fontSize: 10,
+                      fontWeight: 800,
+                      color: '#ffa500',
+                      boxShadow: '0 0 8px rgba(255, 153, 0, 0.2)'
+                    }}>⚡ RELÂMPAGO</span>
+                  )}
                 </div>
 
                 {/* Product Info */}
