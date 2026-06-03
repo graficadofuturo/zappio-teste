@@ -264,9 +264,14 @@ export async function createAffiliateLinkFromFirestore(url, uid, db) {
     } catch (err) {}
   }
 
+  const isCatalog = finalUrl.toLowerCase().includes('/p/mlb');
   const match = finalUrl.match(/MLB[-_]?(\d+)/i);
   if (match) {
-     targetUrl = 'https://produto.mercadolivre.com.br/MLB-' + match[1];
+     if (isCatalog) {
+       targetUrl = 'https://www.mercadolivre.com.br/p/MLB' + match[1];
+     } else {
+       targetUrl = 'https://produto.mercadolivre.com.br/MLB-' + match[1];
+     }
      try {
        const parsedUrl = new URL(finalUrl);
        const searchParams = new URLSearchParams();

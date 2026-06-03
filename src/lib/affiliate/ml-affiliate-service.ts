@@ -319,7 +319,10 @@ export async function convertURLWithFirestoreCredentials(
     
     if (itemId && affiliateTag) {
       const cleanItemId = itemId.replace('MLB', '');
-      const deeplink = `https://produto.mercadolivre.com.br/MLB-${cleanItemId}?affiliate_id=${affiliateTag}`;
+      const isCatalog = productUrl.toLowerCase().includes('/p/mlb');
+      const deeplink = isCatalog
+        ? `https://www.mercadolivre.com.br/p/MLB${cleanItemId}?affiliate_id=${affiliateTag}`
+        : `https://produto.mercadolivre.com.br/MLB-${cleanItemId}?affiliate_id=${affiliateTag}`;
       return {
         ok: true,
         affiliateUrl: deeplink,
