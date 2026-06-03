@@ -225,7 +225,7 @@ export default function Products() {
         />
         <select value={filterCategory} onChange={e => setFilterCategory(e.target.value)} className="form-input form-select" style={{ width: 180 }}>
           <option value="">Todas categorias</option>
-          {['Tecnologia', 'Casa e Cozinha', 'Beleza e Saúde', 'Moda', 'Ferramentas', 'Automotivo', 'Brinquedos', 'Esporte', 'Geral'].map(c => (
+          {['Smartphones', 'Eletrônicos', 'Moda e Acessórios', 'Geral'].map(c => (
             <option key={c} value={c}>{c}</option>
           ))}
         </select>

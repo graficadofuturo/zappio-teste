@@ -149,17 +149,20 @@ export default async function handler(req, res) {
       Object.entries(rawPayload).filter(([_, value]) => value !== undefined)
     );
 
+    payload.uid = userId;
+
     const db = getAdminDb();
     const docPath = "marketplace_integrations/mercadolivre";
-    const docRef = db.doc(docPath);
+    const userDocPath = `users/${userId}/integrations/mercadolivre`;
 
-    console.log("ML_CALLBACK_SAVE_PATH", docPath);
+    console.log("ML_CALLBACK_SAVE_PATHS", { docPath, userDocPath });
     console.log("ML_CALLBACK_SAVE_PAYLOAD_KEYS", Object.keys(payload));
 
     try {
-      await docRef.set(payload);
+      await db.doc(docPath).set(payload);
+      await db.doc(userDocPath).set(payload);
       console.log("ML_CALLBACK_SAVE_OK", true);
-    } catch (saveError) {
+    } catch (saveError: any) {
       console.error("ML_CALLBACK_ERROR_FULL", {
         step: "firestore_save",
         message: saveError?.message,
@@ -170,7 +173,7 @@ export default async function handler(req, res) {
     }
 
     try {
-      const verifySnap = await docRef.get();
+      const verifySnap = await db.doc(docPath).get();
       console.log("ML_CALLBACK_VERIFY_EXISTS", verifySnap.exists);
 
       if (verifySnap.exists && verifySnap.data()?.connected === true) {
@@ -178,7 +181,7 @@ export default async function handler(req, res) {
       } else {
          return res.redirect(`${APP_BASE_URL}/integrations?mercadolivre=save_error&reason=verify_failed`);
       }
-    } catch (verifyError) {
+    } catch (verifyError: any) {
        console.error("ML_CALLBACK_ERROR_FULL", {
         step: "firestore_verify",
         message: verifyError?.message,

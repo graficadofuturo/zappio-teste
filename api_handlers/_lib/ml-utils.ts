@@ -3,27 +3,128 @@ import { getAdminDb } from './firebase-admin.js';
 import axios from 'axios';
 import { simplifyProductTitle } from '../../src/lib/productUtils.js';
 
+// Helper to refresh a token and save it to Firestore
+async function refreshAccessTokenIfExpired(
+  docPath: string,
+  mlData: any
+): Promise<string | null> {
+  const clientId = process.env.ML_CLIENT_ID;
+  const clientSecret = process.env.ML_CLIENT_SECRET;
+
+  if (!clientId || !clientSecret) {
+    console.warn(`[ML-UTILS] Missing ML_CLIENT_ID or ML_CLIENT_SECRET, cannot refresh token.`);
+    return mlData.accessToken; // return current token as fallback
+  }
+
+  const refreshToken = mlData.refreshToken;
+  if (!refreshToken || refreshToken.startsWith('mock')) {
+    console.warn(`[ML-UTILS] No valid refresh token for ${docPath}.`);
+    return mlData.accessToken;
+  }
+
+  // Check if it's actually expired.
+  // expiresIn is in seconds (normally 21600 = 6 hours).
+  const connectedAtMs = mlData.connectedAt ? new Date(mlData.connectedAt).getTime() : new Date(mlData.updatedAt || Date.now()).getTime();
+  const expiresInMs = (mlData.expiresIn || 21600) * 1000;
+  const bufferMs = 15 * 60 * 1000; // 15 minutes buffer
+  const now = Date.now();
+
+  const isExpired = (now - connectedAtMs) >= (expiresInMs - bufferMs);
+  if (!isExpired) {
+    // Token is still valid, return it
+    return mlData.accessToken;
+  }
+
+  console.log(`[ML-UTILS] Token for ${docPath} is expired or expiring soon. Refreshing...`);
+
+  try {
+    const params = new URLSearchParams({
+      grant_type: 'refresh_token',
+      client_id: clientId,
+      client_secret: clientSecret,
+      refresh_token: refreshToken
+    });
+
+    const response = await fetch('https://api.mercadolibre.com/oauth/token', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Accept': 'application/json'
+      },
+      body: params.toString()
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      console.error(`[ML-UTILS] Failed to refresh token for ${docPath}:`, errText);
+      return mlData.accessToken; // return current as fallback
+    }
+
+    const tokenData = await response.json();
+    console.log(`[ML-UTILS] Token refreshed successfully for ${docPath}! Expires in:`, tokenData.expires_in);
+
+    const db = getAdminDb();
+    const updatedFields = {
+      accessToken: tokenData.access_token,
+      refreshToken: tokenData.refresh_token || refreshToken, // fallback to old one if not returned
+      expiresIn: tokenData.expires_in,
+      updatedAt: new Date().toISOString(),
+      connectedAt: new Date().toISOString(), // update connection timestamp
+    };
+
+    await db.doc(docPath).set(updatedFields, { merge: true });
+
+    // If it was a user document, and we also have a global document, let's sync them to avoid mismatch!
+    if (docPath.startsWith('users/')) {
+      await db.doc('marketplace_integrations/mercadolivre').set(updatedFields, { merge: true });
+    } else if (docPath === 'marketplace_integrations/mercadolivre') {
+      // If we refreshed the global one, let's also sync to users/default_user or the stored uid if present
+      const uid = mlData.uid || 'default_user';
+      await db.doc(`users/${uid}/integrations/mercadolivre`).set(updatedFields, { merge: true });
+    }
+
+    return tokenData.access_token;
+  } catch (err: any) {
+    console.error(`[ML-UTILS] Error refreshing token for ${docPath}:`, err.message);
+    return mlData.accessToken;
+  }
+}
+
 async function getMlAccessToken(uid?: string | null): Promise<string | null> {
   const db = getAdminDb();
   if (uid) {
-    const mlSnap = await db.doc(`users/${uid}/integrations/mercadolivre`).get();
+    const docPath = `users/${uid}/integrations/mercadolivre`;
+    const mlSnap = await db.doc(docPath).get();
     if (mlSnap.exists) {
       const mlData = mlSnap.data();
       if (mlData && mlData.connected && mlData.accessToken && !mlData.accessToken.startsWith('mock')) {
-        return mlData.accessToken;
+        return refreshAccessTokenIfExpired(docPath, mlData);
       }
     }
   }
   
+  // Try global path
+  try {
+    const docPath = `marketplace_integrations/mercadolivre`;
+    const globalSnap = await db.doc(docPath).get();
+    if (globalSnap.exists) {
+      const mlData = globalSnap.data();
+      if (mlData && mlData.connected && mlData.accessToken && !mlData.accessToken.startsWith('mock')) {
+        return refreshAccessTokenIfExpired(docPath, mlData);
+      }
+    }
+  } catch (e) {}
+
   // Fallback: search for any connected integration with a real access token
   try {
     const usersSnap = await db.collection("users").get();
     for (const doc of usersSnap.docs) {
-       const mlSnap = await db.doc(`users/${doc.id}/integrations/mercadolivre`).get();
+       const docPath = `users/${doc.id}/integrations/mercadolivre`;
+       const mlSnap = await db.doc(docPath).get();
        if (mlSnap.exists) {
           const mlData = mlSnap.data();
           if (mlData && mlData.connected && mlData.accessToken && !mlData.accessToken.startsWith('mock')) {
-             return mlData.accessToken;
+             return refreshAccessTokenIfExpired(docPath, mlData);
           }
        }
     }
@@ -42,6 +143,17 @@ async function getMlCookies(uid?: string | null): Promise<string | null> {
       }
     }
   }
+
+  // Try global path
+  try {
+    const globalSnap = await db.doc("marketplace_integrations/mercadolivre").get();
+    if (globalSnap.exists) {
+      const mlData = globalSnap.data();
+      if (mlData && (mlData.affiliateCookie || mlData.cookie)) {
+        return mlData.affiliateCookie || mlData.cookie;
+      }
+    }
+  } catch (e) {}
   
   // Fallback: search for any user with cookies
   try {
@@ -328,22 +440,36 @@ export async function saveOffers(offers: any[], uid: string | null = null) {
 
   // If uid not provided, try to find an active integration
   if (!uid) {
-    const usersSnap = await db.collection("users").get();
-    for (const doc of usersSnap.docs) {
-       const data = doc.data();
-       if (data.mlAffiliateCookies && data.mlAffiliateTag) {
-          uid = doc.id;
-          break;
-       }
-       const mlSnap = await db.doc(`users/${doc.id}/integrations/mercadolivre`).get();
-       if (mlSnap.exists) {
-          const mlData = mlSnap.data();
-          if ((mlData.affiliateCookie || mlData.cookie) && (mlData.affiliateTag || mlData.userTag)) {
-             uid = doc.id;
-             break;
-          }
-       }
-    }
+    try {
+      const globalSnap = await db.doc("marketplace_integrations/mercadolivre").get();
+      if (globalSnap.exists) {
+        const mlData = globalSnap.data();
+        if (mlData && mlData.connected && (mlData.affiliateCookie || mlData.cookie) && (mlData.affiliateTag || mlData.userTag)) {
+          uid = mlData.uid || 'default_user';
+        }
+      }
+    } catch (e) {}
+  }
+
+  if (!uid) {
+    try {
+      const usersSnap = await db.collection("users").get();
+      for (const doc of usersSnap.docs) {
+         const data = doc.data();
+         if (data.mlAffiliateCookies && data.mlAffiliateTag) {
+            uid = doc.id;
+            break;
+         }
+         const mlSnap = await db.doc(`users/${doc.id}/integrations/mercadolivre`).get();
+         if (mlSnap.exists) {
+            const mlData = mlSnap.data();
+            if ((mlData.affiliateCookie || mlData.cookie) && (mlData.affiliateTag || mlData.userTag)) {
+               uid = doc.id;
+               break;
+            }
+         }
+      }
+    } catch (e) {}
   }
 
   if (uid) {
@@ -481,8 +607,7 @@ export async function scrapeProductPage(url, defaultCategory, uid?: string | nul
     if (cookies) {
       headers["Cookie"] = cookies;
     }
-    const htmlUrl = `https://www.mercadolivre.com.br/p/${id}`;
-    const res = await axios.get(htmlUrl, { headers });
+    const res = await axios.get(url, { headers });
     const html = res.data;
     const $ = cheerio.load(html);
 
@@ -563,7 +688,7 @@ export async function scrapeProductPage(url, defaultCategory, uid?: string | nul
         discountPercent: discountPercent,
         hasDiscount: !!(originalPrice && originalPrice > price),
         imageUrl: imageUrl || null,
-        productUrl: htmlUrl,
+        productUrl: url,
         category: normalizeOfferCategory(defaultCategory, title, 'Geral'),
         marketplace: 'mercadolivre',
         updatedAt: new Date().toISOString()

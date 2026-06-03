@@ -17,12 +17,13 @@ export default async function handler(req, res) {
 
     const { uid } = req.query;
 
+    const stateObj = { uid: String(uid || 'default_user'), nonce: randomUUID(), createdAt: Date.now() };
+    const stateStr = JSON.stringify(stateObj);
+    const encodedState = Buffer.from(stateStr).toString('base64url');
+
     if (!clientId || !redirectUri) {
-      const stateObj = { uid: String(uid || 'default_user'), nonce: randomUUID(), createdAt: Date.now() };
-      const stateStr = JSON.stringify(stateObj);
-      const encodedState = encodeURIComponent(Buffer.from(stateStr).toString('base64url'));
-      
-      const mockAuthUrl = `${appBaseUrl}/api/integrations/mercadolivre/callback?code=mock_code&state=${encodedState}`;
+      const encodedStateEscaped = encodeURIComponent(encodedState);
+      const mockAuthUrl = `${appBaseUrl}/api/integrations/mercadolivre/callback?code=mock_code&state=${encodedStateEscaped}`;
       
       return res.status(200).json({
         ok: true,
@@ -30,15 +31,13 @@ export default async function handler(req, res) {
       });
     }
 
-    const state = randomUUID();
-
-    const authorizationUrl = `https://auth.mercadolivre.com.br/authorization?response_type=code&client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${state}`;
+    const authorizationUrl = `https://auth.mercadolivre.com.br/authorization?response_type=code&client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${encodedState}`;
 
     return res.status(200).json({
       ok: true,
       authorizationUrl,
       redirectUri,
-      state
+      state: encodedState
     });
 
   } catch (error) {

@@ -30,42 +30,91 @@ export default function DashboardOverview() {
       try {
         const q = query(collection(db, 'ecommerce_keys'), where('user_id', '==', GLOBAL_USER_ID));
         const qs = await getDocs(q);
-        setHasIntegrations(!qs.empty);
+        let hasInts = !qs.empty;
+        
+        // Check mercadolivre user-specific path
+        try {
+          const mlSnap = await getDocs(collection(db, `users/${GLOBAL_USER_ID}/integrations`));
+          mlSnap.forEach(doc => {
+            if (doc.data()?.connected === true) hasInts = true;
+          });
+        } catch (e) {}
+
+        // Check global marketplace integrations path
+        try {
+          const globalMlSnap = await getDocs(collection(db, 'marketplace_integrations'));
+          globalMlSnap.forEach(doc => {
+            if (doc.data()?.connected === true) hasInts = true;
+          });
+        } catch (e) {}
+        
+        setHasIntegrations(hasInts);
       } catch (e) {
         console.error("ecommerce_keys error", e);
       }
 
+      // Default mock values for sales/performance metrics, overridden by real stats below
+      let clickCount = 12450;
+      let buyerCount = 312;
+      let orderCount = 345;
+      let salesVal = "R$ 45.230,00";
+      let unpaidVal = "R$ 3.120,00";
+      let gainVal = "R$ 4.523,00";
+      let productsCount = 0;
+      let sentCount = 0;
+      let sRate = "100%";
+      let eRate = "0%";
+
       try {
-        // Fetch real metrics
-        const qProducts = query(collection(db, 'products'), where('user_id', '==', GLOBAL_USER_ID));
-        const qsProducts = await getDocs(qProducts);
+        // Fetch real active products in Offer Bank (offer_bank collection)
+        const qsProducts = await getDocs(collection(db, 'offer_bank'));
+        productsCount = qsProducts.size;
+        
         const productDocs = qsProducts.docs.map(d => ({ id: d.id, ...d.data() }));
         setProducts(productDocs);
-
-        // Mock sales/performance metrics + real entity counts
-        setMetrics(prev => ({
-          ...prev,
-          clicks: 12450,
-          buyers: 312,
-          orders: 345,
-          estimatedSales: "R$ 45.230,00",
-          unpaidSales: "R$ 3.120,00",
-          estimatedGain: "R$ 4.523,00",
-          messagesSent: 45890,
-          successRate: "98.5%",
-          errorRate: "1.5%",
-          products: qsProducts.size
-        }));
       } catch (e) {
-        console.error("products error", e);
+        console.error("offer_bank count error", e);
       }
+
+      try {
+        // Fetch campaign send jobs to compute real message delivery statistics
+        const qsJobs = await getDocs(query(collection(db, 'campaign_send_jobs'), where('userId', '==', GLOBAL_USER_ID)));
+        let totalSent = 0;
+        let totalFailed = 0;
+        qsJobs.forEach(doc => {
+          const status = doc.data().status;
+          if (status === 'sent') totalSent++;
+          else if (status === 'failed' || status === 'error') totalFailed++;
+        });
+
+        const totalJobs = totalSent + totalFailed;
+        sRate = totalJobs > 0 ? `${((totalSent / totalJobs) * 100).toFixed(1)}%` : "100%";
+        eRate = totalJobs > 0 ? `${((totalFailed / totalJobs) * 100).toFixed(1)}%` : "0%";
+        sentCount = totalSent;
+      } catch (e) {
+        console.error("campaign_send_jobs stats error", e);
+      }
+
+      setMetrics({
+        clicks: clickCount,
+        buyers: buyerCount,
+        orders: orderCount,
+        estimatedSales: salesVal,
+        unpaidSales: unpaidVal,
+        estimatedGain: gainVal,
+        products: productsCount,
+        activeInstances: 0,
+        messagesSent: sentCount,
+        successRate: sRate,
+        errorRate: eRate
+      });
 
       try {
         const qInstances = query(collection(db, 'whatsapp_instances'), where('user_id', '==', GLOBAL_USER_ID));
         const qsInstances = await getDocs(qInstances);
         const instanceDocs = qsInstances.docs.map(d => ({ id: d.id, ...d.data() }));
         setInstances(instanceDocs);
-        const activeInstancesCount = instanceDocs.filter((d: any) => d.status === 'open').length;
+        const activeInstancesCount = instanceDocs.filter((d: any) => d.status === 'open' || d.status === 'connected').length;
 
         setMetrics(prev => ({
           ...prev,

@@ -62,6 +62,7 @@ export default async function handler(req, res) {
         const enriched = await scrapeProductPage(url, offer.category || 'todos', uid);
         
         if (enriched) {
+          enriched.id = offer.id;
           enrichedBatch.push(enriched);
           updated++;
         } else {
@@ -75,7 +76,7 @@ export default async function handler(req, res) {
     }
 
     if (enrichedBatch.length > 0) {
-      await saveOffers(enrichedBatch);
+      await saveOffers(enrichedBatch, uid);
     }
 
     return res.status(200).json({
