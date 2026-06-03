@@ -1,5 +1,5 @@
 import { getAdminDb } from "./_lib/firebase-admin.js";
-import { collectAutomated, saveOffers } from "./_lib/ml-utils.js";
+import { collectAutomated, saveOffers, getMlAccessToken } from "./_lib/ml-utils.js";
 
 export default async function handler(req, res) {
   res.setHeader("Content-Type", "application/json; charset=utf-8");
@@ -12,6 +12,14 @@ export default async function handler(req, res) {
   try {
     if (action === 'status') {
       if (!uid) return res.status(400).json({ ok: false, error: "UID_REQUIRED" });
+
+      // Proactively check token status and refresh if expired (handling invalid grant gracefully)
+      try {
+        await getMlAccessToken(uid);
+      } catch (err: any) {
+        console.error("[STATUS] Error pre-refreshing token:", err.message);
+      }
+
       const db = getAdminDb();
       let doc = await db.doc(`users/${uid}/integrations/mercadolivre`).get();
       

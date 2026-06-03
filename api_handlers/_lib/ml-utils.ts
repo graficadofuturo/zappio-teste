@@ -3,6 +3,14 @@ import { getAdminDb } from './firebase-admin.js';
 import axios from 'axios';
 import { simplifyProductTitle } from '../../src/lib/productUtils.js';
 
+function parseDateToMs(val: any): number {
+  if (!val) return Date.now();
+  if (typeof val.toDate === 'function') return val.toDate().getTime();
+  if (typeof val === 'string' || typeof val === 'number') return new Date(val).getTime();
+  if (val instanceof Date) return val.getTime();
+  return Date.now();
+}
+
 // Helper to refresh a token and save it to Firestore
 async function refreshAccessTokenIfExpired(
   docPath: string,
@@ -11,25 +19,60 @@ async function refreshAccessTokenIfExpired(
   const clientId = process.env.ML_CLIENT_ID;
   const clientSecret = process.env.ML_CLIENT_SECRET;
 
-  if (!clientId || !clientSecret) {
-    console.warn(`[ML-UTILS] Missing ML_CLIENT_ID or ML_CLIENT_SECRET, cannot refresh token.`);
-    return mlData.accessToken; // return current token as fallback
-  }
-
-  const refreshToken = mlData.refreshToken;
-  if (!refreshToken || refreshToken.startsWith('mock')) {
-    console.warn(`[ML-UTILS] No valid refresh token for ${docPath}.`);
-    return mlData.accessToken;
-  }
-
-  // Check if it's actually expired.
-  // expiresIn is in seconds (normally 21600 = 6 hours).
-  const connectedAtMs = mlData.connectedAt ? new Date(mlData.connectedAt).getTime() : new Date(mlData.updatedAt || Date.now()).getTime();
+  const connectedAtMs = parseDateToMs(mlData.connectedAt || mlData.updatedAt);
   const expiresInMs = (mlData.expiresIn || 21600) * 1000;
   const bufferMs = 15 * 60 * 1000; // 15 minutes buffer
   const now = Date.now();
 
   const isExpired = (now - connectedAtMs) >= (expiresInMs - bufferMs);
+
+  if (!clientId || !clientSecret) {
+    console.warn(`[ML-UTILS] Missing ML_CLIENT_ID or ML_CLIENT_SECRET, cannot refresh token.`);
+    if (isExpired) {
+      console.warn(`[ML-UTILS] Token is expired and cannot be refreshed due to missing client credentials. Disconnecting...`);
+      try {
+        const db = getAdminDb();
+        const disconnectFields = {
+          connected: false,
+          status: 'EXPIRADO',
+          errorDetails: 'ML_CLIENT_ID ou ML_CLIENT_SECRET ausentes no servidor. Não foi possível renovar o token.'
+        };
+        await db.doc(docPath).set(disconnectFields, { merge: true });
+        if (docPath.startsWith('users/')) {
+          await db.doc('marketplace_integrations/mercadolivre').set(disconnectFields, { merge: true });
+        } else if (docPath === 'marketplace_integrations/mercadolivre') {
+          const uid = mlData.uid || 'default_user';
+          await db.doc(`users/${uid}/integrations/mercadolivre`).set(disconnectFields, { merge: true });
+        }
+      } catch (dbErr: any) {
+        console.error(`[ML-UTILS] Error saving missing-credentials disconnect status:`, dbErr.message);
+      }
+      return null;
+    }
+    return mlData.accessToken; // return current token as fallback if not expired
+  }
+
+  const refreshToken = mlData.refreshToken;
+  if (!refreshToken || refreshToken.startsWith('mock')) {
+    console.warn(`[ML-UTILS] No valid refresh token for ${docPath}.`);
+    if (isExpired) {
+      try {
+        const db = getAdminDb();
+        const disconnectFields = {
+          connected: false,
+          status: 'EXPIRADO',
+          errorDetails: 'Refresh token ausente ou inválido.'
+        };
+        await db.doc(docPath).set(disconnectFields, { merge: true });
+        if (docPath.startsWith('users/')) {
+          await db.doc('marketplace_integrations/mercadolivre').set(disconnectFields, { merge: true });
+        }
+      } catch (dbErr) {}
+      return null;
+    }
+    return mlData.accessToken;
+  }
+
   if (!isExpired) {
     // Token is still valid, return it
     return mlData.accessToken;
@@ -57,6 +100,37 @@ async function refreshAccessTokenIfExpired(
     if (!response.ok) {
       const errText = await response.text();
       console.error(`[ML-UTILS] Failed to refresh token for ${docPath}:`, errText);
+
+      // Check if it's an authorization/grant issue
+      let isGrantError = false;
+      let errorDescription = errText;
+      try {
+        const errObj = JSON.parse(errText);
+        if (errObj.error === 'invalid_grant' || errObj.error === 'invalid_client') {
+          isGrantError = true;
+          errorDescription = errObj.error_description || errText;
+        }
+      } catch (e) {}
+
+      if (isGrantError || response.status === 400 || response.status === 401) {
+        console.warn(`[ML-UTILS] Refresh token expired or revoked. Setting status to EXPIRADO.`);
+        const db = getAdminDb();
+        const disconnectFields = {
+          connected: false,
+          status: 'EXPIRADO',
+          errorDetails: `A renovação do token do Mercado Livre falhou: ${errorDescription}`
+        };
+        await db.doc(docPath).set(disconnectFields, { merge: true });
+
+        if (docPath.startsWith('users/')) {
+          await db.doc('marketplace_integrations/mercadolivre').set(disconnectFields, { merge: true });
+        } else if (docPath === 'marketplace_integrations/mercadolivre') {
+          const uid = mlData.uid || 'default_user';
+          await db.doc(`users/${uid}/integrations/mercadolivre`).set(disconnectFields, { merge: true });
+        }
+        return null;
+      }
+
       return mlData.accessToken; // return current as fallback
     }
 
@@ -90,7 +164,7 @@ async function refreshAccessTokenIfExpired(
   }
 }
 
-async function getMlAccessToken(uid?: string | null): Promise<string | null> {
+export async function getMlAccessToken(uid?: string | null): Promise<string | null> {
   const db = getAdminDb();
   if (uid) {
     const docPath = `users/${uid}/integrations/mercadolivre`;

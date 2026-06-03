@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { getAdminDb, removeUndefinedDeep } from "../firebaseAdmin.js";
 import crypto from "crypto";
+import { getMlAccessToken } from "../../../api_handlers/_lib/ml-utils.js";
 
 const router = Router();
 
@@ -37,6 +38,13 @@ router.get("/status", async (req, res) => {
         connected: false,
         error: "MISSING_UID"
       });
+    }
+
+    // Proactively check token status and refresh if expired (handling invalid grant gracefully)
+    try {
+      await getMlAccessToken(String(uid));
+    } catch (err: any) {
+      console.error("[ROUTE STATUS] Error pre-refreshing token:", err.message);
     }
 
     console.log("ML_STATUS_UID", uid);
