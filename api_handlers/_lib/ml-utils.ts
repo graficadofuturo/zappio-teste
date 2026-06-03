@@ -641,6 +641,29 @@ export async function scrapeProductPage(url, defaultCategory, uid?: string | nul
         isLightningDeal = true;
       }
 
+      // Complementary search call to fetch lightning deal tags from the search API
+      try {
+        const searchUrl = `https://api.mercadolibre.com/sites/MLB/search?q=${item.id}`;
+        const searchHeaders: any = {
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+          "Accept": "application/json"
+        };
+        if (token) {
+          searchHeaders["Authorization"] = `Bearer ${token}`;
+        }
+        const searchRes = await axios.get(searchUrl, { headers: searchHeaders, timeout: 4000 });
+        const searchResults = searchRes.data?.results || [];
+        const matchedItem = searchResults.find((r: any) => r.id === item.id);
+        if (matchedItem) {
+          if (Array.isArray(matchedItem.tags) && (matchedItem.tags.includes('lightning_deal') || matchedItem.tags.includes('deal_of_the_day'))) {
+            isLightningDeal = true;
+            console.log(`[SCRAPER] Detected lightning deal via complementary search API for ${item.id}`);
+          }
+        }
+      } catch (searchErr: any) {
+        console.warn(`[SCRAPER] Complementary search API failed or timed out for ${item.id}:`, searchErr.message);
+      }
+
       const fullTitle = (item.title || '').trim();
       const shortTitle = simplifyProductTitle(fullTitle);
 
@@ -798,6 +821,29 @@ export async function scrapeProductPage(url, defaultCategory, uid?: string | nul
       const fullTitle = title.trim();
       const shortTitle = simplifyProductTitle(fullTitle);
       
+      // Fallback check for lightning deal in case HTML scraping succeeded but the banner wasn't identified
+      if (!isLightningDeal) {
+        try {
+          const token = await getMlAccessToken(uid);
+          const searchUrl = `https://api.mercadolibre.com/sites/MLB/search?q=${id}`;
+          const searchHeaders: any = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Accept": "application/json"
+          };
+          if (token) {
+            searchHeaders["Authorization"] = `Bearer ${token}`;
+          }
+          const searchRes = await axios.get(searchUrl, { headers: searchHeaders, timeout: 3000 });
+          const searchResults = searchRes.data?.results || [];
+          const matchedItem = searchResults.find((r: any) => r.id === id);
+          if (matchedItem && Array.isArray(matchedItem.tags)) {
+            if (matchedItem.tags.includes('lightning_deal') || matchedItem.tags.includes('deal_of_the_day')) {
+              isLightningDeal = true;
+              console.log(`[SCRAPER] Detected lightning deal via HTML-fallback search API for ${id}`);
+            }
+          }
+        } catch (searchErr) {}
+      }
       return {
         id: id,
         productId: id,
