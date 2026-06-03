@@ -368,39 +368,43 @@ export async function createAffiliateLinkFromFirestore(url, uid, db) {
   }
 
   const isCatalog = finalUrl.toLowerCase().includes('/p/mlb');
-  const match = finalUrl.match(/MLB[-_]?(\d+)/i);
-  if (match) {
-     if (isCatalog) {
-       targetUrl = 'https://www.mercadolivre.com.br/p/MLB' + match[1];
+  try {
+     const parsedUrl = new URL(finalUrl);
+     let cleanUrl = parsedUrl.origin + parsedUrl.pathname;
+     
+     // Avoid using www.mercadolivre.com.br/MLB- without a slug as it 404s
+     if (cleanUrl.includes('www.mercadolivre.com.br/MLB-')) {
+       cleanUrl = cleanUrl.replace('www.mercadolivre.com.br/MLB-', 'produto.mercadolivre.com.br/MLB-');
+     }
+
+     const searchParams = new URLSearchParams();
+     const varId = parsedUrl.searchParams.get('searchVariation') || parsedUrl.searchParams.get('variation');
+     if (varId) {
+       searchParams.set('searchVariation', varId);
+     }
+     
+     const attrs = parsedUrl.searchParams.get('attributes');
+     if (attrs) {
+       searchParams.set('attributes', attrs);
+     }
+     
+     const queryStr = searchParams.toString();
+     targetUrl = cleanUrl + (queryStr ? '?' + queryStr : '');
+  } catch (e) {
+     const match = finalUrl.match(/MLB[-_]?(\d+)/i);
+     if (match) {
+        if (isCatalog) {
+          targetUrl = 'https://www.mercadolivre.com.br/p/MLB' + match[1];
+        } else {
+          targetUrl = 'https://produto.mercadolivre.com.br/MLB-' + match[1];
+        }
+        const matchVar = finalUrl.match(/[?&](searchVariation|variation)=(\d+)/);
+        if (matchVar) {
+          targetUrl += `?searchVariation=${matchVar[2]}`;
+        }
      } else {
-        targetUrl = 'https://produto.mercadolivre.com.br/MLB-' + match[1];
+        targetUrl = finalUrl;
      }
-     try {
-       const parsedUrl = new URL(finalUrl);
-       const searchParams = new URLSearchParams();
-       
-       const varId = parsedUrl.searchParams.get('searchVariation') || parsedUrl.searchParams.get('variation');
-       if (varId) {
-         searchParams.set('searchVariation', varId);
-       }
-       
-       const attrs = parsedUrl.searchParams.get('attributes');
-       if (attrs) {
-         searchParams.set('attributes', attrs);
-       }
-       
-       const queryStr = searchParams.toString();
-       if (queryStr) {
-         targetUrl += '?' + queryStr;
-       }
-     } catch (e) {
-       const matchVar = finalUrl.match(/[?&](searchVariation|variation)=(\d+)/);
-       if (matchVar) {
-         targetUrl += `?searchVariation=${matchVar[2]}`;
-       }
-     }
-  } else {
-     targetUrl = finalUrl;
   }
 
   let mlCookies = `ml_affiliates_onboarding_banner_visits=%7B%22count%22%3A3%2C%22lastOpened%22%3A1777687358920%7D; inferredZipcode=true; _tt_enable_cookie=1; _ttp=01KNYQVK27FVDDW06817K69NC3_.tt.2; _d2id=d3f312c6-adca-4150-93e9-64d2a59e1cac; _hjSessionUser_783944=eyJpZCI6ImQ4NDViYzllLTZlY2MtNTkyMC05NzFkLTc1NjZmOTkwYzkwOSIsImNyZWF0ZWQiOjE3NzU5MjY4ODkzNTksImV4aXN0aW5nIjp0cnVlfQ==; c_Z1gqYTG=1; _pin_unauth=dWlkPU5UUmtPVEpsTVRndFpURmtOQzAwTVRGaExUa3dNRGt0TlRnM09UVXlPRE16TW1Oag; c_Z2m51t4=1; g_state={"i_l":0,"i_ll":1776369520697,"i_b":"BFEPJ0DhaiJarPL415r1bHQLUngW1vQt4SKofUjcNCc","i_e":{"enable_itp_optimization":20},"i_et":1776369520696}; orguseridp=2645015609; ssid=ghy-041615-d9Jp2HLZG48HjZnbqcXbx24L8H0CJd-__-2645015609-__-1871063950119--RRR_0-RRR_0; ftid=LpCL9B2PzUP7iADxJOg3dLY3VnE8EjWD-1776369533274; orgnickp=GN20250825064332; cookiesPreferencesNotLogged=%7B%22categories%22%3A%7B%22advertising%22%3Atrue%2C%22functionality%22%3Atrue%2C%22performance%22%3Atrue%2C%22traceability%22%3Atrue%7D%7D; QSI_SI_d4ikElJeWDP7fzo_intercept=true; tooltip=true; p_dsid=3b7c27bf-1212-4ce5-af98-dc499e5f7bb5-1776369602722; cp=23070310; cross_esc_web-flow=%7B%22d3f312c6-adca-4150-93e9-64d2a59e1cac%22%3A%7B%229797332364%22%3A%222uddw6zmKya1xBeJDC2L2H62nvFIOPHSfZwB0TMFPw%3D%3D%22%7D%7D; _gcl_au=1.1.5383528.1775926889.698124046.1776370515.1776371059; LAST_SEARCH=Vevshao%20A22; _csrf=k7fiD7aaifnfTCXl-O7Oi3ZJ; cookiesPreferencesLoggedFallback=%7B%22userId%22%3A2645015609%2C%22categories%22%3A%7B%22advertising%22%3Atrue%2C%22functionality%22%3Atrue%2C%22performance%22%3Atrue%2C%22traceability%22%3Atrue%7D%7D; c_wP4d7=1; ml_cart-quantity=0; _hjSessionUser_580848=eyJpZCI6IjUxNWEyNzg4LWZmNjMtNTU0MC1hZjM5LTc2ZmIzYWM4MDlhYSIsImNyZWF0ZWQiOjE3Nzc2NzM2OTgyNDQsImV4aXN0aW5nIjp0cnVlfQ==; p_edsid=7b1f23a6-f700-39ee-8cc6-41ade78cc4aa-1777673847193; x-meli-session-id=armor.08b6cd30d65fac6400c58e8f41c5bd838b7b0db76d7b5780ab490851ddcd9de1d5a2dd05677913fafaed621055921ba305229700f36ea8c2fad0899c7dac6226888e29ad45820c2bc719f4d1ec6526990bc73f6575a8c3c7b51cd58149cd6bcd.d0e04b8e3b0d11deca216f473cf130f5; _hjSessionUser_720738=eyJpZCI6IjBjNDg1ZGQ1LTk5MTctNTRjZC05ZTE5LTMzYTQ2YjFlNjA5MCIsImNyZWF0ZWQiOjE3NzYzNjk1MjA2ODQsImV4aXN0aW5nIjp0cnVlfQ==; _gcl_gs=2.1.k1$i1777674243$u124475286; _gcl_aw=GCL.1777674247.CjwKCAjwntHPBhAaEiwA_Xp6RuNsIexGUQ8piSl4aBf3KGM5E7q8nJebWKqX5o2-JUShY5x_62aDsxoCzawQAvD_BwE; ttcsid_CPKRQ8RC77U8LS0GABLG=1777674247221::l9aCrFqg8EXqVBGNCZ8h.1.1777674249908.1; _ga=GA1.3.1980825368.1777674492; c_yVnns=1; c_xe42xnaFXxBAzUzt0QGr5g=polycard-web-lib%2F2.47.0; sc-menu-hide-new-section_MY_DETAILS=MY_DETAILS; sc-menu-hide-new-section_CREDIT_MARKET=CREDIT_MARKET; sc-menu-hide-new-item_brand_registry=brand_registry; _hjHasCachedUserAttributes=true; sc-menu-hide-new-item_catalog_suggestions=catalog_suggestions; orguserid=dZt9TT9d09td4; _derived_epik=dj0yJnU9RncyY3kzaEU0NndEUkkwN1JJRHBMbWlmVGV1WDdJWXcmbj1uTVl0ekJmS0VYSTlxUFV1eUZ6VllBJm09NCZ0PUFBQUFBR242cm1jJnJtPTQmcnQ9QUFBQUFHbjZybWMmc3A9Mg; __rtbh.uid=%7B%22eventType%22%3A%22uid%22%2C%22id%22%3A%222645015609%22%2C%22expiryDate%22%3A%222027-05-06T23%3A40%3A20.464Z%22%7D; __rtbh.lid=%7B%22eventType%22%3A%22lid%22%2C%22id%22%3A%22U38izEhtqruSbnO5bop8%22%2C%22expiryDate%22%3A%222027-05-06T23%3A40%3A20.464Z%22%7D; ttcsid_C9SJ5SBC77UADFMAH8T0=1778110816182::PUJ8c5yysrbXxGACV-It.24.1778111524318.1; _uetsid=412d7790477711f1b0d03d36a716f01b; _uetvid=15ac4f2035c811f1986d6b7ad0b2e966; ttcsid=1778110816183::2-NB8o2sdbDnstF3iQP5.26.1778111524585.0::1.704928.708129::0.0.0.0::0.0.0; ttcsid_CFVSC2JC77U0ARCJTCJ0=1778110816190::OhBH0Mcy-A-v7sGBZbtZ.22.1778111524585.1; cto_bundle=vBfXS19ubm5uZUhaT0FSTUhvJTJCYnpyeiUyRlBhaEIydnVWalFMNnRaWjRuUkdyZ2lCNXhTTFVvOHYlMkZYMkZDYSUyRmRaTWRwOHdvR1QxYWw5SFVYU0tQU3BtbFpaTSUyQnFjazZxNVRLbVpSWjhIUGZlT2w1WGxKZ2VFWUdsaWR4NHN4YWFyUlElMkZkOXJLakdDRGp5a1BSTDE5S2ZCTmR0aUtDOUUlMkJIdnVVOU9oWTJpeXNlVXE5YyUzRA; _mldataSessionId=6bd9dd81-4e15-420b-b779-02d26da7d083; cookiesPreferencesLogged=%7B%22userId%22%3A2645015609%2C%22categories%22%3A%7B%22advertising%22%3Atrue%2C%22functionality%22%3Atrue%2C%22performance%22%3Atrue%2C%22traceability%22%3Atrue%7D%7D; nsa_rotok=eyJhbGciOiJSUzI1NiIsImtpZCI6IjMiLCJ0eXAiOiJKV1QifQ.eyJpZGVudGlmaWVyIjoiZDdmNjQ1OGItMTllOC00NDQ0LTk4ZTktNzhhZTE4ODFkMmQ0Iiwicm90YXRpb25faWQiOiI1NDFiZGU1Ni0xOTEyLTQzMzYtODM3Yy05YjQ0ODYwYTI1MTgiLCJwbGF0Zm9ybSI6Ik1MIiwicm90YXRpb25fZGF0ZSI6MTc3ODEyNzQ1MiwiZXhwIjoxNzgwNzE4ODUyLCJqdGkiOiIwZmIzYWJjZi1hZGU2LTQyNDAtYTFkMC05MTk2NmJkNDUyNDYiLCJpYXQiOjE3NzgxMjY4NTIsInN1YiI6ImQ3ZjY0NThiLTE5ZTgtNDQ0NC05OGU5LTc4YWUxODgxZDJkNCJ9.a0u5JcfI3tAwiVkNXPCbAT-W4lhK6d6siUwH0SgFArIF_utl7SjdoNpTrZPpjIr_o5zE2Qe6jOPsRE-_0OjwRK1p6UfA-xw3lqV6Tkn8xtUrf0HAoUUzWIWbDxgVwtw7fb4rzZ3Sa1q_tyF_TF3qekP1zN0ieCSo_T6wScjMZZT6Y23DZufRMJmncQuCoDrTWNXpim6g1nvyWUJ2a8BPaAMiz6CeKCwGMWYM4kzBHSQMUi42a785Aats62GVBIvKsCmc9pEWHjNxA64gfe1Q8tCh6krtzDrbwfzzD3SK1PKfO6fZVvG4djTHP9YdSprqlzLcdJPnvZrbWMMUmTJegA; hide-cookie-banner=0-COOKIE_PREFERENCES_ALREADY_SET`;
