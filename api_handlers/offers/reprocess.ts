@@ -35,11 +35,11 @@ export default async function handler(req, res) {
 
     console.log(`REPROCESS_ITEMS: Found ${offers.length} items to reprocess`);
 
-    // Sort by oldest updatedAt/collectedAt/fetchedAt first to cycle through all items on successive runs
+    // Sort by newest first to prioritize active and recently modified/viewed offers on manual reprocess
     offers.sort((a: any, b: any) => {
       const timeA = new Date(a.updatedAt || a.collectedAt || a.fetchedAt || 0).getTime() || 0;
       const timeB = new Date(b.updatedAt || b.collectedAt || b.fetchedAt || 0).getTime() || 0;
-      return timeA - timeB;
+      return timeB - timeA;
     });
 
     let updated = 0;
@@ -49,7 +49,7 @@ export default async function handler(req, res) {
 
     // Process in small sequential batches or one by one to avoid rate limiting/timeout
     // For simplicity and safety in this environment, we'll do them one by one but limit the total to avoid long runs
-    const maxToProcess = 20; 
+    const maxToProcess = 30; 
     const toProcess = offers.slice(0, maxToProcess);
 
     for (const offer of toProcess) {
