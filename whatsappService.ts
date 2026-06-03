@@ -19,6 +19,20 @@ if (!(console as any).__libsignalSuppressed) {
   (console as any).__libsignalSuppressed = true;
 }
 
+// Helper: save instance status to Firestore
+async function saveStatusToFirestore(instanceId: string, data: Record<string, any>) {
+  try {
+    const { getAdminDb } = await import("./src/api/firebaseAdmin.js");
+    const db = getAdminDb();
+    await db.doc(`whatsapp_instances/${instanceId}`).set({
+      ...data,
+      user_id: 'default_user'
+    }, { merge: true });
+  } catch (e) {
+    console.error("[WA-SERVICE] Failed to save status to Firestore:", e);
+  }
+}
+
 // A simple in-memory store for our instances state
 export const instances = new Map<string, any>();
 export const instanceStatus = new Map<string, { 
@@ -74,6 +88,11 @@ export async function connectWhatsApp(instanceId: string) {
     }
 
     instanceStatus.set(instanceId, { status: 'initializing', groups: [], contacts: [] });
+    await saveStatusToFirestore(instanceId, {
+      wa_status: 'initializing',
+      wa_qr: null,
+      wa_qr_updated_at: null,
+    });
 
     // Ensure session directory exists or just let Baileys handle it
     const { state, saveCreds } = await useMultiFileAuthState(`baileys_auth_info_${instanceId}`);
@@ -130,6 +149,11 @@ export async function connectWhatsApp(instanceId: string) {
         console.log(`[Instance ${instanceId}] QR Code generated.`);
         const current = instanceStatus.get(instanceId) || { status: 'initializing' };
         instanceStatus.set(instanceId, { ...current, status: 'qrcode', qr });
+        await saveStatusToFirestore(instanceId, {
+          wa_status: 'qrcode',
+          wa_qr: qr,
+          wa_qr_updated_at: new Date().toISOString()
+        });
       }
 
       if (connection === 'close') {
@@ -142,6 +166,9 @@ export async function connectWhatsApp(instanceId: string) {
         instances.delete(instanceId);
         
         if (shouldReconnect) {
+          const current = instanceStatus.get(instanceId) || { status: 'initializing' };
+          instanceStatus.set(instanceId, { ...current, status: 'disconnected' });
+          await saveStatusToFirestore(instanceId, { wa_status: 'disconnected', wa_qr: null, status: 'disconnected' });
           // Reconnect with a slight delay
           setTimeout(() => {
             connectWhatsApp(instanceId).catch(err => console.error(`[Instance ${instanceId}] Reconnect failed:`, err));
@@ -149,11 +176,20 @@ export async function connectWhatsApp(instanceId: string) {
         } else {
           const current = instanceStatus.get(instanceId) || { status: 'initializing' };
           instanceStatus.set(instanceId, { ...current, status: 'disconnected' });
+          await saveStatusToFirestore(instanceId, { wa_status: 'disconnected', wa_qr: null, status: 'disconnected' });
         }
       } else if (connection === 'open') {
         console.log(`[Instance ${instanceId}] Connected!`);
         const current = instanceStatus.get(instanceId) || { status: 'initializing' };
         instanceStatus.set(instanceId, { ...current, status: 'connected' });
+        
+        const phone = sock.user?.id ? sock.user.id.split(':')[0].split('@')[0] : '';
+        await saveStatusToFirestore(instanceId, {
+          wa_status: 'connected',
+          wa_qr: null,
+          status: 'connected',
+          phone_number: phone
+        });
         
         // Delay group fetch after connection to avoid immediate rate limit
         setTimeout(() => {
@@ -202,6 +238,7 @@ export async function connectWhatsApp(instanceId: string) {
   } catch (error: any) {
     console.error(`[Instance ${instanceId}] Connection initialization error:`, error);
     instanceStatus.set(instanceId, { status: 'error', groups: [], contacts: [] });
+    await saveStatusToFirestore(instanceId, { wa_status: 'disconnected', wa_qr: null, status: 'disconnected' });
     return { status: 'error', error: error.message };
   }
 }
@@ -209,10 +246,13 @@ export async function connectWhatsApp(instanceId: string) {
 export async function disconnectWhatsApp(instanceId: string) {
   const sock = instances.get(instanceId);
   if (sock) {
-    sock.logout();
+    try {
+      await sock.logout();
+    } catch (e) {}
     instances.delete(instanceId);
     const cur = instanceStatus.get(instanceId) || { status: 'disconnected' };
     instanceStatus.set(instanceId, { ...cur, status: 'disconnected' });
+    await saveStatusToFirestore(instanceId, { wa_status: 'disconnected', wa_qr: null, status: 'disconnected' });
   }
 }
 

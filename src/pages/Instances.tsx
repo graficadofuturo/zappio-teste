@@ -1,155 +1,141 @@
-import { useEffect, useState } from 'react';
-import { auth, db, GLOBAL_USER_ID } from '../lib/firebase.js';
-import { collection, query, where, getDocs, addDoc, deleteDoc, doc, setDoc, serverTimestamp, orderBy, updateDoc } from 'firebase/firestore';
+import { useEffect, useState, useRef } from 'react';
+import { db, GLOBAL_USER_ID } from '../lib/firebase.js';
+import {
+  collection, query, where, addDoc, deleteDoc,
+  doc, setDoc, serverTimestamp, orderBy, updateDoc, onSnapshot
+} from 'firebase/firestore';
 import { handleFirestoreError, OperationType } from '../lib/firestore-utils.js';
 import { QRCodeSVG } from 'qrcode.react';
-import { Smartphone, RefreshCw, LogOut, Trash2 } from 'lucide-react';
+import { Smartphone, RefreshCw, LogOut, Trash2, Plus } from 'lucide-react';
 
 interface Instance {
   id: string;
   instance_name: string;
   status: string;
-  phone_number: string;
+  phone_number?: string;
+  wa_status?: string;
+  wa_qr?: string;
 }
 
 export default function WhatsAppInstances() {
   const [instances, setInstances] = useState<Instance[]>([]);
   const [loading, setLoading] = useState(true);
-  const [creating, setCreating] = useState(false);
-  const [newInstanceName, setNewInstanceName] = useState('');
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [successMsg, setSuccessMsg] = useState<string | null>(null);
-
-  // New UI loading states
   const [creatingInstance, setCreatingInstance] = useState(false);
   const [connectingInstance, setConnectingInstance] = useState<string | null>(null);
   const [syncingInstance, setSyncingInstance] = useState<string | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
-  // Plan limits
+  // QR modal
+  const [activeQRInstance, setActiveQRInstance] = useState<string | null>(null);
+  const [qrData, setQrData] = useState<string | null>(null);
+  const [qrStatus, setQrStatus] = useState<string>('initializing');
+
+  // Firestore real-time listener for active QR instance
+  const qrListenerRef = useRef<(() => void) | null>(null);
+
   const planLimit = 9999;
   const isLimitReached = instances.length >= planLimit;
 
-  // QR code modal state
-  const [activeQRInstance, setActiveQRInstance] = useState<string | null>(null);
-  const [qrCodeData, setQrCodeData] = useState<string | null>(null);
-  const [qrStatus, setQrStatus] = useState<string>('');
-
+  // Real-time listener for instance list
   useEffect(() => {
-    loadInstances();
+    const q = query(
+      collection(db, 'whatsapp_instances'),
+      where('user_id', '==', GLOBAL_USER_ID)
+    );
+    const unsub = onSnapshot(q, (snap) => {
+      const data = snap.docs.map(d => ({ id: d.id, ...d.data() } as Instance));
+      data.sort((a: any, b: any) => {
+        const tA = a.created_at?.seconds || 0;
+        const tB = b.created_at?.seconds || 0;
+        return tB - tA;
+      });
+      setInstances(data);
+      setLoading(false);
+    }, (e) => {
+      handleFirestoreError(e, OperationType.LIST, 'whatsapp_instances');
+      setLoading(false);
+    });
+    return () => unsub();
   }, []);
 
-  // Polling for QR / connected status
+  // Real-time listener for QR + status of the active connecting instance
   useEffect(() => {
-    let interval: any;
-    if (activeQRInstance) {
-      interval = setInterval(async () => {
+    if (qrListenerRef.current) {
+      qrListenerRef.current();
+      qrListenerRef.current = null;
+    }
+    if (!activeQRInstance) return;
+
+    const unsub = onSnapshot(doc(db, 'whatsapp_instances', activeQRInstance), async (snap) => {
+      if (!snap.exists()) return;
+      const data = snap.data() as any;
+      const waStatus = data.wa_status || data.status || 'disconnected';
+      const waQr = data.wa_qr || null;
+
+      setQrStatus(waStatus);
+      if (waQr) setQrData(waQr);
+
+      if (waStatus === 'connected') {
+        setActiveQRInstance(null);
+        setQrData(null);
+        setConnectingInstance(null);
+        setSuccessMsg('✅ WhatsApp conectado com sucesso!');
+        setTimeout(() => setSuccessMsg(null), 5000);
+
+        // Auto-sync contacts/groups after connecting
         try {
-          const res = await fetch(`/api/whatsapp/status?instanceId=${activeQRInstance}&t=${Date.now()}`);
-          const data = await res.json();
-          setQrStatus(data.status);
-          if (data.qr) {
-            setQrCodeData(data.qr);
+          const syncRes = await fetch(`/api/whatsapp/sync?instanceId=${activeQRInstance}`);
+          const syncData = await syncRes.json();
+          for (const g of (syncData.groups || [])) {
+            await setDoc(doc(db, 'whatsapp_contacts_groups', `${activeQRInstance}_${g.id}`), {
+              user_id: GLOBAL_USER_ID,
+              name: g.subject || 'Grupo Desconhecido',
+              type: 'group', jid: g.id,
+              participants_count: g.participants?.length || 0,
+              updated_at: new Date()
+            }, { merge: true });
           }
-          if (data.status === 'connected') {
-            setActiveQRInstance(null);
-            setQrCodeData(null);
-            setConnectingInstance(null);
-            await updateDoc(doc(db, 'whatsapp_instances', activeQRInstance), {
-              status: 'connected'
-            });
-            try {
-              const syncRes = await fetch(`/api/whatsapp/sync?instanceId=${activeQRInstance}`);
-              const syncData = await syncRes.json();
-              if (syncData.groups || syncData.contacts) {
-                for (const g of (syncData.groups || [])) {
-                  await setDoc(doc(db, 'whatsapp_contacts_groups', `${activeQRInstance}_${g.id}`), {
-                    user_id: GLOBAL_USER_ID,
-                    name: g.subject || 'Grupo Desconhecido',
-                    type: 'group',
-                    jid: g.id,
-                    participants_count: g.participants?.length || 0,
-                    updated_at: new Date()
-                  }, { merge: true });
-                }
-                for (const c of (syncData.contacts || [])) {
-                  await setDoc(doc(db, 'whatsapp_contacts_groups', `${activeQRInstance}_${c.id}`), {
-                    user_id: GLOBAL_USER_ID,
-                    name: c.name || c.notify || c.verifiedName || c.id.split('@')[0],
-                    type: 'contact',
-                    jid: c.id,
-                    updated_at: new Date()
-                  }, { merge: true });
-                }
-              }
-            } catch (e) {
-              console.error('Failed to sync contacts and groups', e);
-            }
-            loadInstances();
-            setSuccessMsg('WhatsApp conectado e sincronizado com sucesso!');
-            setTimeout(() => setSuccessMsg(null), 5000);
+          for (const c of (syncData.contacts || [])) {
+            await setDoc(doc(db, 'whatsapp_contacts_groups', `${activeQRInstance}_${c.id}`), {
+              user_id: GLOBAL_USER_ID,
+              name: c.name || c.notify || c.verifiedName || c.id.split('@')[0],
+              type: 'contact', jid: c.id,
+              updated_at: new Date()
+            }, { merge: true });
           }
         } catch (e) {
-          console.error(e);
+          console.error('Failed to sync after connect', e);
         }
-      }, 3000);
-    }
-    return () => clearInterval(interval);
+      }
+    });
+
+    qrListenerRef.current = unsub;
+    return () => { unsub(); qrListenerRef.current = null; };
   }, [activeQRInstance]);
 
-  const loadInstances = async () => {
-    setLoading(true);
-    setErrorMsg(null);
-    try {
-      const q = query(
-        collection(db, 'whatsapp_instances'),
-        where('user_id', '==', GLOBAL_USER_ID),
-        orderBy('created_at', 'desc')
-      );
-      const querySnapshot = await getDocs(q);
-      const data = querySnapshot.docs.map(d => ({ id: d.id, ...d.data() } as Instance));
-      setInstances(data);
-    } catch (e) {
-      handleFirestoreError(e, OperationType.LIST, 'whatsapp_instances');
-    }
-    setLoading(false);
-  };
-
-  // Adapted to work both from a form submit and a button click
-  const createInstance = async (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    setErrorMsg(null);
-    setSuccessMsg(null);
-
-    // When called from the quick-create button (no name dialog), use a default name
-    const instanceName = newInstanceName || `WhatsApp ${Date.now().toString().slice(-4)}`;
-
+  const createInstance = async () => {
     if (isLimitReached) {
-      setErrorMsg(`Seu plano atual permite apenas ${planLimit} conta(s) de WhatsApp. Faça upgrade para adicionar mais.`);
+      setErrorMsg(`Limite de ${planLimit} instância(s) atingido.`);
       return;
     }
-
-    setCreating(true);
     setCreatingInstance(true);
-
+    setErrorMsg(null);
     try {
       await addDoc(collection(db, 'whatsapp_instances'), {
         user_id: GLOBAL_USER_ID,
-        instance_name: instanceName,
+        instance_name: `WhatsApp ${Date.now().toString().slice(-4)}`,
         status: 'disconnected',
+        wa_status: 'disconnected',
         phone_number: '',
         created_at: serverTimestamp()
       });
-
-      setNewInstanceName('');
-      loadInstances();
       setSuccessMsg("Instância criada! Clique em 'Conectar' para escanear o QR Code.");
       setTimeout(() => setSuccessMsg(null), 5000);
     } catch (e: any) {
       handleFirestoreError(e, OperationType.CREATE, 'whatsapp_instances');
       setErrorMsg('Erro ao criar instância.');
     }
-
-    setCreating(false);
     setCreatingInstance(false);
   };
 
@@ -161,7 +147,6 @@ export default function WhatsAppInstances() {
         body: JSON.stringify({ instanceId: id })
       });
       await deleteDoc(doc(db, 'whatsapp_instances', id));
-      loadInstances();
     } catch (e) {
       handleFirestoreError(e, OperationType.DELETE, 'whatsapp_instances');
     }
@@ -172,7 +157,7 @@ export default function WhatsAppInstances() {
     setConnectingInstance(id);
     setActiveQRInstance(id);
     setQrStatus('initializing');
-    setQrCodeData(null);
+    setQrData(null);
     try {
       await fetch('/api/whatsapp/connect', {
         method: 'POST',
@@ -180,7 +165,6 @@ export default function WhatsAppInstances() {
         body: JSON.stringify({ instanceId: id })
       });
     } catch (e) {
-      console.error(e);
       setErrorMsg('Falha ao iniciar conexão com servidor WhatsApp.');
       setActiveQRInstance(null);
       setConnectingInstance(null);
@@ -195,68 +179,61 @@ export default function WhatsAppInstances() {
         body: JSON.stringify({ instanceId: id })
       });
       await updateDoc(doc(db, 'whatsapp_instances', id), {
-        status: 'disconnected'
+        status: 'disconnected',
+        wa_status: 'disconnected'
       });
-      loadInstances();
     } catch (e) {
       console.error(e);
     }
   };
 
   const syncContacts = async (id: string) => {
-    setErrorMsg(null);
-    setSuccessMsg(null);
     setSyncingInstance(id);
+    setErrorMsg(null);
     try {
       const syncRes = await fetch(`/api/whatsapp/sync?instanceId=${id}`);
       const syncData = await syncRes.json();
-      if (syncData.groups || syncData.contacts) {
-        let total = 0;
-        for (const g of (syncData.groups || [])) {
-          await setDoc(doc(db, 'whatsapp_contacts_groups', `${id}_${g.id}`), {
-            user_id: GLOBAL_USER_ID,
-            name: g.subject || 'Grupo Desconhecido',
-            type: 'group',
-            jid: g.id,
-            participants_count: g.participants?.length || 0,
-            updated_at: new Date()
-          }, { merge: true });
-          total++;
-        }
-        for (const c of (syncData.contacts || [])) {
-          await setDoc(doc(db, 'whatsapp_contacts_groups', `${id}_${c.id}`), {
-            user_id: GLOBAL_USER_ID,
-            name: c.name || c.notify || c.verifiedName || c.id.split('@')[0],
-            type: 'contact',
-            jid: c.id,
-            updated_at: new Date()
-          }, { merge: true });
-          total++;
-        }
-        setSuccessMsg(`Sincronizados ${total} contatos e grupos com sucesso!`);
-        setTimeout(() => setSuccessMsg(null), 5000);
-      } else {
-        setErrorMsg('Nenhum dado recebido. Tente novamente.');
+      if (syncData.error) throw new Error(syncData.error);
+      let total = 0;
+      for (const g of (syncData.groups || [])) {
+        await setDoc(doc(db, 'whatsapp_contacts_groups', `${id}_${g.id}`), {
+          user_id: GLOBAL_USER_ID,
+          name: g.subject || 'Grupo Desconhecido',
+          type: 'group', jid: g.id,
+          participants_count: g.participants?.length || 0,
+          updated_at: new Date()
+        }, { merge: true });
+        total++;
       }
-    } catch (e) {
-      console.error(e);
-      setErrorMsg('Falha ao sincronizar: ' + e);
+      for (const c of (syncData.contacts || [])) {
+        await setDoc(doc(db, 'whatsapp_contacts_groups', `${id}_${c.id}`), {
+          user_id: GLOBAL_USER_ID,
+          name: c.name || c.notify || c.verifiedName || c.id.split('@')[0],
+          type: 'contact', jid: c.id,
+          updated_at: new Date()
+        }, { merge: true });
+        total++;
+      }
+      setSuccessMsg(`Sincronizados ${total} contatos/grupos!`);
+      setTimeout(() => setSuccessMsg(null), 5000);
+    } catch (e: any) {
+      setErrorMsg('Falha ao sincronizar: ' + (e.message || e));
     }
     setSyncingInstance(null);
   };
 
+  const isConnected = (inst: Instance) =>
+    inst.status === 'open' || inst.status === 'connected' ||
+    inst.wa_status === 'connected' || inst.wa_status === 'open';
+
   return (
     <div className="page-content">
-      {/* Toast notifications */}
+      {/* Toasts */}
       {errorMsg && (
-        <div className="toast toast-error" style={{ marginBottom: 16 }}>
-          ⚠️ {errorMsg}
-        </div>
+        <div className="toast toast-error" style={{ marginBottom: 16 }}>⚠️ {errorMsg}</div>
       )}
       {successMsg && (
-        <div className="toast toast-success" style={{ marginBottom: 16 }}>
-          ✅ {successMsg}
-        </div>
+        <div className="toast toast-success" style={{ marginBottom: 16 }}>{successMsg}</div>
       )}
 
       <div className="page-header">
@@ -266,48 +243,21 @@ export default function WhatsAppInstances() {
             <p className="page-subtitle">Gerencie suas conexões de WhatsApp para disparar campanhas.</p>
           </div>
           {!isLimitReached && (
-            <button
-              className="btn btn-primary"
-              onClick={() => createInstance()}
-              disabled={creatingInstance}
-            >
+            <button className="btn btn-primary" onClick={createInstance} disabled={creatingInstance}>
               {creatingInstance
                 ? <><span className="spinner" style={{ borderTopColor: '#022c1a' }} /> Criando...</>
-                : <>+ Nova Instância</>
+                : <><Plus size={16} /> Nova Instância</>
               }
             </button>
           )}
         </div>
       </div>
 
-      {/* Plan limit banner */}
-      {isLimitReached && instances.length > 0 && (
-        <div className="glass-card" style={{
-          padding: '12px 20px',
-          borderColor: 'var(--border-yellow)',
-          display: 'flex',
-          alignItems: 'center',
-          gap: 10,
-          marginBottom: 8
-        }}>
-          <span style={{ fontSize: 16 }}>⚡</span>
-          <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
-            Você atingiu o limite de <strong style={{ color: 'var(--text-primary)' }}>{planLimit}</strong> instância(s) do seu plano.{' '}
-            <span style={{ color: 'var(--yellow)', cursor: 'pointer', fontWeight: 600 }}>Fazer upgrade →</span>
-          </p>
-        </div>
-      )}
-
       {/* Instances Grid */}
       {loading ? (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 16 }}>
           {[1, 2].map(i => (
-            <div key={i} style={{
-              background: 'var(--bg-card)',
-              border: '1px solid var(--border-subtle)',
-              borderRadius: 16,
-              padding: 24
-            }}>
+            <div key={i} style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 16, padding: 24 }}>
               <div className="skeleton" style={{ height: 20, width: '60%', marginBottom: 12, borderRadius: 6 }} />
               <div className="skeleton" style={{ height: 14, width: '40%', marginBottom: 20, borderRadius: 6 }} />
               <div className="skeleton" style={{ height: 40, borderRadius: 10 }} />
@@ -317,39 +267,29 @@ export default function WhatsAppInstances() {
       ) : instances.length === 0 ? (
         <div className="empty-state">
           <div className="empty-state-icon" style={{ fontSize: 36 }}>📱</div>
-          <h3 style={{
-            fontFamily: 'Space Grotesk, sans-serif',
-            fontSize: 18,
-            fontWeight: 700,
-            marginBottom: 8,
-            color: 'var(--text-primary)'
-          }}>
+          <h3 style={{ fontFamily: 'Space Grotesk, sans-serif', fontSize: 18, fontWeight: 700, marginBottom: 8, color: 'var(--text-primary)' }}>
             Nenhum WhatsApp conectado
           </h3>
           <p style={{ fontSize: 14, color: 'var(--text-secondary)', maxWidth: 380, marginBottom: 24 }}>
             Crie uma instância e escaneie o QR code para começar a disparar campanhas.
           </p>
-          <button
-            className="btn btn-primary"
-            onClick={() => createInstance()}
-            disabled={creatingInstance}
-          >
+          <button className="btn btn-primary" onClick={createInstance} disabled={creatingInstance}>
             {creatingInstance
               ? <><span className="spinner" style={{ borderTopColor: '#022c1a' }} /> Criando...</>
-              : <>+ Criar Primeira Instância</>
+              : '+ Criar Primeira Instância'
             }
           </button>
         </div>
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 16 }}>
-          {instances.map((instance: Instance) => {
-            const isConnected = instance.status === 'open' || instance.status === 'connected';
+          {instances.map((instance) => {
+            const connected = isConnected(instance);
             return (
               <div
                 key={instance.id}
                 style={{
                   background: 'var(--bg-card)',
-                  border: isConnected ? '1px solid var(--border-green)' : '1px solid var(--border-subtle)',
+                  border: connected ? '1px solid var(--border-green)' : '1px solid var(--border-subtle)',
                   borderRadius: 16,
                   padding: 24,
                   position: 'relative',
@@ -357,45 +297,26 @@ export default function WhatsAppInstances() {
                   transition: 'all 0.2s'
                 }}
               >
-                {/* Status top bar */}
+                {/* Color top bar */}
                 <div style={{
-                  position: 'absolute',
-                  top: 0,
-                  left: 0,
-                  right: 0,
-                  height: 3,
-                  background: isConnected ? 'var(--green)' : 'var(--border-subtle)'
+                  position: 'absolute', top: 0, left: 0, right: 0, height: 3,
+                  background: connected ? 'var(--green)' : 'var(--border-subtle)'
                 }} />
 
                 {/* Header */}
-                <div style={{
-                  display: 'flex',
-                  alignItems: 'flex-start',
-                  justifyContent: 'space-between',
-                  marginBottom: 16
-                }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 16 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                     <div style={{
-                      width: 44,
-                      height: 44,
-                      borderRadius: 12,
-                      background: isConnected ? 'var(--green-glow)' : 'var(--bg-surface)',
-                      border: isConnected ? '1px solid var(--border-green)' : '1px solid var(--border-subtle)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      color: isConnected ? 'var(--green)' : 'var(--text-secondary)'
+                      width: 44, height: 44, borderRadius: 12,
+                      background: connected ? 'var(--green-glow)' : 'var(--bg-surface)',
+                      border: connected ? '1px solid var(--border-green)' : '1px solid var(--border-subtle)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      color: connected ? 'var(--green)' : 'var(--text-secondary)'
                     }}>
                       <Smartphone size={20} />
                     </div>
                     <div>
-                      <h3 style={{
-                        fontFamily: 'Space Grotesk, sans-serif',
-                        fontSize: 15,
-                        fontWeight: 700,
-                        color: 'var(--text-primary)',
-                        marginBottom: 2
-                      }}>
+                      <h3 style={{ fontFamily: 'Space Grotesk, sans-serif', fontSize: 15, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 2 }}>
                         {instance.instance_name || `WhatsApp ${instance.id.slice(-4)}`}
                       </h3>
                       <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>
@@ -404,7 +325,7 @@ export default function WhatsAppInstances() {
                     </div>
                   </div>
 
-                  {isConnected ? (
+                  {connected ? (
                     <div className="badge badge-green" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                       <div className="pulse-dot" style={{ width: 6, height: 6 }} />
                       Ativo
@@ -416,7 +337,7 @@ export default function WhatsAppInstances() {
 
                 {/* Actions */}
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                  {isConnected ? (
+                  {connected ? (
                     <>
                       <button
                         className="btn btn-ghost btn-sm"
@@ -424,11 +345,7 @@ export default function WhatsAppInstances() {
                         disabled={syncingInstance === instance.id}
                         style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
                       >
-                        {syncingInstance === instance.id ? (
-                          <span className="spinner" />
-                        ) : (
-                          <RefreshCw size={12} className={syncingInstance === instance.id ? 'animate-spin' : ''} />
-                        )}
+                        {syncingInstance === instance.id ? <span className="spinner" /> : <RefreshCw size={12} />}
                         <span>Sincronizar</span>
                       </button>
                       <button
@@ -448,11 +365,10 @@ export default function WhatsAppInstances() {
                         disabled={connectingInstance === instance.id}
                         style={{ flex: 1 }}
                       >
-                        {connectingInstance === instance.id ? (
-                          <span className="spinner" style={{ borderTopColor: '#022c1a' }} />
-                        ) : (
-                          'Conectar'
-                        )}
+                        {connectingInstance === instance.id
+                          ? <span className="spinner" style={{ borderTopColor: '#022c1a' }} />
+                          : 'Conectar'
+                        }
                       </button>
                       <button
                         className="btn btn-danger btn-sm"
@@ -474,43 +390,25 @@ export default function WhatsAppInstances() {
       {/* QR Code Modal */}
       {activeQRInstance && (
         <div className="modal-overlay">
-          <div className="modal-content" style={{ padding: 32, textAlign: 'center', maxWidth: 400 }}>
-            <h2 style={{
-              fontFamily: 'Space Grotesk, sans-serif',
-              fontSize: 20,
-              fontWeight: 700,
-              marginBottom: 8,
-              color: 'var(--text-primary)'
-            }}>
+          <div className="modal-content" style={{ padding: 32, textAlign: 'center', maxWidth: 420 }}>
+            <h2 style={{ fontFamily: 'Space Grotesk, sans-serif', fontSize: 20, fontWeight: 700, marginBottom: 8, color: 'var(--text-primary)' }}>
               Conectar WhatsApp
             </h2>
             <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 24 }}>
-              Abra o WhatsApp → Dispositivos vinculados → Escanear QR code
+              Abra o WhatsApp → <strong>Dispositivos vinculados</strong> → Escanear QR code
             </p>
 
-            {qrCodeData ? (
-              <div style={{
-                background: '#fff',
-                padding: 16,
-                borderRadius: 16,
-                display: 'inline-block',
-                margin: '0 auto 20px'
-              }}>
-                <QRCodeSVG value={qrCodeData} size={220} />
+            {qrData ? (
+              <div style={{ background: '#fff', padding: 16, borderRadius: 16, display: 'inline-block', margin: '0 auto 20px' }}>
+                <QRCodeSVG value={qrData} size={220} />
               </div>
             ) : (
               <div style={{
-                width: 220,
-                height: 220,
-                borderRadius: 16,
-                background: 'var(--bg-surface)',
-                border: '1px solid var(--border-subtle)',
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: 12,
-                margin: '0 auto 20px'
+                width: 220, height: 220, borderRadius: 16,
+                background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)',
+                display: 'flex', flexDirection: 'column',
+                alignItems: 'center', justifyContent: 'center',
+                gap: 12, margin: '0 auto 20px'
               }}>
                 <span className="spinner" style={{ width: 32, height: 32, borderWidth: 3, borderTopColor: 'var(--green)' }} />
                 <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
@@ -526,17 +424,13 @@ export default function WhatsAppInstances() {
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 20 }}>
               <div className="pulse-dot" style={{ width: 8, height: 8 }} />
               <span style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 500 }}>
-                Aguardando leitura...
+                {qrStatus === 'connected' ? 'Conectado!' : 'Aguardando leitura...'}
               </span>
             </div>
 
             <button
               className="btn btn-secondary"
-              onClick={() => {
-                setActiveQRInstance(null);
-                setQrCodeData(null);
-                setConnectingInstance(null);
-              }}
+              onClick={() => { setActiveQRInstance(null); setQrData(null); setConnectingInstance(null); }}
               style={{ width: '100%' }}
             >
               Cancelar
