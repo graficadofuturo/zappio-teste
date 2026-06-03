@@ -49,9 +49,10 @@ export default async function handler(req, res) {
     }
 
     if (action === 'collect' || action === 'sync') {
-      const { marketplace = "mercadolivre", term = "ofertas", category = "Geral", uid } = req.query;
-      const offers = await collectAutomated(term, category, uid);
-      const saved = await saveOffers(offers);
+      const { marketplace = "mercadolivre", term = "ofertas", category = "Geral" } = req.query;
+      const uid = req.query.uid || req.body?.uid || req.body?.userId;
+      const offers = await collectAutomated(String(term), String(category), uid ? String(uid) : null);
+      const saved = await saveOffers(offers, uid ? String(uid) : null);
       return res.status(200).json({ ok: true, totalSaved: saved, offersCount: offers.length });
     }
 

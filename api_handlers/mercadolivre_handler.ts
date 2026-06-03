@@ -47,8 +47,8 @@ export default async function handler(req, res) {
       // Trigger a sync for the user
       const terms = ["celular", "televisão", "tênis", "cozinha", "ferramentas"];
       const randomTerm = terms[Math.floor(Math.random() * terms.length)];
-      const offers = await collectAutomated(randomTerm);
-      const saved = await saveOffers(offers);
+      const offers = await collectAutomated(randomTerm, null, uid);
+      const saved = await saveOffers(offers, uid);
       return res.status(200).json({ ok: true, syncCount: saved });
     }
 

@@ -4,7 +4,9 @@ import { normalizeOfferCategory, collectAutomated, saveOffers } from "../_lib/ml
 export default async function handler(req, res) {
   res.setHeader("Content-Type", "application/json; charset=utf-8");
 
-  console.log("HANDLER HIT", req.method, req.query, req.originalUrl);
+  const uid = req.query.uid || req.body?.uid || req.body?.userId;
+
+  console.log("HANDLER HIT", req.method, req.query, req.originalUrl, { uid });
 
   if (req.method === "POST" && req.url.includes("clear-and-recollect")) {
     try {
@@ -26,12 +28,12 @@ export default async function handler(req, res) {
        const terms = ["celular smartphone", "tênis", "panela fritadeira", "suplemento whey", "parafusadeira"];
        let allEnriched = [];
        for (const term of terms) {
-         const offers = await collectAutomated(term);
+         const offers = await collectAutomated(term, null, uid ? String(uid) : null);
          if (offers && offers.length) {
             allEnriched.push(...offers);
          }
        }
-       await saveOffers(allEnriched);
+       await saveOffers(allEnriched, uid ? String(uid) : null);
 
        return res.status(200).json({ ok: true, deletedCount, newlyCollected: allEnriched.length });
     } catch (e) {

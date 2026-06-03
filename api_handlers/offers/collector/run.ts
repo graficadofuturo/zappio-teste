@@ -31,25 +31,39 @@ export default async function handler(req, res) {
     }
 
     const db = getAdminDb();
-    let affiliateUserId = null;
+    let affiliateUserId = req.query.uid || req.body?.uid || req.body?.userId || null;
 
-    const usersSnap = await db.collection("users").get();
-    for (const doc of usersSnap.docs) {
-       const data = doc.data();
-       // Check root doc (legacy)
-       if (data.mlAffiliateCookies && data.mlAffiliateTag) {
-          affiliateUserId = doc.id;
-          break;
-       }
-       // Check subcollection
-       const mlSnap = await db.doc(`users/${doc.id}/integrations/mercadolivre`).get();
-       if (mlSnap.exists) {
-          const mlData = mlSnap.data();
-          if ((mlData.affiliateCookie || mlData.cookie) && (mlData.affiliateTag || mlData.userTag)) {
-             affiliateUserId = doc.id;
-             break;
+    if (!affiliateUserId) {
+      try {
+        const globalSnap = await db.doc("marketplace_integrations/mercadolivre").get();
+        if (globalSnap.exists) {
+          const mlData = globalSnap.data();
+          if (mlData && mlData.uid) {
+            affiliateUserId = mlData.uid;
           }
-       }
+        }
+      } catch (e) {}
+    }
+
+    if (!affiliateUserId) {
+      const usersSnap = await db.collection("users").get();
+      for (const doc of usersSnap.docs) {
+         const data = doc.data();
+         // Check root doc (legacy)
+         if (data.mlAffiliateCookies && data.mlAffiliateTag) {
+            affiliateUserId = doc.id;
+            break;
+         }
+         // Check subcollection
+         const mlSnap = await db.doc(`users/${doc.id}/integrations/mercadolivre`).get();
+         if (mlSnap.exists) {
+            const mlData = mlSnap.data();
+            if ((mlData.affiliateCookie || mlData.cookie) && (mlData.affiliateTag || mlData.userTag)) {
+               affiliateUserId = doc.id;
+               break;
+            }
+         }
+      }
     }
 
     const allErrors = [];
@@ -60,7 +74,7 @@ export default async function handler(req, res) {
       
       try {
 
-        const validOffers = await collectAutomated(queryTerm, catName);
+        const validOffers = await collectAutomated(queryTerm, catName, affiliateUserId);
         
         if (validOffers.length > 0) {
           const savedCount = await saveOffers(validOffers, affiliateUserId);

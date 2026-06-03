@@ -332,8 +332,10 @@ router.get("/callback", async (req, res) => {
       };
 
       const path = `users/${userId}/integrations/mercadolivre`;
+      const globalPath = `marketplace_integrations/mercadolivre`;
       await db.doc(path).set(data);
-      console.log("ML_CALLBACK_MOCK_SAVE_OK", { path });
+      await db.doc(globalPath).set(data);
+      console.log("ML_CALLBACK_MOCK_SAVE_OK", { path, globalPath });
       return sendHtml("connected");
     }
 
@@ -471,11 +473,13 @@ router.get("/callback", async (req, res) => {
     };
 
     const path = `users/${userId}/integrations/mercadolivre`;
-    console.log("ML_CALLBACK_SAVE_PATH", path);
+    const globalPath = `marketplace_integrations/mercadolivre`;
+    console.log("ML_CALLBACK_SAVE_PATH", path, globalPath);
     console.log("ML_CALLBACK_SAVE_PAYLOAD_KEYS", Object.keys(data));
 
     try {
       await db.doc(path).set(data);
+      await db.doc(globalPath).set(data);
       console.log("ML_CALLBACK_SAVE_OK", true);
       
       console.log("ML_CALLBACK_VERIFY_READ_PATH", path);
@@ -641,6 +645,7 @@ router.post("/cookie-config", async (req, res) => {
       connected: true,
       status: 'CONECTADO',
       marketplace: "mercadolivre",
+      uid: String(uid),
       updatedAt: new Date().toISOString()
     };
 
@@ -662,6 +667,7 @@ router.post("/cookie-config", async (req, res) => {
     }
 
     await docRef.set(updateData, { merge: true });
+    await db.doc(`marketplace_integrations/mercadolivre`).set(updateData, { merge: true });
 
     res.json({ ok: true });
   } catch (error: any) {

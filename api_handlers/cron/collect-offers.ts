@@ -26,21 +26,34 @@ export default async function handler(req, res) {
   try {
     const db = getAdminDb();
     let uid = null;
-    const usersSnap = await db.collection("users").get();
-    for (const doc of usersSnap.docs) {
-       const data = doc.data();
-       if (data.mlAffiliateCookies && data.mlAffiliateTag) {
-          uid = doc.id;
-          break;
-       }
-       const mlSnap = await db.doc(`users/${doc.id}/integrations/mercadolivre`).get();
-       if (mlSnap.exists) {
-          const mlData = mlSnap.data();
-          if ((mlData.affiliateCookie || mlData.cookie) && (mlData.affiliateTag || mlData.userTag)) {
-             uid = doc.id;
-             break;
-          }
-       }
+
+    try {
+      const globalSnap = await db.doc("marketplace_integrations/mercadolivre").get();
+      if (globalSnap.exists) {
+        const mlData = globalSnap.data();
+        if (mlData && mlData.uid) {
+          uid = mlData.uid;
+        }
+      }
+    } catch (e) {}
+
+    if (!uid) {
+      const usersSnap = await db.collection("users").get();
+      for (const doc of usersSnap.docs) {
+         const data = doc.data();
+         if (data.mlAffiliateCookies && data.mlAffiliateTag) {
+            uid = doc.id;
+            break;
+         }
+         const mlSnap = await db.doc(`users/${doc.id}/integrations/mercadolivre`).get();
+         if (mlSnap.exists) {
+            const mlData = mlSnap.data();
+            if ((mlData.affiliateCookie || mlData.cookie) && (mlData.affiliateTag || mlData.userTag)) {
+               uid = doc.id;
+               break;
+            }
+         }
+      }
     }
 
     let totalSaved = 0;
@@ -48,7 +61,7 @@ export default async function handler(req, res) {
     // Process a few categories in each cron run to avoid timeouts
     for (const item of CATEGORY_KEYWORDS) {
       try {
-        const validOffers = await collectAutomated(item.term, item.category);
+        const validOffers = await collectAutomated(item.term, item.category, uid);
         if (validOffers.length > 0) {
           const saved = await saveOffers(validOffers, uid);
           totalSaved += saved;
