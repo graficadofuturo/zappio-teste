@@ -49,17 +49,15 @@ export default async function handler(req, res) {
     }
 
     if (action === 'collect' || action === 'sync') {
-      const { marketplace = "mercadolivre", term = "ofertas", category = "Geral" } = req.query;
-      const offers = await collectAutomated(term, category);
+      const { marketplace = "mercadolivre", term = "ofertas", category = "Geral", uid } = req.query;
+      const offers = await collectAutomated(term, category, uid);
       const saved = await saveOffers(offers);
       return res.status(200).json({ ok: true, totalSaved: saved, offersCount: offers.length });
     }
 
     if (action === 'reprocess' || action === 'refresh') {
-      const db = getAdminDb();
-      const snapshot = await db.collection("offer_bank").limit(20).get();
-      // Logic for reprocess could be added here
-      return res.status(200).json({ ok: true, message: "Recurso em desenvolvimento", count: snapshot.size });
+      const reprocessHandler = (await import("./offers/reprocess.js")).default;
+      return reprocessHandler(req, res);
     }
 
     if (action === 'health') {

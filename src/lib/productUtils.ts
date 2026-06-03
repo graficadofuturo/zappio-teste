@@ -4,7 +4,12 @@
 export function simplifyProductTitle(title: string): string {
   if (!title) return "";
   
-  let short = title
+  const cleaned = title
+    .replace(/\s*-\s*R\$\s*\d+(?:[.,]\d+)?/gi, "")
+    .replace(/\s*R\$\s*\d+(?:[.,]\d+)?/gi, "")
+    .trim();
+
+  let short = cleaned
     .replace(/Smartphone /gi, "")
     .replace(/Smart TV /gi, "Smart TV ")
     .replace(/Fone de Ouvido /gi, "")

@@ -8,6 +8,8 @@ export default async function handler(req, res) {
     return res.status(405).json({ ok: false, error: "Method not allowed" });
   }
 
+  const uid = req.query.uid || req.body?.uid || req.body?.userId;
+
   try {
     const db = getAdminDb();
     console.log("REPROCESS_START: Fetching all Mercado Livre offers from offer_bank");
@@ -50,7 +52,7 @@ export default async function handler(req, res) {
 
       try {
         console.log(`REPROCESS_SCRAPING: ${url}`);
-        const enriched = await scrapeProductPage(url, offer.category || 'todos');
+        const enriched = await scrapeProductPage(url, offer.category || 'todos', uid);
         
         if (enriched) {
           enrichedBatch.push(enriched);

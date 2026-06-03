@@ -1,6 +1,35 @@
 import * as cheerio from 'cheerio';
 import { getAdminDb } from './firebase-admin.js';
 import axios from 'axios';
+import { simplifyProductTitle } from '../../src/lib/productUtils.js';
+
+async function getMlAccessToken(uid?: string | null): Promise<string | null> {
+  const db = getAdminDb();
+  if (uid) {
+    const mlSnap = await db.doc(`users/${uid}/integrations/mercadolivre`).get();
+    if (mlSnap.exists) {
+      const mlData = mlSnap.data();
+      if (mlData && mlData.connected && mlData.accessToken && !mlData.accessToken.startsWith('mock')) {
+        return mlData.accessToken;
+      }
+    }
+  }
+  
+  // Fallback: search for any connected integration with a real access token
+  try {
+    const usersSnap = await db.collection("users").get();
+    for (const doc of usersSnap.docs) {
+       const mlSnap = await db.doc(`users/${doc.id}/integrations/mercadolivre`).get();
+       if (mlSnap.exists) {
+          const mlData = mlSnap.data();
+          if (mlData && mlData.connected && mlData.accessToken && !mlData.accessToken.startsWith('mock')) {
+             return mlData.accessToken;
+          }
+       }
+    }
+  } catch (e) {}
+  return null;
+}
 
 // --- Affiliate Regex Extraction ---
 export function extractAffiliateTag(htmlOrScript) {
@@ -211,21 +240,55 @@ export function normalizeOfferCategory(category?: string | null, title?: string 
   return defaultCat || category || 'Geral';
 }
 
-export async function collectAutomated(keyword: string, category?: string | null) {
+export async function collectAutomated(keyword: string, category?: string | null, uid?: string | null) {
   try {
+     const token = await getMlAccessToken(uid);
+     const headers: any = {
+       "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+       "Accept": "application/json"
+     };
+     if (token) {
+       headers["Authorization"] = `Bearer ${token}`;
+     }
      const url = 'https://api.mercadolibre.com/sites/MLB/search?q=' + encodeURIComponent(keyword) + '&limit=20';
-     const resp = await axios.get(url);
+     const resp = await axios.get(url, { headers });
      const items = resp.data.results || [];
-     return items.map((item: any) => ({
-        id: item.id,
-        title: item.title,
-        price: item.price,
-        imageUrl: item.thumbnail ? item.thumbnail.replace('-I.jpg', '-O.jpg') : null,
-        productUrl: item.permalink,
-        category: normalizeOfferCategory(category, item.title, 'Geral'),
-        marketplace: 'mercadolivre'
-     }));
-  } catch(e) {
+     return items.map((item: any) => {
+        let price = Number(item.price);
+        let originalPrice = item.original_price ? Number(item.original_price) : null;
+        if (originalPrice && price > originalPrice) {
+          [price, originalPrice] = [originalPrice, price];
+        }
+        if (originalPrice !== null && originalPrice <= price) {
+          originalPrice = null;
+        }
+        let discountPercent = null;
+        if (originalPrice && price && originalPrice > price) {
+          discountPercent = Math.round(((originalPrice - price) / originalPrice) * 100);
+        }
+        
+        const fullTitle = (item.title || '').trim();
+        const shortTitle = simplifyProductTitle(fullTitle);
+
+        return {
+          id: item.id,
+          productId: item.id,
+          title: shortTitle,
+          titleShort: shortTitle,
+          titleOriginal: fullTitle,
+          price: price,
+          originalPrice: originalPrice,
+          discountPercent: discountPercent,
+          hasDiscount: !!(originalPrice && originalPrice > price),
+          imageUrl: item.thumbnail ? item.thumbnail.replace('-I.jpg', '-O.jpg') : null,
+          productUrl: item.permalink,
+          category: normalizeOfferCategory(category, item.title, 'Geral'),
+          marketplace: 'mercadolivre',
+          updatedAt: new Date().toISOString()
+        };
+     });
+  } catch(e: any) {
+     console.error("collectAutomated error:", e.message);
      return [];
   }
 }
@@ -287,7 +350,7 @@ export async function saveOffers(offers: any[], uid: string | null = null) {
   return count;
 }
 
-export async function scrapeProductPage(url, defaultCategory) {
+export async function scrapeProductPage(url, defaultCategory, uid?: string | null) {
   let finalUrl = url;
   if (url.includes('click1.mercadolivre.com.br') || url.includes('/count') || url.includes('mclics/clicks')) {
     try {
@@ -304,18 +367,51 @@ export async function scrapeProductPage(url, defaultCategory) {
   if (!match) return null;
   const id = match[0].replace('-', '');
   try {
-    const res = await axios.get('https://api.mercadolibre.com/items/' + id);
+    const token = await getMlAccessToken(uid);
+    const headers: any = {
+      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+      "Accept": "application/json"
+    };
+    if (token) {
+      headers["Authorization"] = `Bearer ${token}`;
+    }
+    const res = await axios.get('https://api.mercadolibre.com/items/' + id, { headers });
     const item = res.data;
+    
+    let price = Number(item.price);
+    let originalPrice = item.original_price ? Number(item.original_price) : null;
+    if (originalPrice && price > originalPrice) {
+      [price, originalPrice] = [originalPrice, price];
+    }
+    if (originalPrice !== null && originalPrice <= price) {
+      originalPrice = null;
+    }
+    let discountPercent = null;
+    if (originalPrice && price && originalPrice > price) {
+      discountPercent = Math.round(((originalPrice - price) / originalPrice) * 100);
+    }
+    
+    const fullTitle = (item.title || '').trim();
+    const shortTitle = simplifyProductTitle(fullTitle);
+
     return {
       id: item.id,
-      title: item.title,
-      price: item.price,
+      productId: item.id,
+      title: shortTitle,
+      titleShort: shortTitle,
+      titleOriginal: fullTitle,
+      price: price,
+      originalPrice: originalPrice,
+      discountPercent: discountPercent,
+      hasDiscount: !!(originalPrice && originalPrice > price),
       imageUrl: item.pictures && item.pictures.length > 0 ? item.pictures[0].url : item.thumbnail,
       productUrl: item.permalink,
       category: normalizeOfferCategory(defaultCategory, item.title, 'Geral'),
-      marketplace: 'mercadolivre'
+      marketplace: 'mercadolivre',
+      updatedAt: new Date().toISOString()
     };
-  } catch(e) {
+  } catch(e: any) {
+    console.error("scrapeProductPage error:", e.message);
     return null;
   }
 }

@@ -67,7 +67,7 @@ export default function Products() {
       setSyncing('collect');
       setSyncStatus(null);
       try {
-          const data = await fetchJson('/api/offers?action=collect&marketplace=mercadolivre&category=todos&term=ofertas', {
+          const data = await fetchJson(`/api/offers?action=collect&marketplace=mercadolivre&category=todos&term=ofertas&uid=${GLOBAL_USER_ID}`, {
             method: 'POST'
           });
 
@@ -323,7 +323,7 @@ export default function Products() {
                   )}
                   {hasDiscount && (
                     <span className="discount-badge" style={{ position: 'absolute', top: 10, right: 10 }}>
-                      -{product.discountPercent}% OFF
+                      -{String(product.discountPercent).replace(/%?\s*OFF/gi, '')}% OFF
                     </span>
                   )}
                   {(product.marketplace === 'mercadolivre' || product.marketplace === 'mercadolivre_global' || !product.marketplace) && (
