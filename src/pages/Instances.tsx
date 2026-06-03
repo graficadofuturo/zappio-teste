@@ -133,13 +133,24 @@ export default function WhatsAppInstances() {
       setSuccessMsg("Instância criada! Clique em 'Conectar' para escanear o QR Code.");
       setTimeout(() => setSuccessMsg(null), 5000);
     } catch (e: any) {
-      handleFirestoreError(e, OperationType.CREATE, 'whatsapp_instances');
-      setErrorMsg('Erro ao criar instância.');
+      console.error("Erro ao criar instância:", e);
+      let msg = 'Erro ao criar instância.';
+      try {
+        if (e && e.message) {
+          const parsed = JSON.parse(e.message);
+          msg = parsed.error || e.message;
+        }
+      } catch (_) {
+        msg = e.message || String(e);
+      }
+      setErrorMsg(msg);
+    } finally {
+      setCreatingInstance(false);
     }
-    setCreatingInstance(false);
   };
 
   const deleteInstance = async (id: string) => {
+    setErrorMsg(null);
     try {
       await fetch('/api/whatsapp/disconnect', {
         method: 'POST',
@@ -147,8 +158,9 @@ export default function WhatsAppInstances() {
         body: JSON.stringify({ instanceId: id })
       });
       await deleteDoc(doc(db, 'whatsapp_instances', id));
-    } catch (e) {
-      handleFirestoreError(e, OperationType.DELETE, 'whatsapp_instances');
+    } catch (e: any) {
+      console.error("Erro ao excluir instância:", e);
+      setErrorMsg('Erro ao excluir instância: ' + (e.message || e));
     }
   };
 
