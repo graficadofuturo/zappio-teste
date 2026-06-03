@@ -570,7 +570,7 @@ export async function collectAutomated(keyword: string, category?: string | null
      });
   } catch(e: any) {
      console.error("collectAutomated error:", e.message);
-     return [];
+     throw new Error(`Falha na API do Mercado Livre (${e.response?.status || e.message}). Certifique-se de que sua conta do Mercado Livre está integrada em 'Integrações'.`);
   }
 }
 
