@@ -294,39 +294,45 @@ export async function convertURLWithFirestoreCredentials(
   db: any
 ): Promise<AffiliateLinkResult> {
   try {
-    const mlDocRef = db.doc(`users/${userId}/integrations/mercadolivre`);
-    const mlDocSnap = await mlDocRef.get();
+    const { createAffiliateLinkFromFirestore } = await import('../../../api_handlers/_lib/ml-utils.js');
+    console.log(`[MLAffiliate] Delegating conversion to createAffiliateLinkFromFirestore for url: ${productUrl}, uid: ${userId}`);
+    const result = await createAffiliateLinkFromFirestore(productUrl, userId, db);
     
-    if (!mlDocSnap.exists) {
-      return { ok: false, affiliateUrl: productUrl, method: 'fallback', error: 'ML integration not found' };
+    if (result.ok && result.short_url) {
+      return {
+        ok: true,
+        affiliateUrl: result.short_url,
+        method: 'cookie_linkbuilder'
+      };
     }
     
-    const mlData = mlDocSnap.data();
-    
-    if (!mlData?.connected) {
-      return { ok: false, affiliateUrl: productUrl, method: 'fallback', error: 'ML integration not connected' };
+    console.warn(`[MLAffiliate] Cookie-based conversion failed, falling back to deeplink. Error:`, result.error);
+
+    // Fallback: Try Deeplink with affiliate tag if possible
+    const itemId = extractMLItemId(productUrl);
+    const mlDocSnap = await db.doc(`users/${userId}/integrations/mercadolivre`).get();
+    let affiliateTag = null;
+    if (mlDocSnap.exists) {
+      const mlData = mlDocSnap.data();
+      affiliateTag = mlData?.affiliateTag || mlData?.userTag || null;
     }
     
-    const affiliateTag = mlData.affiliateTag || mlData.userTag || null;
-    const affiliateCookie = mlData.affiliateCookie || mlData.cookie || null;
-    
-    // 1. Try Cookie-based Shortened Link API (meli.la)
-    if (affiliateCookie && affiliateTag) {
-      try {
-        const shortUrl = await convertMLWithCookie(productUrl, affiliateCookie, affiliateTag, userId, db);
-        if (shortUrl) {
-          return { ok: true, affiliateUrl: shortUrl, method: 'cookie_linkbuilder' };
-        }
-      } catch (cookieErr: any) {
-        console.error('[MLAffiliate] Cookie-based conversion error:', cookieErr.message);
-      }
+    if (itemId && affiliateTag) {
+      const cleanItemId = itemId.replace('MLB', '');
+      const deeplink = `https://produto.mercadolivre.com.br/MLB-${cleanItemId}?affiliate_id=${affiliateTag}`;
+      return {
+        ok: true,
+        affiliateUrl: deeplink,
+        method: 'deeplink'
+      };
     }
     
-    // 2. Try Deeplink / Official API Fallback
-    const accessToken = mlData.accessToken || mlData.access_token;
-    const mlUserId = mlData.mlUserId || null;
-    
-    return await convertToMLAffiliateLink(productUrl, accessToken, affiliateTag, mlUserId);
+    return {
+      ok: false,
+      affiliateUrl: productUrl,
+      method: 'fallback',
+      error: result.error || 'Conversion failed and no fallback possible'
+    };
   } catch (e: any) {
     console.error('[MLAffiliate] Firestore credential lookup failed:', e.message);
     return { ok: false, affiliateUrl: productUrl, method: 'fallback', error: e.message };
