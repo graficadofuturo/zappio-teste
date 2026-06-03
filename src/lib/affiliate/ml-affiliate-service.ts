@@ -324,9 +324,10 @@ export async function convertURLWithFirestoreCredentials(
         ? `https://www.mercadolivre.com.br/p/MLB${cleanItemId}?affiliate_id=${affiliateTag}`
         : `https://produto.mercadolivre.com.br/MLB-${cleanItemId}?affiliate_id=${affiliateTag}`;
       return {
-        ok: true,
+        ok: false,
         affiliateUrl: deeplink,
-        method: 'deeplink'
+        method: 'deeplink',
+        error: result.error || 'Erro na encurtação de cookies.'
       };
     }
     

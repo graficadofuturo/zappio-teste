@@ -846,8 +846,8 @@ export default function Integrations() {
                   </span>
                 </div>
 
-                {testResult.ok && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {testResult.affiliateUrl && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: testResult.error ? 12 : 0 }}>
                     <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Link Gerado:</span>
                     <a
                       href={testResult.affiliateUrl}
@@ -860,9 +860,9 @@ export default function Integrations() {
                   </div>
                 )}
 
-                {!testResult.ok && (
-                  <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: 0, wordBreak: 'break-all' }}>
-                    {testResult.error || 'Código de cookie expirado ou inválido. O sistema usará o link padrão de fallback.'}
+                {testResult.error && (
+                  <p style={{ fontSize: 11, color: '#f87171', margin: 0, wordBreak: 'break-all' }}>
+                    <strong>Detalhe:</strong> {testResult.error}
                   </p>
                 )}
               </div>
