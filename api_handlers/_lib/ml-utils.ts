@@ -211,30 +211,41 @@ export function cleanCookies(cookieString: string): string {
     .join('; ');
 }
 
-export async function renewAffiliateCookie(uid, db, currentCookie) {
+export async function renewAffiliateCookie(uid, db, currentCookie): Promise<string | null> {
   console.log(`[ML-UTILS] renewAffiliateCookie START - uid: ${uid}`);
   try {
-    const headers = {
+    const headers: Record<string, string> = {
       "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-      "Accept": "text/html,application/xhtml+xml,application/xml"
+      "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+      "Accept-Language": "pt-BR,pt;q=0.9"
     };
     if (currentCookie) {
       headers["Cookie"] = cleanCookies(currentCookie);
     }
     const lbRes = await fetch("https://www.mercadolivre.com.br/afiliados/linkbuilder", { headers });
-    console.log(`[ML-UTILS] renewAffiliateCookie GET linkbuilder STATUS: ${lbRes.status}`);
+    console.log(`[ML-UTILS] renewAffiliateCookie GET linkbuilder STATUS: ${lbRes.status}, finalURL: ${lbRes.url}`);
+
+    // Se o ML redirecionou para login, a sessão expirou de verdade
+    const finalUrl = lbRes.url || "";
+    const isLoginPage = finalUrl.includes("/login") || finalUrl.includes("/registration") || lbRes.status === 401 || lbRes.status === 403;
+    if (isLoginPage) {
+      console.warn(`[ML-UTILS] renewAffiliateCookie: Session truly expired (redirected to login). Cannot renew without user re-login.`);
+      await db.doc('users/' + uid + '/integrations/mercadolivre').set({
+         affiliateCookieStatus: 'EXPIRADO',
+         lastAffiliateCookieSync: new Date().toISOString()
+      }, { merge: true });
+      return null; // null = sessão expirada, não renovável
+    }
 
     const setCookies = lbRes.headers.getSetCookie ? lbRes.headers.getSetCookie() : [];
     const rawCookie = lbRes.headers.get("set-cookie");
     const arrCookies = setCookies.length > 0 ? setCookies : (rawCookie ? [rawCookie] : []);
     
-    const cookieMap = {};
+    const cookieMap: Record<string, string> = {};
     if (currentCookie) {
       currentCookie.split(';').forEach(part => {
          const [k, ...v] = part.split('=');
-         if (k) {
-           cookieMap[k.trim()] = v.join('=').trim();
-         }
+         if (k) cookieMap[k.trim()] = v.join('=').trim();
       });
     }
 
@@ -244,9 +255,7 @@ export async function renewAffiliateCookie(uid, db, currentCookie) {
     arrCookies.forEach(c => {
        const part = c.split(';')[0];
        const [k, ...v] = part.split('=');
-       if (k) {
-         cookieMap[k.trim()] = v.join('=').trim();
-       }
+       if (k) cookieMap[k.trim()] = v.join('=').trim();
     });
 
     if (!cookieMap['_csrf'] && oldCsrf) cookieMap['_csrf'] = oldCsrf;
@@ -270,6 +279,7 @@ export async function renewAffiliateCookie(uid, db, currentCookie) {
     return cleanCookies(currentCookie);
   }
 }
+
 
 export async function createAffiliateLinkFromFirestore(url, uid, db) {
   console.log(`[ML-UTILS] createAffiliateLinkFromFirestore START - url: ${url}, uid: ${uid}`);
@@ -389,7 +399,12 @@ export async function createAffiliateLinkFromFirestore(url, uid, db) {
 
     if (isSessionRedirect) {
       console.warn(`[ML-UTILS] Session redirect detected (status=${createRes.status}, type=${(createRes as any).type}) -> Session expired/invalid. Renewing cookies...`);
-      mlCookies = await renewAffiliateCookie(uid, db, mlCookies);
+      const renewed = await renewAffiliateCookie(uid, db, mlCookies);
+      if (!renewed) {
+        // renewAffiliateCookie retornou null = sessão expirou de verdade, não é renovável
+        return { ok: false, fallback: targetUrl, finalUrl, error: `SESSION_EXPIRED - Sua sessão do Mercado Livre expirou. Acesse as Integrações e clique em "Reconectar" para entrar novamente.` };
+      }
+      mlCookies = renewed;
       createRes = await attemptRequest(mlCookies);
       const isOpaqueRedirect2 = (createRes as any).type === 'opaqueredirect' || createRes.status === 0;
       createText = isOpaqueRedirect2 ? '' : await createRes.text();
@@ -397,11 +412,15 @@ export async function createAffiliateLinkFromFirestore(url, uid, db) {
       console.log(`[ML-UTILS] Second POST BODY:`, createText.substring(0, 500));
       // Se ainda for redirect/405 após renovação, cookies realmente expirados
       if (isOpaqueRedirect2 || createRes.status === 0 || createRes.status === 405 || (createRes.status >= 300 && createRes.status < 400)) {
-        return { ok: false, fallback: targetUrl, finalUrl, error: `SESSION_EXPIRED - Cookie do Mercado Livre expirou. Acesse as Integrações e clique em Reconectar.` };
+        return { ok: false, fallback: targetUrl, finalUrl, error: `SESSION_EXPIRED - Sua sessão do Mercado Livre expirou. Acesse as Integrações e clique em "Reconectar" para entrar novamente.` };
       }
     } else if (createRes.status >= 400) {
       console.log(`[ML-UTILS] ML link creation failed with ${createRes.status}, trying second renew cookie...`);
-      mlCookies = await renewAffiliateCookie(uid, db, mlCookies);
+      const renewed2 = await renewAffiliateCookie(uid, db, mlCookies);
+      if (!renewed2) {
+        return { ok: false, fallback: targetUrl, finalUrl, error: `SESSION_EXPIRED - Sua sessão do Mercado Livre expirou. Acesse as Integrações e clique em "Reconectar" para entrar novamente.` };
+      }
+      mlCookies = renewed2;
       createRes = await attemptRequest(mlCookies);
       createText = await createRes.text();
       console.log(`[ML-UTILS] Second POST createLink STATUS: ${createRes.status}`);
