@@ -171,13 +171,21 @@ export default function WhatsAppInstances() {
     setQrStatus('initializing');
     setQrData(null);
     try {
-      await fetch('/api/whatsapp/connect', {
+      const res = await fetch('/api/whatsapp/connect', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ instanceId: id })
       });
-    } catch (e) {
-      setErrorMsg('Falha ao iniciar conexão com servidor WhatsApp.');
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.error || `Erro HTTP! Status: ${res.status}`);
+      }
+      const data = await res.json();
+      if (data && data.status === 'error') {
+        throw new Error(data.error || 'Erro ao conectar');
+      }
+    } catch (e: any) {
+      setErrorMsg('Falha ao iniciar conexão: ' + (e.message || e));
       setActiveQRInstance(null);
       setConnectingInstance(null);
     }

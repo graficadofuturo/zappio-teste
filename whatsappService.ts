@@ -34,9 +34,17 @@ async function saveStatusToFirestore(instanceId: string, data: Record<string, an
   }
 }
 
+// Helper to get auth directory path (uses /tmp on Vercel serverless)
+function getAuthDir(instanceId: string) {
+  if (process.env.VERCEL) {
+    return `/tmp/baileys_auth_info_${instanceId}`;
+  }
+  return `baileys_auth_info_${instanceId}`;
+}
+
 // Helper: clear auth credentials directory
 function clearAuthDir(instanceId: string) {
-  const dir = `baileys_auth_info_${instanceId}`;
+  const dir = getAuthDir(instanceId);
   try {
     if (fs.existsSync(dir)) {
       fs.rmSync(dir, { recursive: true, force: true });
@@ -108,8 +116,8 @@ export async function connectWhatsApp(instanceId: string) {
       wa_qr_updated_at: null,
     });
 
-    // Ensure session directory exists or just let Baileys handle it
-    const { state, saveCreds } = await useMultiFileAuthState(`baileys_auth_info_${instanceId}`);
+    const authDir = getAuthDir(instanceId);
+    const { state, saveCreds } = await useMultiFileAuthState(authDir);
     const { version } = await fetchLatestBaileysVersion();
     
     const sock = makeWASocket({

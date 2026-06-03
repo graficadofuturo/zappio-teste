@@ -94,6 +94,10 @@ router.post("/connect", async (req, res) => {
   setTimeout(() => clearInterval(pushUpdates), 5 * 60 * 1000);
 
   const status = await connectWhatsApp(instanceId);
+  if (status && status.status === 'error') {
+    clearInterval(pushUpdates);
+    return res.status(500).json({ status: 'error', error: (status as any).error });
+  }
   res.json(status || { status: 'initializing' });
 });
 
