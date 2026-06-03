@@ -696,6 +696,48 @@ router.post('/convert-affiliate', async (req, res) => {
     return res.status(500).json({ ok: false, error: error.message, fallback: req.body?.url });
   }
 });
+router.post('/convert-test', async (req, res) => {
+  res.setHeader('Content-Type', 'application/json; charset=utf-8');
+  try {
+    const uid = req.query.uid || req.body?.uid;
+    const { url, offerId } = req.body;
+    
+    if (!uid || !url || !offerId) {
+      return res.status(400).json({ success: false, error: 'Missing uid, url or offerId', rawResponse: { error: 'MISSING_PARAMS' } });
+    }
+
+    const db = getAdminDb();
+    const { convertURLWithFirestoreCredentials } = await import('../../lib/affiliate/ml-affiliate-service.js');
+    const result = await convertURLWithFirestoreCredentials(url, uid, db);
+
+    if (result.ok && result.affiliateUrl && result.method !== 'fallback') {
+      // Save it under offers/{offerId}/affiliateLinks/{uid}
+      await db.doc(`offers/${offerId}/affiliateLinks/${uid}`).set({
+        affiliateUrl: result.affiliateUrl,
+        updatedAt: new Date().toISOString(),
+        method: result.method
+      });
+
+      return res.json({
+        success: true,
+        isAffiliate: true,
+        affiliateUrl: result.affiliateUrl
+      });
+    }
+
+    return res.json({
+      success: false,
+      isAffiliate: false,
+      rawResponse: { error: result.error || 'CONVERSION_FAILED' }
+    });
+  } catch (error: any) {
+    return res.status(500).json({
+      success: false,
+      isAffiliate: false,
+      rawResponse: { error: error.message }
+    });
+  }
+});
 
 export default router;
 
