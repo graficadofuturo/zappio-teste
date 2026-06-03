@@ -65,9 +65,9 @@ export default function Integrations() {
     }
   };
 
-  const fetchAliCookieConfig = async () => {
+  const fetchAliCookieConfig = async (isSilent = false) => {
     try {
-      setAliexpressLoading(true);
+      if (!isSilent) setAliexpressLoading(true);
       const res = await fetch(`/api/integrations/aliexpress/cookie-config?uid=${GLOBAL_USER_ID}`).then(r => r.json());
       if (res.ok && res.config) {
         setAliexpressConfig(res.config);
@@ -80,7 +80,7 @@ export default function Integrations() {
       console.error('ALI_COOKIE_CONFIG_ERR', err);
       setAliexpressConnected(false);
     } finally {
-      setAliexpressLoading(false);
+      if (!isSilent) setAliexpressLoading(false);
     }
   };
 
@@ -216,8 +216,8 @@ export default function Integrations() {
 
   useEffect(() => {
     const handleFocus = () => {
-      console.log('Window focused, refreshing integrations...');
-      checkMlApiStatus();
+      console.log('Window focused, silently refreshing integrations...');
+      checkMlApiStatus(true);
     };
     window.addEventListener('focus', handleFocus);
     return () => {
@@ -258,9 +258,11 @@ export default function Integrations() {
     setLoading(false);
   };
 
-  const checkMlApiStatus = async () => {
-    setCheckingApiStatus(true);
-    setMercadoLivreLoading(true);
+  const checkMlApiStatus = async (isSilent = false) => {
+    if (!isSilent) {
+      setCheckingApiStatus(true);
+      setMercadoLivreLoading(true);
+    }
     try {
       const data = await fetchJson(`/api/mercadolivre?action=status&uid=${GLOBAL_USER_ID}`);
       setMlApiStatus(data);
@@ -268,14 +270,16 @@ export default function Integrations() {
       setMercadoLivreConnected(isConnected);
 
       await fetchMlCookieConfig();
-      await fetchAliCookieConfig();
+      await fetchAliCookieConfig(isSilent);
     } catch (e: any) {
       console.error('Error checking ML status:', e);
       showError(e.message);
       setMercadoLivreConnected(false);
     } finally {
-      setCheckingApiStatus(false);
-      setMercadoLivreLoading(false);
+      if (!isSilent) {
+        setCheckingApiStatus(false);
+        setMercadoLivreLoading(false);
+      }
     }
   };
 
@@ -508,7 +512,7 @@ export default function Integrations() {
               <>
                 <button
                   className="btn btn-ghost btn-sm"
-                  onClick={checkMlApiStatus}
+                  onClick={() => checkMlApiStatus()}
                   disabled={checkingApiStatus}
                   style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
                 >
@@ -710,7 +714,7 @@ export default function Integrations() {
               <>
                 <button
                   className="btn btn-ghost btn-sm"
-                  onClick={fetchAliCookieConfig}
+                  onClick={() => fetchAliCookieConfig()}
                   disabled={aliexpressLoading}
                   style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
                 >
@@ -735,7 +739,7 @@ export default function Integrations() {
               <>
                 <button
                   className="btn btn-ghost btn-sm"
-                  onClick={fetchAliCookieConfig}
+                  onClick={() => fetchAliCookieConfig()}
                   disabled={aliexpressLoading}
                   style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
                 >
