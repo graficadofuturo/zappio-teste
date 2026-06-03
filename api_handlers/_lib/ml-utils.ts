@@ -404,12 +404,12 @@ export async function createAffiliateLinkFromFirestore(url, uid, db) {
   const endpointsToTry = affiliateCreateEndpoint
     ? [affiliateCreateEndpoint]
     : [
-        // 1. API pública do Mercado Livre Afiliados (portal web)
-        "https://www.mercadolivre.com.br/afiliados/api/v1/links",
-        // 2. Endpoint alternativo do portal
-        "https://www.mercadolivre.com.br/afiliados/links",
-        // 3. Endpoint origin-navigation (Next.js interno) 
+        // 1. Endpoint interno Next.js do portal de afiliados (mais provável de funcionar com cookies)
         "https://www.mercadolivre.com.br/origin-navigation/api/affiliate-program/affiliate/createLink",
+        // 2. API interna do portal de afiliados
+        "https://www.mercadolivre.com.br/afiliados/api/links",
+        // 3. Rota alternativa conhecida
+        "https://www.mercadolivre.com.br/afiliados/api/link",
       ];
 
   const attemptRequest = async (cookieString: string) => {
@@ -417,17 +417,23 @@ export async function createAffiliateLinkFromFirestore(url, uid, db) {
       const result = await tryEndpoint(cookieString, ep);
       const { res, text, isOpaque } = result;
       
-      // Se recebeu redirect/405 = não autenticado neste endpoint, tenta o próximo
+      // Pular: redirect opaco, 0, 405 (S3), 3xx
       if (isOpaque || res.status === 0 || res.status === 405 || (res.status >= 300 && res.status < 400)) {
-        console.warn(`[ML-UTILS] Endpoint ${ep} returned redirect/405, trying next...`);
+        console.warn(`[ML-UTILS] Endpoint ${ep} returned redirect/405 (status=${res.status}), trying next...`);
         continue;
       }
-      // Se recebeu resposta real (mesmo que erro 4xx/5xx), retorna ela
+      // Pular: 404 com HTML do portal SPA (não é API real)
+      if (res.status === 404 && text.includes('<!DOCTYPE html')) {
+        console.warn(`[ML-UTILS] Endpoint ${ep} returned 404 HTML (SPA fallback), trying next...`);
+        continue;
+      }
+      // Recebeu resposta real da API (JSON ou erro API real), usa ela
       return { res, text, isOpaque: false };
     }
-    // Todos falharam com redirect
+    // Todos falharam
     return { res: { status: 0, ok: false } as any, text: '', isOpaque: true };
   };
+
 
 
   try {
