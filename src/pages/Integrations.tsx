@@ -493,10 +493,10 @@ export default function Integrations() {
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 14px' }}>
                 <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Link Afiliado</span>
                 <span
-                  className={`badge ${mlApiStatus?.integration?.affiliateCookieStatus === 'active' ? 'badge-green' : 'badge-yellow'}`}
+                  className={`badge ${(mlApiStatus?.integration?.affiliateCookieStatus === 'active' || mlApiStatus?.integration?.affiliateCookieStatus === 'valid') ? 'badge-green' : 'badge-yellow'}`}
                   style={{ fontSize: 10, padding: '2px 8px' }}
                 >
-                  {mlApiStatus?.integration?.affiliateCookieStatus === 'active' ? '✓ Ativo' : '⏳ Pendente'}
+                  {(mlApiStatus?.integration?.affiliateCookieStatus === 'active' || mlApiStatus?.integration?.affiliateCookieStatus === 'valid') ? '✓ Ativo' : '⏳ Pendente'}
                 </span>
               </div>
             </div>

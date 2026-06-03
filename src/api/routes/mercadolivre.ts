@@ -639,7 +639,7 @@ router.post("/cookie-config", async (req, res) => {
     if (cookie !== undefined && cookie !== '') {
       updateData.cookie = cookie;
       updateData.affiliateCookie = cookie;
-      updateData.affiliateCookieStatus = 'valid';
+      updateData.affiliateCookieStatus = 'active';
       updateData.affiliateCookieError = null;
     }
     
