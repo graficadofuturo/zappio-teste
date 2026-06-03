@@ -352,82 +352,117 @@ export async function createAffiliateLinkFromFirestore(url, uid, db) {
 
 
 
-  const attemptRequest = async (cookieString) => {
+  // Função auxiliar para fazer uma tentativa em um endpoint específico
+  const tryEndpoint = async (cookieString: string, endpoint: string) => {
     const cleanedCookie = cleanCookies(cookieString);
     const csrfMatch = cleanedCookie.match(/(?:^|;)\s*_csrf=([^;]+)/);
-    const csrfToken = csrfMatch ? csrfMatch[1] : 'sNEauQE4--r3JZa8_x1blVKCw8Srjb7syJ9U';
-
-    const endpoint = affiliateCreateEndpoint || "https://www.mercadolivre.com.br/origin-navigation/api/affiliate-program/affiliate/createLink";
-    console.log(`[ML-UTILS] attemptRequest using endpoint: ${endpoint}`);
+    const csrfToken = csrfMatch ? csrfMatch[1].trim() : '';
 
     const isOriginEndpoint = endpoint.includes("origin-navigation");
+    const isApiMeli = endpoint.includes("api.mercadolivre") || endpoint.includes("api.meli");
+    
     const requestBody = isOriginEndpoint 
       ? { url: targetUrl, tag: affiliateTag }
-      : { url: targetUrl, tag: affiliateTag, _csrf: csrfToken };
+      : { url: targetUrl, tag: affiliateTag };
 
-    return fetch(endpoint, {
-       method: "POST",
-       redirect: "manual",
-       headers: {
-         "Cookie": cleanedCookie,
-         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-         "Accept": "application/json, text/plain, */*",
-         "Content-Type": "application/json",
-         "Origin": "https://www.mercadolivre.com.br",
-         "Referer": "https://www.mercadolivre.com.br/afiliados/linkbuilder",
-         "x-csrf-token": csrfToken,
-         "x-csrf": csrfToken,
-         "x-requested-with": "XMLHttpRequest"
-       },
-       body: JSON.stringify(requestBody)
+    const headers: Record<string, string> = {
+      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+      "Accept": "application/json, text/plain, */*",
+      "Accept-Language": "pt-BR,pt;q=0.9,en;q=0.8",
+      "Content-Type": "application/json",
+      "Origin": "https://www.mercadolivre.com.br",
+      "Referer": "https://www.mercadolivre.com.br/afiliados/linkbuilder",
+    };
+
+    if (!isApiMeli) {
+      headers["Cookie"] = cleanedCookie;
+      if (csrfToken) {
+        headers["x-csrf-token"] = csrfToken;
+        headers["x-csrf"] = csrfToken;
+      }
+      headers["x-requested-with"] = "XMLHttpRequest";
+      headers["sec-fetch-dest"] = "empty";
+      headers["sec-fetch-mode"] = "cors";
+      headers["sec-fetch-site"] = "same-origin";
+    }
+
+    console.log(`[ML-UTILS] tryEndpoint: POST ${endpoint}`);
+    const res = await fetch(endpoint, {
+      method: "POST",
+      redirect: "manual",
+      headers,
+      body: JSON.stringify(requestBody)
     });
+    
+    const isOpaque = (res as any).type === 'opaqueredirect' || res.status === 0;
+    const text = isOpaque ? '' : await res.text();
+    console.log(`[ML-UTILS] tryEndpoint ${endpoint} -> status=${res.status}, type=${(res as any).type}, body=${text.substring(0, 300)}`);
+    return { res, text, isOpaque };
   };
+
+  // Endpoints a tentar em ordem (do mais provável ao fallback)
+  const endpointsToTry = affiliateCreateEndpoint
+    ? [affiliateCreateEndpoint]
+    : [
+        // 1. API pública do Mercado Livre Afiliados (portal web)
+        "https://www.mercadolivre.com.br/afiliados/api/v1/links",
+        // 2. Endpoint alternativo do portal
+        "https://www.mercadolivre.com.br/afiliados/links",
+        // 3. Endpoint origin-navigation (Next.js interno) 
+        "https://www.mercadolivre.com.br/origin-navigation/api/affiliate-program/affiliate/createLink",
+      ];
+
+  const attemptRequest = async (cookieString: string) => {
+    for (const ep of endpointsToTry) {
+      const result = await tryEndpoint(cookieString, ep);
+      const { res, text, isOpaque } = result;
+      
+      // Se recebeu redirect/405 = não autenticado neste endpoint, tenta o próximo
+      if (isOpaque || res.status === 0 || res.status === 405 || (res.status >= 300 && res.status < 400)) {
+        console.warn(`[ML-UTILS] Endpoint ${ep} returned redirect/405, trying next...`);
+        continue;
+      }
+      // Se recebeu resposta real (mesmo que erro 4xx/5xx), retorna ela
+      return { res, text, isOpaque: false };
+    }
+    // Todos falharam com redirect
+    return { res: { status: 0, ok: false } as any, text: '', isOpaque: true };
+  };
+
 
   try {
     console.log(`[ML-UTILS] attemptRequest to createLink API...`);
-    let createRes = await attemptRequest(mlCookies);
-    // NOTA: com redirect:'manual', Node.js retorna status=0 e type='opaqueredirect' em vez de 3xx
-    const isOpaqueRedirect = (createRes as any).type === 'opaqueredirect' || createRes.status === 0;
-    let createText = isOpaqueRedirect ? '' : await createRes.text();
-    console.log(`[ML-UTILS] POST createLink STATUS: ${createRes.status}, type: ${(createRes as any).type}`);
-    console.log(`[ML-UTILS] POST createLink BODY:`, createText.substring(0, 500));
-    
-    // Detectar redirect opaco (sessão expirada → redirecionaria para S3/login) OU 405 do S3 OU qualquer 3xx
-    const isSessionRedirect = isOpaqueRedirect
-      || (createRes.status >= 300 && createRes.status < 400)
-      || createRes.status === 405;  // 405 vem do S3 quando o redirect foi seguido
+    let { res: createRes, text: createText, isOpaque: isFirstOpaque } = await attemptRequest(mlCookies);
+    console.log(`[ML-UTILS] First attemptRequest result: status=${createRes.status}, isOpaque=${isFirstOpaque}`);
 
-    if (isSessionRedirect) {
-      console.warn(`[ML-UTILS] Session redirect detected (status=${createRes.status}, type=${(createRes as any).type}) -> Session expired/invalid. Renewing cookies...`);
+    // Se todos os endpoints retornaram redirect/405 = sessão expirada ou bloqueio de IP
+    if (isFirstOpaque || createRes.status === 0) {
+      console.warn(`[ML-UTILS] All endpoints returned redirect/opaque. Trying cookie renewal...`);
       const renewed = await renewAffiliateCookie(uid, db, mlCookies);
       if (!renewed) {
-        // renewAffiliateCookie retornou null = sessão expirou de verdade, não é renovável
-        return { ok: false, fallback: targetUrl, finalUrl, error: `SESSION_EXPIRED - Sua sessão do Mercado Livre expirou. Acesse as Integrações e clique em "Reconectar" para entrar novamente.` };
+        return { ok: false, fallback: targetUrl, finalUrl, error: `SESSION_EXPIRED - Sua sessão do Mercado Livre expirou. Acesse as Integrações e clique em "Reconectar".` };
       }
       mlCookies = renewed;
-      createRes = await attemptRequest(mlCookies);
-      const isOpaqueRedirect2 = (createRes as any).type === 'opaqueredirect' || createRes.status === 0;
-      createText = isOpaqueRedirect2 ? '' : await createRes.text();
-      console.log(`[ML-UTILS] Second POST STATUS: ${createRes.status}, type: ${(createRes as any).type}`);
-      console.log(`[ML-UTILS] Second POST BODY:`, createText.substring(0, 500));
-      // Se ainda for redirect/405 após renovação, cookies realmente expirados
-      if (isOpaqueRedirect2 || createRes.status === 0 || createRes.status === 405 || (createRes.status >= 300 && createRes.status < 400)) {
-        return { ok: false, fallback: targetUrl, finalUrl, error: `SESSION_EXPIRED - Sua sessão do Mercado Livre expirou. Acesse as Integrações e clique em "Reconectar" para entrar novamente.` };
+      const { res: res2, text: text2, isOpaque: isOpaque2 } = await attemptRequest(mlCookies);
+      createRes = res2;
+      createText = text2;
+      if (isOpaque2 || createRes.status === 0) {
+        return { ok: false, fallback: targetUrl, finalUrl, error: `SESSION_EXPIRED - Sua sessão do Mercado Livre expirou. Acesse as Integrações e clique em "Reconectar".` };
       }
     } else if (createRes.status >= 400) {
-      console.log(`[ML-UTILS] ML link creation failed with ${createRes.status}, trying second renew cookie...`);
+      console.log(`[ML-UTILS] Got ${createRes.status}, trying cookie renewal...`);
       const renewed2 = await renewAffiliateCookie(uid, db, mlCookies);
-      if (!renewed2) {
-        return { ok: false, fallback: targetUrl, finalUrl, error: `SESSION_EXPIRED - Sua sessão do Mercado Livre expirou. Acesse as Integrações e clique em "Reconectar" para entrar novamente.` };
+      if (renewed2) {
+        mlCookies = renewed2;
+        const { res: res3, text: text3, isOpaque: isOpaque3 } = await attemptRequest(mlCookies);
+        if (!isOpaque3 && res3.status < 400) {
+          createRes = res3;
+          createText = text3;
+        }
       }
-      mlCookies = renewed2;
-      createRes = await attemptRequest(mlCookies);
-      createText = await createRes.text();
-      console.log(`[ML-UTILS] Second POST createLink STATUS: ${createRes.status}`);
-      console.log(`[ML-UTILS] Second POST createLink BODY:`, createText.substring(0, 500));
     }
 
-    let shortUrl = null;
+    let shortUrl: string | null = null;
     try {
       const json = JSON.parse(createText);
       if (json && json.short_url) {
@@ -446,7 +481,7 @@ export async function createAffiliateLinkFromFirestore(url, uid, db) {
     if (shortUrl) {
       return { ok: true, short_url: shortUrl };
     }
-    return { ok: false, fallback: targetUrl, finalUrl, error: `NO_SHORT_URL - Code ${createRes.status}: ${createText}` };
+    return { ok: false, fallback: targetUrl, finalUrl, error: `NO_SHORT_URL - Code ${createRes.status}: ${createText.substring(0, 400)}` };
   } catch (error) {
     return { ok: false, fallback: targetUrl, finalUrl, error: error.message };
   }
