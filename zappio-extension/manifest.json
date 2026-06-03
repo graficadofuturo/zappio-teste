@@ -1,0 +1,19 @@
+{
+  "manifest_version": 3,
+  "name": "Zappio ML Sync",
+  "version": "1.0.0",
+  "description": "Sincroniza automaticamente seus cookies de afiliado do Mercado Livre com o painel do Zappio.",
+  "permissions": [
+    "cookies",
+    "storage"
+  ],
+  "host_permissions": [
+    "*://*.mercadolivre.com.br/*",
+    "http://localhost:3000/*",
+    "https://zappio-teste.vercel.app/*"
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": "icon.png"
+  }
+}
