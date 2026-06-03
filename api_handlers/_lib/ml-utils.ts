@@ -31,6 +31,34 @@ async function getMlAccessToken(uid?: string | null): Promise<string | null> {
   return null;
 }
 
+async function getMlCookies(uid?: string | null): Promise<string | null> {
+  const db = getAdminDb();
+  if (uid) {
+    const mlSnap = await db.doc(`users/${uid}/integrations/mercadolivre`).get();
+    if (mlSnap.exists) {
+      const mlData = mlSnap.data();
+      if (mlData && (mlData.affiliateCookie || mlData.cookie)) {
+        return mlData.affiliateCookie || mlData.cookie;
+      }
+    }
+  }
+  
+  // Fallback: search for any user with cookies
+  try {
+    const usersSnap = await db.collection("users").get();
+    for (const doc of usersSnap.docs) {
+       const mlSnap = await db.doc(`users/${doc.id}/integrations/mercadolivre`).get();
+       if (mlSnap.exists) {
+          const mlData = mlSnap.data();
+          if (mlData && (mlData.affiliateCookie || mlData.cookie)) {
+             return mlData.affiliateCookie || mlData.cookie;
+          }
+       }
+    }
+  } catch (e) {}
+  return null;
+}
+
 // --- Affiliate Regex Extraction ---
 export function extractAffiliateTag(htmlOrScript) {
   const matchers = [
@@ -390,52 +418,160 @@ export async function scrapeProductPage(url, defaultCategory, uid?: string | nul
   const match = url.match(/MLB[-]?\d+/i);
   if (!match) return null;
   const id = match[0].replace('-', '');
+
+  // Method 1: Try REST API with OAuth token
   try {
     const token = await getMlAccessToken(uid);
+    if (token) {
+      console.log(`[SCRAPER] Trying API method for ${id}...`);
+      const headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept": "application/json",
+        "Authorization": `Bearer ${token}`
+      };
+      const res = await axios.get('https://api.mercadolibre.com/items/' + id, { headers });
+      const item = res.data;
+      if (item && item.price) {
+        let price = Number(item.price);
+        let originalPrice = item.original_price ? Number(item.original_price) : null;
+        if (originalPrice && price > originalPrice) {
+          [price, originalPrice] = [originalPrice, price];
+        }
+        if (originalPrice !== null && originalPrice <= price) {
+          originalPrice = null;
+        }
+        let discountPercent = null;
+        if (originalPrice && price && originalPrice > price) {
+          discountPercent = Math.round(((originalPrice - price) / originalPrice) * 100);
+        }
+        const fullTitle = (item.title || '').trim();
+        const shortTitle = simplifyProductTitle(fullTitle);
+
+        return {
+          id: item.id,
+          productId: item.id,
+          title: shortTitle,
+          titleShort: shortTitle,
+          titleOriginal: fullTitle,
+          price: price,
+          originalPrice: originalPrice,
+          discountPercent: discountPercent,
+          hasDiscount: !!(originalPrice && originalPrice > price),
+          imageUrl: item.pictures && item.pictures.length > 0 ? item.pictures[0].url : item.thumbnail,
+          productUrl: item.permalink,
+          category: normalizeOfferCategory(defaultCategory, item.title, 'Geral'),
+          marketplace: 'mercadolivre',
+          updatedAt: new Date().toISOString()
+        };
+      }
+    }
+  } catch (apiErr: any) {
+    console.warn(`[SCRAPER] API method failed for ${id}:`, apiErr.message);
+  }
+
+  // Method 2: HTML Scraping with Cookie fallback
+  try {
+    console.log(`[SCRAPER] Trying HTML method for ${id}...`);
+    const cookies = await getMlCookies(uid);
     const headers: any = {
       "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-      "Accept": "application/json"
+      "Accept-Language": "pt-BR,pt;q=0.9",
+      "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8"
     };
-    if (token) {
-      headers["Authorization"] = `Bearer ${token}`;
+    if (cookies) {
+      headers["Cookie"] = cookies;
     }
-    const res = await axios.get('https://api.mercadolibre.com/items/' + id, { headers });
-    const item = res.data;
-    
-    let price = Number(item.price);
-    let originalPrice = item.original_price ? Number(item.original_price) : null;
-    if (originalPrice && price > originalPrice) {
-      [price, originalPrice] = [originalPrice, price];
-    }
-    if (originalPrice !== null && originalPrice <= price) {
-      originalPrice = null;
-    }
-    let discountPercent = null;
-    if (originalPrice && price && originalPrice > price) {
-      discountPercent = Math.round(((originalPrice - price) / originalPrice) * 100);
-    }
-    
-    const fullTitle = (item.title || '').trim();
-    const shortTitle = simplifyProductTitle(fullTitle);
+    const htmlUrl = `https://www.mercadolivre.com.br/p/${id}`;
+    const res = await axios.get(htmlUrl, { headers });
+    const html = res.data;
+    const $ = cheerio.load(html);
 
-    return {
-      id: item.id,
-      productId: item.id,
-      title: shortTitle,
-      titleShort: shortTitle,
-      titleOriginal: fullTitle,
-      price: price,
-      originalPrice: originalPrice,
-      discountPercent: discountPercent,
-      hasDiscount: !!(originalPrice && originalPrice > price),
-      imageUrl: item.pictures && item.pictures.length > 0 ? item.pictures[0].url : item.thumbnail,
-      productUrl: item.permalink,
-      category: normalizeOfferCategory(defaultCategory, item.title, 'Geral'),
-      marketplace: 'mercadolivre',
-      updatedAt: new Date().toISOString()
+    let title = $('meta[property="og:title"]').attr('content') || $('h1').first().text().trim();
+    if (title === "Mercado Livre") {
+      // Captcha or blocked page
+      console.warn(`[SCRAPER] Cheerio scraping returned blocked page for ${id}`);
+      return null;
+    }
+
+    const imageUrl = $('meta[property="og:image"]').attr('content');
+    
+    const getAmountFromEl = (el) => {
+      let fraction = $(el).find('.andes-money-amount__fraction').first().text().replace(/\./g, '');
+      let cents = $(el).find('.andes-money-amount__cents').first().text() || '00';
+      if (!fraction) {
+         const textPrice = $(el).text().replace(/[^\d,.-]/g, '');
+         if (textPrice) {
+            const parsed = parseFloat(textPrice.replace(',', '.'));
+            if (!isNaN(parsed)) return parsed;
+         }
+         return null;
+      }
+      return parseFloat(`${fraction}.${cents}`);
     };
-  } catch(e: any) {
-    console.error("scrapeProductPage error:", e.message);
-    return null;
+
+    let price = null;
+    const priceMeta1 = $('meta[itemprop="price"]').attr('content');
+    const priceMeta2 = $('span[itemprop="offers"] meta[itemprop="price"]').attr('content');
+    
+    if (priceMeta1) price = parseFloat(priceMeta1);
+    else if (priceMeta2) price = parseFloat(priceMeta2);
+    else {
+       let pEl1 = $('.ui-pdp-price__second-line .andes-money-amount').first();
+       if (pEl1.length) price = getAmountFromEl(pEl1);
+       else {
+          let pEl2 = $('.andes-money-amount:not(.andes-money-amount--previous):not(del *)').first();
+          if (pEl2.length) price = getAmountFromEl(pEl2);
+       }
+    }
+
+    let originalPrice = null;
+    const opEl1 = $('s.ui-pdp-price__original-value').first();
+    const opEl2 = $('.ui-pdp-price__original-value').first();
+    const opEl3 = $('s[aria-label^="Antes:"]').first();
+    
+    if (opEl1.length) originalPrice = getAmountFromEl(opEl1);
+    else if (opEl2.length) originalPrice = getAmountFromEl(opEl2);
+    else if (opEl3.length) originalPrice = getAmountFromEl(opEl3);
+
+    if (originalPrice && price && originalPrice <= price) {
+       originalPrice = null;
+    }
+
+    let discountPercent = null;
+    if (price > 0 && originalPrice > price) {
+        const discountText = $('.ui-pdp-price__discount, [class*="discount"]').first().text().trim();
+        const discMatch = discountText.match(/(\d+)%\s*OFF/i);
+        if (discMatch) {
+           discountPercent = parseInt(discMatch[1]);
+        } else {
+           discountPercent = Math.round(((originalPrice - price) / originalPrice) * 100);
+        }
+    }
+
+    if (title && price > 0) {
+      const fullTitle = title.trim();
+      const shortTitle = simplifyProductTitle(fullTitle);
+      
+      return {
+        id: id,
+        productId: id,
+        title: shortTitle,
+        titleShort: shortTitle,
+        titleOriginal: fullTitle,
+        price: price,
+        originalPrice: originalPrice,
+        discountPercent: discountPercent,
+        hasDiscount: !!(originalPrice && originalPrice > price),
+        imageUrl: imageUrl || null,
+        productUrl: htmlUrl,
+        category: normalizeOfferCategory(defaultCategory, title, 'Geral'),
+        marketplace: 'mercadolivre',
+        updatedAt: new Date().toISOString()
+      };
+    }
+  } catch (htmlErr: any) {
+    console.error(`[SCRAPER] HTML method failed for ${id}:`, htmlErr.message);
   }
+
+  return null;
 }
