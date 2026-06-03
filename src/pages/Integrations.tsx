@@ -784,7 +784,7 @@ export default function Integrations() {
 
       </div>
 
-      {/* ── Affiliate Config Form & Link Tester (Sempre visível para permitir configuração manual via Cookie) ── */}
+      {/* ── Link Tester Only ── */}
       {true && (
         <div style={{
           marginTop: 28,
@@ -801,137 +801,72 @@ export default function Integrations() {
               fontSize: 16, fontWeight: 700,
               color: 'var(--text-primary)', margin: 0
             }}>
-              Configuração e Teste de Links Afiliados
+              Testador de Link em Tempo Real
             </h3>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 28 }}>
-            
-            {/* Form Column */}
-            <form onSubmit={handleSaveConfig} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-              <div>
-                <label className="form-label" style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span>Tag / ID de Afiliado</span>
-                  <span style={{ textTransform: 'none', color: 'var(--text-muted)' }}>Ex: MLB1234567</span>
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={tagInput}
-                  onChange={e => setTagInput(e.target.value)}
-                  className="form-input"
-                  placeholder="Ex: MLB1234567"
-                />
-              </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <p style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.6, margin: 0 }}>
+              Cole uma URL original de produto do Mercado Livre abaixo para validar se a conversão de afiliados está ativa e retornando o link correto.
+            </p>
 
-              <div>
-                <label className="form-label" style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span>Cookies do Link Builder</span>
-                  <span
-                    style={{ textTransform: 'none', color: 'var(--green)', cursor: 'pointer', fontWeight: 600 }}
-                    onClick={() => alert("Como obter os cookies:\n1. Acesse o site do Mercado Livre e faça login como afiliado.\n2. Abra as Ferramentas do Desenvolvedor (F12) -> aba Network (Rede).\n3. Visite a página de Afiliados (Link Builder).\n4. Clique na requisição e copie os Cookies do cabeçalho de solicitação (Request Headers).\n5. Cole aqui no campo.")}
-                  >
-                    Como pegar?
-                  </span>
-                </label>
-                <textarea
-                  value={cookieInput}
-                  onChange={e => setCookieInput(e.target.value)}
-                  className="form-input form-textarea"
-                  placeholder="Cole aqui os cookies obtidos do navegador (deixe em branco para não alterar)"
-                  style={{ minHeight: 90 }}
-                />
-              </div>
-
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 14 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <span className="pulse-dot" style={{ width: 6, height: 6 }} />
-                  <span style={{ fontSize: 12, fontWeight: 600, color: mlCookieConfig?.hasCookie ? 'var(--green)' : 'var(--text-muted)' }}>
-                    {mlCookieConfig?.hasCookie 
-                      ? `Cookies Salvos (${mlCookieConfig.affiliateCookieStatus === 'active' || mlCookieConfig.affiliateCookieStatus === 'valid' ? 'Ativos' : 'Expirados'})` 
-                      : 'Nenhum Cookie Configurado'}
-                  </span>
-                </div>
-                <button
-                  type="submit"
-                  disabled={savingConfig}
-                  className="btn btn-primary btn-sm"
-                  style={{ display: 'flex', alignItems: 'center', gap: 6 }}
-                >
-                  {savingConfig && <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} />}
-                  Salvar
-                </button>
-              </div>
+            <form onSubmit={handleTestConversion} style={{ display: 'flex', gap: 8 }}>
+              <input
+                type="url"
+                required
+                value={testUrl}
+                onChange={e => setTestUrl(e.target.value)}
+                className="form-input"
+                placeholder="https://produto.mercadolivre.com.br/..."
+                style={{ flex: 1 }}
+              />
+              <button
+                type="submit"
+                disabled={testingUrl}
+                className="btn btn-secondary btn-sm"
+                style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+              >
+                {testingUrl ? <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} /> : 'Testar'}
+              </button>
             </form>
 
-            {/* Test Column */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 16, borderLeft: '1px solid var(--border-subtle)', paddingLeft: 28 }}>
-              <h4 style={{ fontFamily: 'Space Grotesk, sans-serif', fontSize: 14, fontWeight: 700, margin: 0, color: 'var(--text-primary)' }}>
-                Testador de Link em Tempo Real
-              </h4>
-              <p style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.6, margin: 0 }}>
-                Cole uma URL original de produto do Mercado Livre abaixo para validar se a conversão de afiliados está ativa e retornando o link correto.
-              </p>
-
-              <form onSubmit={handleTestConversion} style={{ display: 'flex', gap: 8 }}>
-                <input
-                  type="url"
-                  required
-                  value={testUrl}
-                  onChange={e => setTestUrl(e.target.value)}
-                  className="form-input"
-                  placeholder="https://produto.mercadolivre.com.br/..."
-                  style={{ flex: 1 }}
-                />
-                <button
-                  type="submit"
-                  disabled={testingUrl}
-                  className="btn btn-secondary btn-sm"
-                  style={{ display: 'flex', alignItems: 'center', gap: 6 }}
-                >
-                  {testingUrl ? <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} /> : 'Testar'}
-                </button>
-              </form>
-
-              {/* Test Result Display */}
-              {testResult && (
-                <div style={{
-                  padding: 16,
-                  borderRadius: 12,
-                  background: 'var(--bg-elevated)',
-                  border: `1px solid ${testResult.ok ? 'rgba(16,185,129,0.2)' : 'rgba(239,68,68,0.2)'}`,
-                  animation: 'slideInUp 0.25s var(--ease-spring)'
-                }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-                    <span style={{ fontSize: 14 }}>{testResult.ok ? '✅' : '❌'}</span>
-                    <span style={{ fontSize: 13, fontWeight: 700, color: testResult.ok ? 'var(--green)' : '#f87171' }}>
-                      {testResult.ok ? `Sucesso via: ${testResult.method}` : 'Erro na Conversão'}
-                    </span>
-                  </div>
-
-                  {testResult.ok && (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                      <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Link Gerado:</span>
-                      <a
-                        href={testResult.affiliateUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        style={{ fontSize: 12, fontWeight: 600, color: 'var(--blue)', textDecoration: 'underline', wordBreak: 'break-all' }}
-                      >
-                        {testResult.affiliateUrl}
-                      </a>
-                    </div>
-                  )}
-
-                  {!testResult.ok && (
-                    <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: 0, wordBreak: 'break-all' }}>
-                      {testResult.error || 'Código de cookie expirado ou inválido. O sistema usará o link padrão de fallback.'}
-                    </p>
-                  )}
+            {/* Test Result Display */}
+            {testResult && (
+              <div style={{
+                padding: 16,
+                borderRadius: 12,
+                background: 'var(--bg-elevated)',
+                border: `1px solid ${testResult.ok ? 'rgba(16,185,129,0.2)' : 'rgba(239,68,68,0.2)'}`,
+                animation: 'slideInUp 0.25s var(--ease-spring)'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                  <span style={{ fontSize: 14 }}>{testResult.ok ? '✅' : '❌'}</span>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: testResult.ok ? 'var(--green)' : '#f87171' }}>
+                    {testResult.ok ? `Sucesso via: ${testResult.method}` : 'Erro na Conversão'}
+                  </span>
                 </div>
-              )}
-            </div>
 
+                {testResult.ok && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Link Gerado:</span>
+                    <a
+                      href={testResult.affiliateUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      style={{ fontSize: 12, fontWeight: 600, color: 'var(--blue)', textDecoration: 'underline', wordBreak: 'break-all' }}
+                    >
+                      {testResult.affiliateUrl}
+                    </a>
+                  </div>
+                )}
+
+                {!testResult.ok && (
+                  <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: 0, wordBreak: 'break-all' }}>
+                    {testResult.error || 'Código de cookie expirado ou inválido. O sistema usará o link padrão de fallback.'}
+                  </p>
+                )}
+              </div>
+            )}
           </div>
         </div>
       )}
