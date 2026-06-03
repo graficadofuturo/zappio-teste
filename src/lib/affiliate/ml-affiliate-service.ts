@@ -91,6 +91,31 @@ function getCookieValue(cookieString: string, name: string): string | null {
   return match ? match[1] : null;
 }
 
+export function cleanCookies(cookieString: string): string {
+  if (!cookieString) return "";
+  const allowedKeys = [
+    'ssid',
+    '_csrf',
+    'orguserid',
+    'orguseridp',
+    'orgnickp',
+    'x-meli-session-id',
+    '_d2id',
+    'cookiesPreferencesLogged',
+    'cookiesPreferencesLoggedFallback',
+    'nsa_rotok'
+  ];
+  return cookieString
+    .split(';')
+    .map(c => c.trim())
+    .filter(c => {
+      const parts = c.split('=');
+      const name = parts[0] ? parts[0].trim() : '';
+      return allowedKeys.includes(name);
+    })
+    .join('; ');
+}
+
 /**
  * Normalizes Mercado Livre product URL to its canonical form (no query params).
  */
@@ -122,7 +147,7 @@ async function convertMLWithCookie(
   try {
     refreshRes = await fetch('https://www.mercadolivre.com.br/afiliados/linkbuilder', {
       headers: {
-        'cookie': currentCookie,
+        'cookie': cleanCookies(currentCookie),
         'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
         'referer': 'https://www.mercadolivre.com.br/afiliados/hub?is_affiliate=true'
@@ -155,7 +180,7 @@ async function convertMLWithCookie(
     metaCsrfToken = csrfMatch[1];
   }
 
-  const updatedCookie = mergeCookies(currentCookie, setCookies);
+  const updatedCookie = cleanCookies(mergeCookies(currentCookie, setCookies));
 
   // Update cookie in Firestore
   await db.doc(`users/${userId}/integrations/mercadolivre`).set({

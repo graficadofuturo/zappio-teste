@@ -188,6 +188,31 @@ export function extractAffiliateTag(htmlOrScript) {
   return null;
 }
 
+export function cleanCookies(cookieString: string): string {
+  if (!cookieString) return "";
+  const allowedKeys = [
+    'ssid',
+    '_csrf',
+    'orguserid',
+    'orguseridp',
+    'orgnickp',
+    'x-meli-session-id',
+    '_d2id',
+    'cookiesPreferencesLogged',
+    'cookiesPreferencesLoggedFallback',
+    'nsa_rotok'
+  ];
+  return cookieString
+    .split(';')
+    .map(c => c.trim())
+    .filter(c => {
+      const parts = c.split('=');
+      const name = parts[0] ? parts[0].trim() : '';
+      return allowedKeys.includes(name);
+    })
+    .join('; ');
+}
+
 export async function renewAffiliateCookie(uid, db, currentCookie) {
   console.log(`[ML-UTILS] renewAffiliateCookie START - uid: ${uid}`);
   try {
@@ -196,7 +221,7 @@ export async function renewAffiliateCookie(uid, db, currentCookie) {
       "Accept": "text/html,application/xhtml+xml,application/xml"
     };
     if (currentCookie) {
-      headers["Cookie"] = currentCookie;
+      headers["Cookie"] = cleanCookies(currentCookie);
     }
     const lbRes = await fetch("https://www.mercadolivre.com.br/afiliados/linkbuilder", { headers });
     console.log(`[ML-UTILS] renewAffiliateCookie GET linkbuilder STATUS: ${lbRes.status}`);
@@ -229,7 +254,7 @@ export async function renewAffiliateCookie(uid, db, currentCookie) {
     if (!cookieMap['_csrf'] && oldCsrf) cookieMap['_csrf'] = oldCsrf;
     if (!cookieMap['metadata_session_id'] && oldMetadata) cookieMap['metadata_session_id'] = oldMetadata;
 
-    const newCookie = Object.entries(cookieMap).map(([k, v]) => `${k}=${v}`).join('; ');
+    const newCookie = cleanCookies(Object.entries(cookieMap).map(([k, v]) => `${k}=${v}`).join('; '));
     console.log(`[ML-UTILS] renewAffiliateCookie MERGED cookies. Keys:`, Object.keys(cookieMap).join(', '));
     
     await db.doc('users/' + uid + '/integrations/mercadolivre').set({
@@ -244,7 +269,7 @@ export async function renewAffiliateCookie(uid, db, currentCookie) {
     await db.doc('users/' + uid + '/integrations/mercadolivre').set({
        affiliateCookieStatus: 'EXPIRADO'
     }, { merge: true });
-    return currentCookie;
+    return cleanCookies(currentCookie);
   }
 }
 
@@ -318,13 +343,14 @@ export async function createAffiliateLinkFromFirestore(url, uid, db) {
 
 
   const attemptRequest = async (cookieString) => {
-    const csrfMatch = cookieString.match(/(?:^|;)\s*_csrf=([^;]+)/);
+    const cleanedCookie = cleanCookies(cookieString);
+    const csrfMatch = cleanedCookie.match(/(?:^|;)\s*_csrf=([^;]+)/);
     const csrfToken = csrfMatch ? csrfMatch[1] : 'sNEauQE4--r3JZa8_x1blVKCw8Srjb7syJ9U';
 
     return fetch("https://www.mercadolivre.com.br/origin-navigation/api/affiliate-program/affiliate/createLink", {
        method: "POST",
        headers: {
-         "Cookie": cookieString,
+         "Cookie": cleanedCookie,
          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
          "Accept": "application/json",
          "Content-Type": "application/json",
