@@ -145,6 +145,20 @@ export default function Products() {
     return normalizeProductUrlFrontend(rawUrl);
   };
 
+  const matchCategory = (prodCat: string, filterCat: string) => {
+    const pc = String(prodCat || "").toLowerCase().trim();
+    const fc = String(filterCat || "").toLowerCase().trim();
+    if (!fc) return true;
+    if (pc === fc) return true;
+    
+    // V1 to V2 Category mappings
+    if (fc === 'eletrônicos' && (pc === 'tecnologia' || pc === 'eletronicos')) return true;
+    if (fc === 'moda e acessórios' && (pc === 'moda' || pc === 'moda e acessorios')) return true;
+    if (fc === 'smartphones' && (pc === 'celular' || pc === 'celulares')) return true;
+    
+    return false;
+  };
+
   const filteredProducts = (Array.isArray(products) ? products : []).filter(p => {
     if (!p) return false;
     const title = getOfferTitle(p);
@@ -154,9 +168,15 @@ export default function Products() {
     const pPrice = toNumberSafe(p.price);
     if (pPrice === null) return false;
 
-    if (searchQuery && !title.toLowerCase().includes(String(searchQuery).toLowerCase())) return false;
+    if (searchQuery) {
+      const query = String(searchQuery).toLowerCase();
+      const matchDisplay = title.toLowerCase().includes(query);
+      const matchOriginal = p.titleOriginal && String(p.titleOriginal).toLowerCase().includes(query);
+      const matchTitle = p.title && String(p.title).toLowerCase().includes(query);
+      if (!matchDisplay && !matchOriginal && !matchTitle) return false;
+    }
     if (filterMarketplace && String(p.marketplace || "").toLowerCase() !== String(filterMarketplace).toLowerCase()) return false;
-    if (filterCategory && String(p.category || "").toLowerCase() !== String(filterCategory).toLowerCase()) return false;
+    if (filterCategory && !matchCategory(p.category, filterCategory)) return false;
 
     if (filterDiscount) {
       const discounted = hasValidDiscount(p);
