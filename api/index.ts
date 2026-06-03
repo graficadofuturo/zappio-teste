@@ -3,6 +3,28 @@ import express from "express";
 import cookieParser from "cookie-parser";
 import path from "path";
 
+// Import Vercel handlers from renamed folder statically to ensure Vercel bundles them
+import offersHandler from "../api_handlers/offers_handler";
+import mlHandler from "../api_handlers/mercadolivre_handler";
+
+import collectorRunHandler from "../api_handlers/offers/collector/run";
+import collectorCheckHandler from "../api_handlers/cron/collect-offers";
+import collectorStatusHandler from "../api_handlers/offers/collector/status";
+import offersListHandler from "../api_handlers/offers/list";
+import offersDebugHandler from "../api_handlers/offers/debug";
+
+// Import Routers dynamically inside startServer or statically
+import shopeeRouter from "../src/api/routes/shopee";
+import aiRoutes from "../src/api/routes/ai";
+import whatsappRoutes from "../src/api/routes/whatsapp";
+import mercadolivreRoutes from "../src/api/routes/mercadolivre";
+import productRoutes from "../src/api/routes/products";
+import webhookRoutes from "../src/api/routes/webhooks";
+import campaignRoutes from "../src/api/routes/campaigns";
+import subscriptionRoutes from "../src/api/routes/subscriptions";
+import integrationsRouter from "../src/api/routes/integrations";
+import offersRouter from "../src/api/routes/offers";
+
 async function startServer() {
   try {
     const app = express();
@@ -19,16 +41,7 @@ async function startServer() {
       res.json({ key: process.env.GEMINI_API_KEY ? "Set" : "Not Set" });
     });
 
-    // Mount Vercel-style API Routes dynamically
-    const offersHandler = (await import("../api_handlers/offers_handler")).default;
-    const mlHandler = (await import("../api_handlers/mercadolivre_handler")).default;
-    
-    const collectorRunHandler = (await import("../api_handlers/offers/collector/run")).default;
-    const collectorCheckHandler = (await import("../api_handlers/cron/collect-offers")).default;
-    const collectorStatusHandler = (await import("../api_handlers/offers/collector/status")).default;
-    const offersListHandler = (await import("../api_handlers/offers/list")).default;
-    const offersDebugHandler = (await import("../api_handlers/offers/debug")).default;
-
+    // Mount Vercel-style API Routes
     app.all("/api/offers", offersHandler);
     app.all("/api/mercadolivre", mlHandler);
     
@@ -38,19 +51,8 @@ async function startServer() {
     app.all("/api/offers/list", offersListHandler);
     app.all("/api/offers/debug", offersDebugHandler);
 
-    // Mount API Routes dynamically
+    // Mount API Routes
     console.log("[Server] Mounting routes...");
-    const shopeeRouter = (await import("../src/api/routes/shopee")).default;
-    const aiRoutes = (await import("../src/api/routes/ai")).default;
-    const whatsappRoutes = (await import("../src/api/routes/whatsapp")).default;
-    const mercadolivreRoutes = (await import("../src/api/routes/mercadolivre")).default;
-    const productRoutes = (await import("../src/api/routes/products")).default;
-    const webhookRoutes = (await import("../src/api/routes/webhooks")).default;
-    const campaignRoutes = (await import("../src/api/routes/campaigns")).default;
-    const subscriptionRoutes = (await import("../src/api/routes/subscriptions")).default;
-    const integrationsRouter = (await import("../src/api/routes/integrations")).default;
-    const offersRouter = (await import("../src/api/routes/offers")).default;
-
     app.use("/api/shopee", shopeeRouter);
     app.use("/api/ai", aiRoutes);
     app.use("/api/whatsapp", whatsappRoutes);
