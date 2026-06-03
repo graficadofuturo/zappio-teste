@@ -669,28 +669,66 @@ export async function scrapeProductPage(url, defaultCategory, uid?: string | nul
     };
 
     let price = null;
-    const priceMeta1 = $('meta[itemprop="price"]').attr('content');
-    const priceMeta2 = $('span[itemprop="offers"] meta[itemprop="price"]').attr('content');
+    let originalPrice = null;
     
-    if (priceMeta1) price = parseFloat(priceMeta1);
-    else if (priceMeta2) price = parseFloat(priceMeta2);
-    else {
-       let pEl1 = $('.ui-pdp-price__second-line .andes-money-amount').first();
-       if (pEl1.length) price = getAmountFromEl(pEl1);
-       else {
-          let pEl2 = $('.andes-money-amount:not(.andes-money-amount--previous):not(del *)').first();
-          if (pEl2.length) price = getAmountFromEl(pEl2);
-       }
+    // Selectors scoped to the main product price container to prevent picking up carousel/recommended items
+    const priceContainer = $('.ui-pdp-price');
+    if (priceContainer.length) {
+      // 1. Try meta price inside price container
+      const metaPrice = priceContainer.find('meta[itemprop="price"]').first().attr('content');
+      if (metaPrice) {
+        price = parseFloat(metaPrice);
+      } else {
+        // 2. Try the primary money amount in the second line (active promotion price)
+        const pEl = priceContainer.find('.ui-pdp-price__second-line .andes-money-amount').first();
+        if (pEl.length) {
+          price = getAmountFromEl(pEl);
+        } else {
+          // 3. Fallback to any money amount in price container that isn't the previous price
+          const pElAlt = priceContainer.find('.andes-money-amount:not(.andes-money-amount--previous):not(del *)').first();
+          if (pElAlt.length) {
+            price = getAmountFromEl(pElAlt);
+          }
+        }
+      }
+
+      // Try original price inside the main container
+      const opEl1 = priceContainer.find('s.ui-pdp-price__original-value').first();
+      const opEl2 = priceContainer.find('.ui-pdp-price__original-value').first();
+      const opEl3 = priceContainer.find('s[aria-label^="Antes:"]').first();
+      const opEl4 = priceContainer.find('.andes-money-amount--previous').first();
+
+      if (opEl1.length) originalPrice = getAmountFromEl(opEl1);
+      else if (opEl2.length) originalPrice = getAmountFromEl(opEl2);
+      else if (opEl3.length) originalPrice = getAmountFromEl(opEl3);
+      else if (opEl4.length) originalPrice = getAmountFromEl(opEl4);
     }
 
-    let originalPrice = null;
-    const opEl1 = $('s.ui-pdp-price__original-value').first();
-    const opEl2 = $('.ui-pdp-price__original-value').first();
-    const opEl3 = $('s[aria-label^="Antes:"]').first();
-    
-    if (opEl1.length) originalPrice = getAmountFromEl(opEl1);
-    else if (opEl2.length) originalPrice = getAmountFromEl(opEl2);
-    else if (opEl3.length) originalPrice = getAmountFromEl(opEl3);
+    // Global fallbacks if container scoping didn't yield values
+    if (!price || isNaN(price)) {
+      const priceMeta1 = $('meta[itemprop="price"]').attr('content');
+      const priceMeta2 = $('span[itemprop="offers"] meta[itemprop="price"]').attr('content');
+      if (priceMeta1) price = parseFloat(priceMeta1);
+      else if (priceMeta2) price = parseFloat(priceMeta2);
+      else {
+         let pEl1 = $('.ui-pdp-price__second-line .andes-money-amount').first();
+         if (pEl1.length) price = getAmountFromEl(pEl1);
+         else {
+            let pEl2 = $('.andes-money-amount:not(.andes-money-amount--previous):not(del *)').first();
+            if (pEl2.length) price = getAmountFromEl(pEl2);
+         }
+      }
+    }
+
+    if (!originalPrice || isNaN(originalPrice)) {
+      const opEl1 = $('s.ui-pdp-price__original-value').first();
+      const opEl2 = $('.ui-pdp-price__original-value').first();
+      const opEl3 = $('s[aria-label^="Antes:"]').first();
+      
+      if (opEl1.length) originalPrice = getAmountFromEl(opEl1);
+      else if (opEl2.length) originalPrice = getAmountFromEl(opEl2);
+      else if (opEl3.length) originalPrice = getAmountFromEl(opEl3);
+    }
 
     if (originalPrice && price && originalPrice <= price) {
        originalPrice = null;
@@ -702,9 +740,9 @@ export async function scrapeProductPage(url, defaultCategory, uid?: string | nul
         const discMatch = discountText.match(/(\d+)%\s*OFF/i);
         if (discMatch) {
            discountPercent = parseInt(discMatch[1]);
-        } else {
+         } else {
            discountPercent = Math.round(((originalPrice - price) / originalPrice) * 100);
-        }
+         }
     }
 
     if (title && price > 0) {
