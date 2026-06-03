@@ -170,7 +170,7 @@ export async function applyAffiliateLinks(messageText: string, uid: string): Pro
     const matches = messageText.match(mlRegex);
     if (matches && matches.length > 0) {
         try {
-            const { convertToAffiliateLink } = await import('../../api_handlers/_lib/ml-utils.js');
+            const { convertToAffiliateLink } = await import('../../api_handlers/_lib/ml-utils');
             for (const mlUrl of matches) {
                 const shortUrl = await convertToAffiliateLink(mlUrl, uid);
                 if (shortUrl && shortUrl.includes('meli.la')) {

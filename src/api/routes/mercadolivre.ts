@@ -554,8 +554,8 @@ router.post('/create-affiliate-link', async (req, res) => {
       return res.status(400).json({ error: 'Missing uid or url', fallback: url });
     }
 
-    const { getAdminDb } = await import('../firebaseAdmin.js');
-    const { createAffiliateLinkFromFirestore } = await import('../../../api_handlers/_lib/ml-utils.js');
+    const { getAdminDb } = await import('../firebaseAdmin');
+    const { createAffiliateLinkFromFirestore } = await import('../../../api_handlers/_lib/ml-utils');
     
     const db = getAdminDb();
     const result = await createAffiliateLinkFromFirestore(url, uid, db);
@@ -682,7 +682,7 @@ router.post('/convert-affiliate', async (req, res) => {
     }
 
     const db = getAdminDb();
-    const { convertURLWithFirestoreCredentials } = await import('../../lib/affiliate/ml-affiliate-service.js');
+    const { convertURLWithFirestoreCredentials } = await import('../../lib/affiliate/ml-affiliate-service');
     const result = await convertURLWithFirestoreCredentials(url, uid, db);
 
     return res.json({

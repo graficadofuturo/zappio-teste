@@ -3,7 +3,7 @@ import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import fs from 'fs';
 import { sendMessage } from './whatsappService';
 import { resolveProductLinkForSending } from './src/api/campaignService';
-import { convertToAffiliateLink } from './api_handlers/_lib/ml-utils.js';
+import { convertToAffiliateLink } from './api_handlers/_lib/ml-utils';
 import { validateCampaignLinksBeforeSending, replaceOriginalLinksWithAffiliateLinks, resolveCampaignMessageBeforeSending } from './src/lib/affiliate/affiliate-resolver';
 
 

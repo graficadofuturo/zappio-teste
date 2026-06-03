@@ -1,7 +1,7 @@
 import { config } from 'dotenv';
 config();
-import { getAdminDb } from './src/api/firebaseAdmin.js';
-import { resolveAffiliateLinkForSending } from './src/services/affiliateService.js';
+import { getAdminDb } from './src/api/firebaseAdmin';
+import { resolveAffiliateLinkForSending } from './src/services/affiliateService';
 
 async function run() {
   const url = 'https://produto.mercadolivre.com.br/MLB-4967167410-garrafa-termica-1-litro-com-termmetro-led-para-chas-cafe-_JM';
