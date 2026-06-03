@@ -126,8 +126,23 @@ export default function Products() {
     return p?.imageUrl || p?.image || p?.thumbnail || "";
   };
 
+  const normalizeProductUrlFrontend = (url: string) => {
+    if (!url) return "";
+    if (url.includes("/sec/") || url.includes("/social/")) return url;
+    
+    // Normalize mercadolivre URLs containing MLB- to product. subdomain
+    if (url.includes("www.mercadolivre.com.br/MLB-")) {
+      return url.replace("www.mercadolivre.com.br", "produto.mercadolivre.com.br");
+    }
+    if (url.includes("mercadolivre.com.br/MLB-") && !url.includes("www.") && !url.includes("produto.")) {
+      return url.replace("mercadolivre.com.br", "produto.mercadolivre.com.br");
+    }
+    return url;
+  };
+
   const getOfferUrl = (p: any) => {
-    return p?.affiliateUrl || p?.productUrl || p?.product_link || p?.link || "";
+    const rawUrl = p?.affiliateUrl || p?.productUrl || p?.product_link || p?.link || "";
+    return normalizeProductUrlFrontend(rawUrl);
   };
 
   const filteredProducts = (Array.isArray(products) ? products : []).filter(p => {
