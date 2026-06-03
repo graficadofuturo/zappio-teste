@@ -14,9 +14,7 @@ export default async function handler(req, res) {
     const db = getAdminDb();
     console.log("REPROCESS_START: Fetching all Mercado Livre offers from offer_bank");
     
-    const snapshot = await db.collection("offer_bank")
-      .where("marketplace", "==", "mercadolivre")
-      .get();
+    const snapshot = await db.collection("offer_bank").get();
       
     if (snapshot.empty) {
       return res.status(200).json({ ok: true, processed: 0, updated: 0, removed: 0 });
@@ -24,8 +22,16 @@ export default async function handler(req, res) {
 
     const offers = [];
     snapshot.forEach(doc => {
-      offers.push({ id: doc.id, ...doc.data() });
+      const data = doc.data();
+      const mp = data.marketplace || '';
+      if (mp === 'mercadolivre' || mp === 'mercadolivre_global' || !mp) {
+        offers.push({ id: doc.id, ...data });
+      }
     });
+
+    if (offers.length === 0) {
+      return res.status(200).json({ ok: true, processed: 0, updated: 0, removed: 0 });
+    }
 
     console.log(`REPROCESS_ITEMS: Found ${offers.length} items to reprocess`);
 

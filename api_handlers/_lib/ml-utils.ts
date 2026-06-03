@@ -395,7 +395,7 @@ export async function collectAutomated(keyword: string, category?: string | null
      const items = resp.data.results || [];
      return items.map((item: any) => {
         let price = Number(item.price);
-        let originalPrice = item.original_price ? Number(item.original_price) : null;
+        let originalPrice = item.original_price ? Number(item.original_price) : (item.base_price ? Number(item.base_price) : null);
         if (originalPrice && price > originalPrice) {
           [price, originalPrice] = [originalPrice, price];
         }
@@ -545,21 +545,22 @@ export async function scrapeProductPage(url, defaultCategory, uid?: string | nul
   if (!match) return null;
   const id = match[0].replace('-', '');
 
-  // Method 1: Try REST API with OAuth token
+  // Method 1: Try REST API (with OAuth token if available)
   try {
     const token = await getMlAccessToken(uid);
+    console.log(`[SCRAPER] Trying API method for ${id} (hasToken: ${!!token})...`);
+    const headers: any = {
+      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+      "Accept": "application/json"
+    };
     if (token) {
-      console.log(`[SCRAPER] Trying API method for ${id}...`);
-      const headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        "Accept": "application/json",
-        "Authorization": `Bearer ${token}`
-      };
-      const res = await axios.get('https://api.mercadolibre.com/items/' + id, { headers });
-      const item = res.data;
-      if (item && item.price) {
-        let price = Number(item.price);
-        let originalPrice = item.original_price ? Number(item.original_price) : null;
+      headers["Authorization"] = `Bearer ${token}`;
+    }
+    const res = await axios.get('https://api.mercadolibre.com/items/' + id, { headers });
+    const item = res.data;
+    if (item && item.price) {
+      let price = Number(item.price);
+      let originalPrice = item.original_price ? Number(item.original_price) : (item.base_price ? Number(item.base_price) : null);
         if (originalPrice && price > originalPrice) {
           [price, originalPrice] = [originalPrice, price];
         }
@@ -590,7 +591,6 @@ export async function scrapeProductPage(url, defaultCategory, uid?: string | nul
           updatedAt: new Date().toISOString()
         };
       }
-    }
   } catch (apiErr: any) {
     console.warn(`[SCRAPER] API method failed for ${id}:`, apiErr.message);
   }
