@@ -376,7 +376,7 @@ export async function createAffiliateLinkFromFirestore(url, uid, db) {
     if (shortUrl) {
       return { ok: true, short_url: shortUrl };
     }
-    return { ok: false, fallback: targetUrl, finalUrl, error: `NO_SHORT_URL - Code ${createRes.status}` };
+    return { ok: false, fallback: targetUrl, finalUrl, error: `NO_SHORT_URL - Code ${createRes.status}: ${createText}` };
   } catch (error) {
     return { ok: false, fallback: targetUrl, finalUrl, error: error.message };
   }
