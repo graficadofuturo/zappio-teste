@@ -3,6 +3,7 @@ import { auth, db, GLOBAL_USER_ID } from '../lib/firebase.js';
 import { collection, query, where, getDocs, addDoc, deleteDoc, doc, setDoc, serverTimestamp, orderBy, updateDoc } from 'firebase/firestore';
 import { handleFirestoreError, OperationType } from '../lib/firestore-utils.js';
 import { QRCodeSVG } from 'qrcode.react';
+import { Smartphone, RefreshCw, LogOut, Trash2 } from 'lucide-react';
 
 interface Instance {
   id: string;
@@ -383,9 +384,9 @@ export default function WhatsAppInstances() {
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      fontSize: 22
+                      color: isConnected ? 'var(--green)' : 'var(--text-secondary)'
                     }}>
-                      📱
+                      <Smartphone size={20} />
                     </div>
                     <div>
                       <h3 style={{
@@ -421,19 +422,22 @@ export default function WhatsAppInstances() {
                         className="btn btn-ghost btn-sm"
                         onClick={() => syncContacts(instance.id)}
                         disabled={syncingInstance === instance.id}
-                        style={{ flex: 1 }}
+                        style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
                       >
-                        {syncingInstance === instance.id
-                          ? <span className="spinner" />
-                          : '🔄'
-                        } Sincronizar
+                        {syncingInstance === instance.id ? (
+                          <span className="spinner" />
+                        ) : (
+                          <RefreshCw size={12} className={syncingInstance === instance.id ? 'animate-spin' : ''} />
+                        )}
+                        <span>Sincronizar</span>
                       </button>
                       <button
                         className="btn btn-danger btn-sm"
                         onClick={() => disconnectInstance(instance.id)}
-                        style={{ flex: 1 }}
+                        style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
                       >
-                        ✕ Desconectar
+                        <LogOut size={12} />
+                        <span>Desconectar</span>
                       </button>
                     </>
                   ) : (
@@ -444,18 +448,19 @@ export default function WhatsAppInstances() {
                         disabled={connectingInstance === instance.id}
                         style={{ flex: 1 }}
                       >
-                        {connectingInstance === instance.id
-                          ? <><span className="spinner" style={{ borderTopColor: '#022c1a' }} /> Conectando...</>
-                          : '📲 Conectar'
-                        }
+                        {connectingInstance === instance.id ? (
+                          <span className="spinner" style={{ borderTopColor: '#022c1a' }} />
+                        ) : (
+                          'Conectar'
+                        )}
                       </button>
                       <button
                         className="btn btn-danger btn-sm"
                         onClick={() => deleteInstance(instance.id)}
                         title="Excluir instância"
-                        style={{ aspectRatio: '1', padding: '0 12px' }}
+                        style={{ aspectRatio: '1', padding: '0 12px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                       >
-                        🗑️
+                        <Trash2 size={14} />
                       </button>
                     </>
                   )}

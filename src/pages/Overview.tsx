@@ -297,7 +297,7 @@ export default function DashboardOverview() {
               borderRadius: 12, textDecoration: 'none', transition: 'all 0.15s',
               cursor: 'pointer'
             }}>
-              <span style={{ fontSize: 22 }}>🚀</span>
+              <Zap size={22} style={{ color: 'var(--green)' }} />
               <div>
                 <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--green)' }}>Nova Campanha</p>
                 <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>Criar e disparar ofertas</p>
@@ -308,7 +308,7 @@ export default function DashboardOverview() {
               background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)',
               borderRadius: 12, textDecoration: 'none', transition: 'all 0.15s'
             }}>
-              <span style={{ fontSize: 22 }}>🛍️</span>
+              <ShoppingCart size={22} style={{ color: 'var(--text-primary)' }} />
               <div>
                 <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>Banco de Ofertas</p>
                 <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>Ver produtos coletados</p>
@@ -319,7 +319,7 @@ export default function DashboardOverview() {
               background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)',
               borderRadius: 12, textDecoration: 'none', transition: 'all 0.15s'
             }}>
-              <span style={{ fontSize: 22 }}>🔗</span>
+              <Tag size={22} style={{ color: 'var(--text-primary)' }} />
               <div>
                 <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>Conectar Marketplace</p>
                 <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>Mercado Livre, Shopee</p>

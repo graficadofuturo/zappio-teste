@@ -981,7 +981,7 @@ export default function Campaigns() {
                 className={`tab-item ${messageMode === 'manual' ? 'active' : ''}`}
                 onClick={() => setMessageMode('manual')}
               >
-                ✏️ Manual
+                Manual
               </button>
               <button
                 className={`tab-item ${messageMode === 'auto_offer' ? 'active' : ''}`}
@@ -993,7 +993,7 @@ export default function Campaigns() {
                   }
                 }}
               >
-                🤖 Oferta Automática
+                Oferta Automática
               </button>
             </div>
 

@@ -201,10 +201,10 @@ export default function Products() {
           </div>
           <div style={{ display: 'flex', gap: 10 }}>
             <button className="btn btn-secondary btn-sm" onClick={handleReprocess} disabled={syncing === 'reprocess'}>
-              {syncing === 'reprocess' ? <><span className="spinner" /> Reprocessando...</> : <>🔄 Reprocessar</>}
+              {syncing === 'reprocess' ? <><span className="spinner" /> Reprocessando...</> : <>Reprocessar</>}
             </button>
             <button className="btn btn-primary" onClick={handleCollectorRun} disabled={syncing === 'collect'}>
-              {syncing === 'collect' ? <><span className="spinner" /> Coletando...</> : <>🤖 Coletar Ofertas</>}
+              {syncing === 'collect' ? <><span className="spinner" /> Coletando...</> : <>Coletar Ofertas</>}
             </button>
           </div>
         </div>
@@ -232,7 +232,7 @@ export default function Products() {
       }}>
         <input
           type="text"
-          placeholder="🔍 Buscar produto..."
+          placeholder="Buscar produto..."
           value={searchQuery}
           onChange={e => setSearchQuery(e.target.value)}
           className="form-input"
@@ -292,7 +292,7 @@ export default function Products() {
               style={{ marginTop: 20 }}
               disabled={syncing === 'collect'}
             >
-              {syncing === 'collect' ? <><span className="spinner" /> Coletando...</> : <>🤖 Coletar Ofertas Agora</>}
+              {syncing === 'collect' ? <><span className="spinner" /> Coletando...</> : <>Coletar Ofertas Agora</>}
             </button>
           )}
         </div>
@@ -433,7 +433,7 @@ export default function Products() {
                       className="btn btn-ghost btn-sm"
                       style={{ flex: 1, fontSize: 12 }}
                     >
-                      🔗 Ver produto
+                      Ver produto
                     </a>
                     <button
                       className="btn btn-primary btn-sm"
@@ -446,7 +446,7 @@ export default function Products() {
                         }
                       })}
                     >
-                      🚀 Usar
+                      Usar
                     </button>
                   </div>
 
@@ -490,7 +490,7 @@ export default function Products() {
                     {convertingOfferId === (product.id || product.productId || product.marketplaceProductId) ? (
                       <><span className="spinner" /> Gerando...</>
                     ) : (
-                      '🔑 Gerar link afiliado'
+                      'Gerar link afiliado'
                     )}
                   </button>
                 </div>
