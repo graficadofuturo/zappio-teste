@@ -52,23 +52,23 @@
     }
 
     .form-group {
-      margin-bottom: 16px;
+      margin-bottom: 12px;
     }
 
     label {
       display: block;
-      font-size: 11px;
+      font-size: 10px;
       font-weight: 600;
       text-transform: uppercase;
       letter-spacing: 0.5px;
       color: var(--text-secondary);
-      margin-bottom: 6px;
+      margin-bottom: 5px;
     }
 
     input, select {
       width: 100%;
       box-sizing: border-box;
-      padding: 10px 12px;
+      padding: 9px 12px;
       background-color: var(--bg-card);
       border: 1px solid var(--border-color);
       border-radius: 8px;
@@ -81,6 +81,12 @@
       outline: none;
       border-color: var(--green);
       box-shadow: 0 0 8px var(--green-glow);
+    }
+
+    .divider {
+      height: 1px;
+      background-color: var(--border-color);
+      margin: 16px 0;
     }
 
     .btn {
@@ -116,9 +122,10 @@
       margin-top: 16px;
       padding: 12px;
       border-radius: 8px;
-      font-size: 12px;
+      font-size: 11px;
       line-height: 1.5;
       display: none;
+      word-break: break-word;
     }
 
     .status-success {
@@ -147,14 +154,14 @@
       to { transform: rotate(360deg); }
     }
   </style>
-  <title>Zappio ML Sync</title>
+  <title>Zappio Sync</title>
 </head>
 <body>
   <div class="header">
     <img src="icon.png" class="logo-img" alt="Zappio">
     <div>
-      <h1 class="title">Zappio ML Sync</h1>
-      <p class="subtitle">Sincronizador de Cookies de Afiliado</p>
+      <h1 class="title">Zappio Sync</h1>
+      <p class="subtitle">Sincronizador Mercado Livre & AliExpress</p>
     </div>
   </div>
 
@@ -166,13 +173,20 @@
     </select>
   </div>
 
+  <div class="divider"></div>
+
   <div class="form-group">
-    <label for="affiliate-tag">Tag de Afiliado Mercado Livre</label>
+    <label for="affiliate-tag">Mercado Livre - Tag de Afiliado</label>
     <input type="text" id="affiliate-tag" placeholder="Ex: MLB1234567" value="MLB">
   </div>
 
+  <div class="form-group">
+    <label for="aliexpress-tag">AliExpress - Tag de Afiliado</label>
+    <input type="text" id="aliexpress-tag" placeholder="Tag de afiliado do AliExpress" value="">
+  </div>
+
   <button id="sync-btn" class="btn">
-    Sincronizar Cookies
+    Sincronizar Contas
   </button>
 
   <div id="status" class="status-box"></div>

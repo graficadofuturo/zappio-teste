@@ -26,6 +26,10 @@ export default function Integrations() {
   const [savingShopee, setSavingShopee] = useState(false);
 
   const [mlCookieConfig, setMlCookieConfig] = useState<any>(null);
+  const [aliexpressConfig, setAliexpressConfig] = useState<any>(null);
+  const [aliexpressConnected, setAliexpressConnected] = useState(false);
+  const [aliexpressLoading, setAliexpressLoading] = useState(true);
+  const [disconnectingAli, setDisconnectingAli] = useState(false);
   const [cookieInput, setCookieInput] = useState('');
   const [tagInput, setTagInput] = useState('');
   const [savingConfig, setSavingConfig] = useState(false);
@@ -58,6 +62,44 @@ export default function Integrations() {
       }
     } catch (err) {
       console.error('ML_COOKIE_CONFIG_ERR', err);
+    }
+  };
+
+  const fetchAliCookieConfig = async () => {
+    try {
+      setAliexpressLoading(true);
+      const res = await fetch(`/api/integrations/aliexpress/cookie-config?uid=${GLOBAL_USER_ID}`).then(r => r.json());
+      if (res.ok && res.config) {
+        setAliexpressConfig(res.config);
+        setAliexpressConnected(res.config.hasCookie);
+      } else {
+        setAliexpressConnected(false);
+        setAliexpressConfig(null);
+      }
+    } catch (err) {
+      console.error('ALI_COOKIE_CONFIG_ERR', err);
+      setAliexpressConnected(false);
+    } finally {
+      setAliexpressLoading(false);
+    }
+  };
+
+  const handleDisconnectAli = async () => {
+    try {
+      setDisconnectingAli(true);
+      const res = await fetch(`/api/integrations/aliexpress/disconnect?uid=${GLOBAL_USER_ID}`, {
+        method: 'POST'
+      }).then(r => r.json());
+      if (res.ok) {
+        showSuccess('AliExpress desconectado com sucesso.');
+        await fetchAliCookieConfig();
+      } else {
+        showError('Erro ao desconectar AliExpress.');
+      }
+    } catch (err: any) {
+      showError(err.message || 'Erro ao desconectar.');
+    } finally {
+      setDisconnectingAli(false);
     }
   };
 
@@ -148,6 +190,7 @@ export default function Integrations() {
           setMercadoLivreConnected(isReallyConnected);
 
           await fetchMlCookieConfig();
+          await fetchAliCookieConfig();
 
           if (mlParam === 'connected') {
             if (isReallyConnected) showSuccess('Mercado Livre conectado com sucesso.');
@@ -214,6 +257,7 @@ export default function Integrations() {
       setMercadoLivreConnected(isConnected);
 
       await fetchMlCookieConfig();
+      await fetchAliCookieConfig();
     } catch (e: any) {
       console.error('Error checking ML status:', e);
       showError(e.message);
@@ -589,6 +633,88 @@ export default function Integrations() {
               )}
             </>
           )}
+        </div>
+
+        {/* ── AliExpress Card ── */}
+        <div className="integration-card" style={{ borderColor: aliexpressConnected ? 'var(--border-green)' : 'var(--border-subtle)' }}>
+          {/* Card Header */}
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 20 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+              <div style={{
+                width: 48, height: 48, borderRadius: 12,
+                background: 'rgba(239, 68, 68, 0.08)',
+                border: '1px solid rgba(239, 68, 68, 0.15)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                color: '#f87171', flexShrink: 0
+              }}>
+                <ShoppingBag size={22} />
+              </div>
+              <div>
+                <h3 style={{ fontFamily: 'Space Grotesk, sans-serif', fontSize: 16, fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>
+                  AliExpress
+                </h3>
+                <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 3, margin: '3px 0 0' }}>Cookies · Afiliados</p>
+              </div>
+            </div>
+
+            {/* Status Badge */}
+            {aliexpressLoading ? (
+              <div className="badge badge-gray" style={{ display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0 }}>
+                <Loader2 size={11} style={{ animation: 'spin 1s linear infinite' }} /> Verificando
+              </div>
+            ) : aliexpressConnected ? (
+              <div className="badge badge-green" style={{ display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0 }}>
+                <span className="pulse-dot" style={{ width: 6, height: 6, flexShrink: 0 }} /> Conectado
+              </div>
+            ) : (
+              <div className="badge badge-gray" style={{ flexShrink: 0 }}>Desconectado</div>
+            )}
+          </div>
+
+          {/* Account Info Panel */}
+          {!aliexpressLoading && aliexpressConnected && aliexpressConfig && (
+            <div style={{
+              background: 'var(--bg-surface, rgba(255,255,255,0.04))',
+              borderRadius: 10,
+              padding: '4px 0',
+              marginBottom: 16,
+              border: '1px solid var(--border-subtle, rgba(255,255,255,0.06))'
+            }}>
+              {aliexpressConfig.affiliateTag && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 14px', borderBottom: '1px solid var(--border-subtle, rgba(255,255,255,0.06))' }}>
+                  <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Tag de Afiliado</span>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)' }}>{aliexpressConfig.affiliateTag}</span>
+                </div>
+              )}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 14px' }}>
+                <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Cookie xman_t</span>
+                <span className="badge badge-green" style={{ fontSize: 10, padding: '2px 8px' }}>✓ Ativo</span>
+              </div>
+            </div>
+          )}
+
+          {/* Action Buttons */}
+          <div style={{ display: 'flex', gap: 10 }}>
+            {!aliexpressLoading && aliexpressConnected ? (
+              <button
+                className="btn btn-danger btn-sm"
+                onClick={handleDisconnectAli}
+                disabled={disconnectingAli}
+                style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
+              >
+                {disconnectingAli ? (
+                  <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} />
+                ) : (
+                  <Trash2 size={14} />
+                )}
+                Desconectar AliExpress
+              </button>
+            ) : (
+              <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: 0, lineHeight: '1.4' }}>
+                Conecte esta conta automaticamente abrindo a nossa extensão **Zappio Sync** no seu navegador enquanto estiver logado no painel do AliExpress.
+              </p>
+            )}
+          </div>
         </div>
 
         {/* ── Amazon Card — Coming Soon ── */}

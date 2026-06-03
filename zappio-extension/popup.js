@@ -2,13 +2,15 @@ document.addEventListener('DOMContentLoaded', async () => {
   const syncBtn = document.getElementById('sync-btn');
   const zappioUrlSelect = document.getElementById('zappio-url');
   const tagInput = document.getElementById('affiliate-tag');
+  const aliTagInput = document.getElementById('aliexpress-tag');
   const statusBox = document.getElementById('status');
 
   // Load saved configuration from storage
   if (chrome.storage && chrome.storage.local) {
-    chrome.storage.local.get(['zappioUrl', 'affiliateTag'], (result) => {
+    chrome.storage.local.get(['zappioUrl', 'affiliateTag', 'aliexpressTag'], (result) => {
       if (result.zappioUrl) zappioUrlSelect.value = result.zappioUrl;
       if (result.affiliateTag) tagInput.value = result.affiliateTag;
+      if (result.aliexpressTag) aliTagInput.value = result.aliexpressTag;
     });
   }
 
@@ -17,15 +19,17 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (chrome.storage && chrome.storage.local) {
       chrome.storage.local.set({
         zappioUrl: zappioUrlSelect.value,
-        affiliateTag: tagInput.value
+        affiliateTag: tagInput.value,
+        aliexpressTag: aliTagInput.value
       });
     }
   };
   zappioUrlSelect.addEventListener('change', saveConfig);
   tagInput.addEventListener('input', saveConfig);
+  aliTagInput.addEventListener('input', saveConfig);
 
   const showStatus = (text, type) => {
-    statusBox.textContent = text;
+    statusBox.innerHTML = text.replace(/\n/g, '<br>');
     statusBox.className = `status-box status-${type}`;
     statusBox.style.display = 'block';
   };
@@ -36,65 +40,97 @@ document.addEventListener('DOMContentLoaded', async () => {
     statusBox.style.display = 'none';
 
     const zappioUrl = zappioUrlSelect.value;
-    const tag = tagInput.value.trim();
+    const mlTag = tagInput.value.trim();
+    const aliTag = aliTagInput.value.trim();
 
-    if (!tag) {
-      showStatus('Por favor, insira sua Tag de Afiliado do Mercado Livre.', 'error');
-      syncBtn.disabled = false;
-      syncBtn.textContent = 'Sincronizar Cookies';
-      return;
-    }
+    let mlSuccess = false;
+    let aliSuccess = false;
+    let mlMessage = '';
+    let aliMessage = '';
+    let hasAttempt = false;
 
-    try {
-      // 1. Fetch all cookies from Mercado Livre Brazil domain
-      console.log('Fetching cookies for mercadolivre.com.br...');
-      chrome.cookies.getAll({ domain: 'mercadolivre.com.br' }, async (cookies) => {
-        if (!cookies || cookies.length === 0) {
-          showStatus('Nenhum cookie do Mercado Livre encontrado. Certifique-se de que você está logado no site do Mercado Livre no navegador.', 'error');
-          syncBtn.disabled = false;
-          syncBtn.textContent = 'Sincronizar Cookies';
-          return;
-        }
+    // Helper to get cookies by domain
+    const getCookies = (domain) => {
+      return new Promise((resolve) => {
+        chrome.cookies.getAll({ domain }, (cookies) => {
+          resolve(cookies || []);
+        });
+      });
+    };
 
-        // 2. Format cookies to "name=value; name2=value2"
-        const cookieString = cookies.map(c => `${c.name}=${c.value}`).join('; ');
-        console.log(`Successfully fetched ${cookies.length} cookies.`);
-
-        // 3. Post cookies and tag to Zappio API
-        const endpoint = `${zappioUrl}/api/integrations/mercadolivre/cookie-config?uid=default_user`;
-        console.log('Sending cookies to endpoint:', endpoint);
-
-        try {
+    // --- 1. Mercado Livre Sync ---
+    if (mlTag) {
+      hasAttempt = true;
+      try {
+        const mlCookies = await getCookies('mercadolivre.com.br');
+        if (mlCookies.length === 0) {
+          mlMessage = '❌ Mercado Livre: Nenhum cookie ativo. Faça login no ML no navegador.';
+        } else {
+          const cookieString = mlCookies.map(c => `${c.name}=${c.value}`).join('; ');
+          const endpoint = `${zappioUrl}/api/integrations/mercadolivre/cookie-config?uid=default_user`;
+          
           const response = await fetch(endpoint, {
             method: 'POST',
-            headers: {
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-              cookie: cookieString,
-              affiliateTag: tag
-            })
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ cookie: cookieString, affiliateTag: mlTag })
           });
-
           const result = await response.json();
           if (response.ok && result.ok) {
-            showStatus(`Sucesso! ${cookies.length} cookies sincronizados com sucesso. Seus links de afiliado agora estão ativos no Zappio.`, 'success');
+            mlSuccess = true;
+            mlMessage = `✅ Mercado Livre: ${mlCookies.length} cookies sincronizados com sucesso.`;
           } else {
-            showStatus(`Falha ao sincronizar: ${result.error || 'Erro desconhecido da API'}`, 'error');
+            mlMessage = `❌ Mercado Livre: Falha ao sincronizar (${result.error || 'Erro na API'}).`;
           }
-        } catch (postErr) {
-          console.error('Failed to post cookies:', postErr);
-          showStatus(`Erro ao conectar ao servidor Zappio: ${postErr.message}. Certifique-se de que o servidor está rodando ou que as permissões de CORS estão corretas.`, 'error');
         }
-
-        syncBtn.disabled = false;
-        syncBtn.textContent = 'Sincronizar Cookies';
-      });
-    } catch (err) {
-      console.error('Extension cookie sync failed:', err);
-      showStatus(`Falha ao ler cookies: ${err.message}`, 'error');
-      syncBtn.disabled = false;
-      syncBtn.textContent = 'Sincronizar Cookies';
+      } catch (err) {
+        mlMessage = `❌ Mercado Livre: Erro de conexão (${err.message}).`;
+      }
     }
+
+    // --- 2. AliExpress Sync (xman_t) ---
+    hasAttempt = true;
+    try {
+      // Fetch cookies from aliexpress.com
+      const aliCookies = await getCookies('aliexpress.com');
+      const xmanCookie = aliCookies.find(c => c.name === 'xman_t');
+
+      if (aliCookies.length === 0 || !xmanCookie) {
+        aliMessage = '❌ AliExpress: Cookie xman_t não encontrado. Faça login no AliExpress no navegador.';
+      } else {
+        // Compile all cookies (or specific string containing xman_t)
+        const cookieString = aliCookies.map(c => `${c.name}=${c.value}`).join('; ');
+        const endpoint = `${zappioUrl}/api/integrations/aliexpress/cookie-config?uid=default_user`;
+        
+        const response = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ cookie: cookieString, affiliateTag: aliTag })
+        });
+        const result = await response.json();
+        if (response.ok && result.ok) {
+          aliSuccess = true;
+          aliMessage = `✅ AliExpress: Cookie xman_t e sessão sincronizados com sucesso.`;
+        } else {
+          aliMessage = `❌ AliExpress: Falha ao sincronizar (${result.error || 'Erro na API'}).`;
+        }
+      }
+    } catch (err) {
+      aliMessage = `❌ AliExpress: Erro de conexão (${err.message}).`;
+    }
+
+    // --- 3. Output Status Summary ---
+    const finalMessage = [mlMessage, aliMessage].filter(Boolean).join('\n');
+    
+    if ((mlSuccess || !mlTag) && aliSuccess) {
+      showStatus(finalMessage, 'success');
+    } else if (mlSuccess || aliSuccess) {
+      // Partial success (one of them worked)
+      showStatus(finalMessage + '\n\nAviso: Conexão parcial concluída.', 'success');
+    } else {
+      showStatus(finalMessage || 'Nenhuma conta configurada para sincronizar.', 'error');
+    }
+
+    syncBtn.disabled = false;
+    syncBtn.textContent = 'Sincronizar Contas';
   });
 });
