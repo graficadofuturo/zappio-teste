@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import { auth, db, GLOBAL_USER_ID } from '../lib/firebase.js';
-import { updateDoc, doc } from 'firebase/firestore';
+import { updateDoc, doc, collection, getDocs, writeBatch, deleteDoc } from 'firebase/firestore';
 import { handleFirestoreError, OperationType } from '../lib/firestore-utils.js';
-import { Loader2, Package, Link as LinkIcon, RefreshCw, AlertCircle, Search, PlusCircle, CheckCircle2, Wand2, Info, Sparkles } from 'lucide-react';
+import { Loader2, Package, Link as LinkIcon, RefreshCw, AlertCircle, Search, PlusCircle, CheckCircle2, Wand2, Info, Sparkles, Trash2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { simplifyProductTitle } from '../lib/productUtils.js';
 import { fetchJson } from '../utils/apiUtils.js';
@@ -220,6 +220,30 @@ export default function Products() {
             </p>
           </div>
           <div style={{ display: 'flex', gap: 10 }}>
+            <button 
+              className="btn btn-danger btn-sm" 
+              onClick={async () => {
+                if (confirm("Tem certeza que deseja apagar TODOS os produtos do banco de ofertas? Isso removerá as ofertas antigas corrompidas.")) {
+                  setLoading(true);
+                  try {
+                    const snap = await getDocs(collection(db, 'offer_bank'));
+                    const batch = writeBatch(db);
+                    snap.forEach(d => {
+                      batch.delete(doc(db, 'offer_bank', d.id));
+                    });
+                    await batch.commit();
+                    setProducts([]);
+                    setSyncStatus({ type: 'success', text: "Banco de ofertas limpo com sucesso!" });
+                  } catch (err: any) {
+                    setSyncStatus({ type: 'error', text: "Erro ao limpar banco: " + err.message });
+                  }
+                  setLoading(false);
+                }
+              }}
+              disabled={syncing !== false || loading}
+            >
+              Limpar Banco
+            </button>
             <button className="btn btn-secondary btn-sm" onClick={handleReprocess} disabled={syncing === 'reprocess'}>
               {syncing === 'reprocess' ? <><span className="spinner" /> Reprocessando...</> : <>Reprocessar</>}
             </button>
@@ -391,6 +415,39 @@ export default function Products() {
                       boxShadow: '0 0 8px rgba(255, 153, 0, 0.2)'
                     }}>⚡ RELÂMPAGO</span>
                   )}
+                  {/* Floating Delete Button */}
+                  <button
+                    onClick={async (e) => {
+                      e.stopPropagation();
+                      if (confirm("Deseja realmente excluir este produto?")) {
+                        try {
+                          const id = product.id || product.productId || product.marketplaceProductId;
+                          await deleteDoc(doc(db, 'offer_bank', id));
+                          setProducts(prev => prev.filter(p => (p.id || p.productId || p.marketplaceProductId) !== id));
+                        } catch (err: any) {
+                          alert("Erro ao excluir: " + err.message);
+                        }
+                      }
+                    }}
+                    style={{
+                      position: 'absolute',
+                      bottom: 10,
+                      right: 10,
+                      background: 'rgba(239, 68, 68, 0.15)',
+                      border: '1px solid rgba(239, 68, 68, 0.3)',
+                      borderRadius: 8,
+                      padding: 6,
+                      color: '#f87171',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      zIndex: 10
+                    }}
+                    title="Excluir produto"
+                  >
+                    <Trash2 size={14} />
+                  </button>
                 </div>
 
                 {/* Product Info */}
