@@ -376,18 +376,29 @@ export async function createAffiliateLinkFromFirestore(url, uid, db) {
   try {
     console.log(`[ML-UTILS] attemptRequest to createLink API...`);
     let createRes = await attemptRequest(mlCookies);
-    let createText = await createRes.text();
-    console.log(`[ML-UTILS] POST createLink STATUS: ${createRes.status}`);
-    console.log(`[ML-UTILS] POST createLink BODY:`, createText);
+    // NOTA: com redirect:'manual', Node.js retorna status=0 e type='opaqueredirect' em vez de 3xx
+    const isOpaqueRedirect = (createRes as any).type === 'opaqueredirect' || createRes.status === 0;
+    let createText = isOpaqueRedirect ? '' : await createRes.text();
+    console.log(`[ML-UTILS] POST createLink STATUS: ${createRes.status}, type: ${(createRes as any).type}`);
+    console.log(`[ML-UTILS] POST createLink BODY:`, createText.substring(0, 500));
     
-    // Se receber redirect (3xx) = sessão inválida/expirada. Não seguir para S3.
-    if (createRes.status >= 300 && createRes.status < 400) {
-      console.warn(`[ML-UTILS] Received redirect ${createRes.status} -> Session expired/invalid (would redirect to login/S3). Renewing cookies...`);
+    // Detectar redirect opaco (sessão expirada → redirecionaria para S3/login) OU 405 do S3 OU qualquer 3xx
+    const isSessionRedirect = isOpaqueRedirect
+      || (createRes.status >= 300 && createRes.status < 400)
+      || createRes.status === 405;  // 405 vem do S3 quando o redirect foi seguido
+
+    if (isSessionRedirect) {
+      console.warn(`[ML-UTILS] Session redirect detected (status=${createRes.status}, type=${(createRes as any).type}) -> Session expired/invalid. Renewing cookies...`);
       mlCookies = await renewAffiliateCookie(uid, db, mlCookies);
       createRes = await attemptRequest(mlCookies);
-      createText = await createRes.text();
-      console.log(`[ML-UTILS] Second POST after redirect fix STATUS: ${createRes.status}`);
-      console.log(`[ML-UTILS] Second POST after redirect fix BODY:`, createText.substring(0, 500));
+      const isOpaqueRedirect2 = (createRes as any).type === 'opaqueredirect' || createRes.status === 0;
+      createText = isOpaqueRedirect2 ? '' : await createRes.text();
+      console.log(`[ML-UTILS] Second POST STATUS: ${createRes.status}, type: ${(createRes as any).type}`);
+      console.log(`[ML-UTILS] Second POST BODY:`, createText.substring(0, 500));
+      // Se ainda for redirect/405 após renovação, cookies realmente expirados
+      if (isOpaqueRedirect2 || createRes.status === 0 || createRes.status === 405 || (createRes.status >= 300 && createRes.status < 400)) {
+        return { ok: false, fallback: targetUrl, finalUrl, error: `SESSION_EXPIRED - Cookie do Mercado Livre expirou. Acesse as Integrações e clique em Reconectar.` };
+      }
     } else if (createRes.status >= 400) {
       console.log(`[ML-UTILS] ML link creation failed with ${createRes.status}, trying second renew cookie...`);
       mlCookies = await renewAffiliateCookie(uid, db, mlCookies);
