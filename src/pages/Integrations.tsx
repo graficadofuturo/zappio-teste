@@ -214,6 +214,17 @@ export default function Integrations() {
     checkStatus();
   }, [searchParams, navigate]);
 
+  useEffect(() => {
+    const handleFocus = () => {
+      console.log('Window focused, refreshing integrations...');
+      checkMlApiStatus();
+    };
+    window.addEventListener('focus', handleFocus);
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+    };
+  }, []);
+
   const handleConnectML = async () => {
     try {
       setSyncing('ml');
@@ -696,23 +707,42 @@ export default function Integrations() {
           {/* Action Buttons */}
           <div style={{ display: 'flex', gap: 10 }}>
             {!aliexpressLoading && aliexpressConnected ? (
-              <button
-                className="btn btn-danger btn-sm"
-                onClick={handleDisconnectAli}
-                disabled={disconnectingAli}
-                style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
-              >
-                {disconnectingAli ? (
-                  <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} />
-                ) : (
-                  <Trash2 size={14} />
-                )}
-                Desconectar AliExpress
-              </button>
+              <>
+                <button
+                  className="btn btn-ghost btn-sm"
+                  onClick={fetchAliCookieConfig}
+                  disabled={aliexpressLoading}
+                  style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
+                >
+                  <RefreshCw size={14} />
+                  Verificar
+                </button>
+                <button
+                  className="btn btn-danger btn-sm"
+                  onClick={handleDisconnectAli}
+                  disabled={disconnectingAli}
+                  style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
+                >
+                  {disconnectingAli ? (
+                    <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} />
+                  ) : (
+                    <Trash2 size={14} />
+                  )}
+                  Desconectar
+                </button>
+              </>
             ) : (
-              <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: 0, lineHeight: '1.4' }}>
-                Conecte esta conta automaticamente abrindo a nossa extensão **Zappio Sync** no seu navegador enquanto estiver logado no painel do AliExpress.
-              </p>
+              <>
+                <button
+                  className="btn btn-ghost btn-sm"
+                  onClick={fetchAliCookieConfig}
+                  disabled={aliexpressLoading}
+                  style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
+                >
+                  <RefreshCw size={14} />
+                  Verificar Conexão
+                </button>
+              </>
             )}
           </div>
         </div>
