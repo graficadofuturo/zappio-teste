@@ -315,13 +315,7 @@ export async function createAffiliateLinkFromFirestore(url, uid, db) {
     } catch(e) {}
   }
 
-  // Sempre faz o fluxo de renovação ANTES do POST
-  if (uid && db) {
-    console.log(`[ML-UTILS] Renovando cookies ANTES do POST para o uid: ${uid}...`);
-    mlCookies = await renewAffiliateCookie(uid, db, mlCookies);
-  } else {
-    console.log(`[ML-UTILS] Aviso: uid ou db não fornecidos, pulando renovação de cookies.`);
-  }
+
 
   const attemptRequest = async (cookieString) => {
     const csrfMatch = cookieString.match(/(?:^|;)\s*_csrf=([^;]+)/);
