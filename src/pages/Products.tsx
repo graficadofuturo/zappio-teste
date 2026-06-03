@@ -424,8 +424,11 @@ export default function Products() {
                   <button
                     onClick={async () => {
                       const offerId = product.id || product.productId || product.marketplaceProductId;
-                      const urlStr = product.productUrl || product.link || product.product_link;
-                      if (!offerId || !urlStr) return;
+                      const urlStr = getOfferUrl(product);
+                      if (!offerId || !urlStr) {
+                        alert("Não foi possível identificar o link ou ID do produto para conversão.");
+                        return;
+                      }
                       setConvertingOfferId(offerId);
                       try {
                         const res = await fetch(`/api/integrations/mercadolivre/convert-test?uid=${GLOBAL_USER_ID}`, {
