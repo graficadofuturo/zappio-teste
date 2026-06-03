@@ -59,59 +59,66 @@ export default function WhatsAppInstances() {
     return () => unsub();
   }, []);
 
-  // Real-time listener for QR + status of the active connecting instance
+  // Poll for QR status of the active connecting instance
   useEffect(() => {
-    if (qrListenerRef.current) {
-      qrListenerRef.current();
-      qrListenerRef.current = null;
-    }
+    let interval: any;
     if (!activeQRInstance) return;
 
-    const unsub = onSnapshot(doc(db, 'whatsapp_instances', activeQRInstance), async (snap) => {
-      if (!snap.exists()) return;
-      const data = snap.data() as any;
-      const waStatus = data.wa_status || data.status || 'disconnected';
-      const waQr = data.wa_qr || null;
+    interval = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/whatsapp/status?instanceId=${activeQRInstance}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        const waStatus = data.status || 'disconnected';
+        const waQr = data.qr || null;
 
-      setQrStatus(waStatus);
-      if (waQr) setQrData(waQr);
+        setQrStatus(waStatus);
+        if (waQr) setQrData(waQr);
 
-      if (waStatus === 'connected') {
-        setActiveQRInstance(null);
-        setQrData(null);
-        setConnectingInstance(null);
-        setSuccessMsg('✅ WhatsApp conectado com sucesso!');
-        setTimeout(() => setSuccessMsg(null), 5000);
+        if (waStatus === 'connected') {
+          setActiveQRInstance(null);
+          setQrData(null);
+          setConnectingInstance(null);
+          setSuccessMsg('✅ WhatsApp conectado com sucesso!');
+          setTimeout(() => setSuccessMsg(null), 5000);
 
-        // Auto-sync contacts/groups after connecting
-        try {
-          const syncRes = await fetch(`/api/whatsapp/sync?instanceId=${activeQRInstance}`);
-          const syncData = await syncRes.json();
-          for (const g of (syncData.groups || [])) {
-            await setDoc(doc(db, 'whatsapp_contacts_groups', `${activeQRInstance}_${g.id}`), {
-              user_id: GLOBAL_USER_ID,
-              name: g.subject || 'Grupo Desconhecido',
-              type: 'group', jid: g.id,
-              participants_count: g.participants?.length || 0,
-              updated_at: new Date()
-            }, { merge: true });
+          // Update firestore status
+          await updateDoc(doc(db, 'whatsapp_instances', activeQRInstance), {
+            status: 'connected',
+            wa_status: 'connected'
+          }).catch(console.error);
+
+          // Auto-sync contacts/groups after connecting
+          try {
+            const syncRes = await fetch(`/api/whatsapp/sync?instanceId=${activeQRInstance}`);
+            const syncData = await syncRes.json();
+            for (const g of (syncData.groups || [])) {
+              await setDoc(doc(db, 'whatsapp_contacts_groups', `${activeQRInstance}_${g.id}`), {
+                user_id: GLOBAL_USER_ID,
+                name: g.subject || 'Grupo Desconhecido',
+                type: 'group', jid: g.id,
+                participants_count: g.participants?.length || 0,
+                updated_at: new Date()
+              }, { merge: true });
+            }
+            for (const c of (syncData.contacts || [])) {
+              await setDoc(doc(db, 'whatsapp_contacts_groups', `${activeQRInstance}_${c.id}`), {
+                user_id: GLOBAL_USER_ID,
+                name: c.name || c.notify || c.verifiedName || c.id.split('@')[0],
+                type: 'contact', jid: c.id,
+                updated_at: new Date()
+              }, { merge: true });
+            }
+          } catch (e) {
+            console.error('Failed to sync after connect', e);
           }
-          for (const c of (syncData.contacts || [])) {
-            await setDoc(doc(db, 'whatsapp_contacts_groups', `${activeQRInstance}_${c.id}`), {
-              user_id: GLOBAL_USER_ID,
-              name: c.name || c.notify || c.verifiedName || c.id.split('@')[0],
-              type: 'contact', jid: c.id,
-              updated_at: new Date()
-            }, { merge: true });
-          }
-        } catch (e) {
-          console.error('Failed to sync after connect', e);
         }
+      } catch (e) {
+        console.error(e);
       }
-    });
+    }, 3000);
 
-    qrListenerRef.current = unsub;
-    return () => { unsub(); qrListenerRef.current = null; };
+    return () => clearInterval(interval);
   }, [activeQRInstance]);
 
   const createInstance = async () => {
