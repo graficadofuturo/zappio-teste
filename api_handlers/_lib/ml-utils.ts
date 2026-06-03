@@ -695,10 +695,13 @@ export async function saveOffers(offers: any[], uid: string | null = null) {
     await Promise.all(offers.map(async (offer) => {
       if (offer.productUrl && offer.marketplace === 'mercadolivre') {
         try {
+          // Preserve original URL
+          offer.originalProductUrl = offer.productUrl;
+          offer.productUrlOriginal = offer.productUrl;
+
           const res = await createAffiliateLinkFromFirestore(offer.productUrl, uid, db);
           if (res.ok && res.short_url) {
             offer.affiliateUrl = res.short_url;
-            offer.productUrl = res.short_url;
             offer.affiliateOwnerUid = uid;
           } else if (res.fallback) {
             // Se não conseguiu, mas tem um URL normalizado, atualiza apenas o produto

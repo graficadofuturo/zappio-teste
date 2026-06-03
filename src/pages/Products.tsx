@@ -324,6 +324,7 @@ export default function Products() {
             const currentPrice = toNumberSafe(product.price);
             const displayTitle = getOfferTitle(product);
             const image = getOfferImage(product);
+            const originalLink = normalizeProductUrlFrontend(product.productUrlOriginal || product.originalProductUrl || product.productUrl || product.product_link || product.link || "");
             const link = product.userAffiliateUrl || getOfferUrl(product);
 
             // Debug log preserved from original
@@ -447,7 +448,7 @@ export default function Products() {
                   {/* Actions */}
                   <div style={{ display: 'flex', gap: 8, marginTop: 'auto', paddingTop: 8 }}>
                     <a
-                      href={link || '#'}
+                      href={originalLink || '#'}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="btn btn-ghost btn-sm"
