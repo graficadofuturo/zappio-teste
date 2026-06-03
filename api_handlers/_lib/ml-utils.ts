@@ -357,6 +357,7 @@ export async function createAffiliateLinkFromFirestore(url, uid, db) {
 
     return fetch(endpoint, {
        method: "POST",
+       redirect: "manual",
        headers: {
          "Cookie": cleanedCookie,
          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
@@ -379,14 +380,21 @@ export async function createAffiliateLinkFromFirestore(url, uid, db) {
     console.log(`[ML-UTILS] POST createLink STATUS: ${createRes.status}`);
     console.log(`[ML-UTILS] POST createLink BODY:`, createText);
     
-    // Fallback caso falhe mesmo com a renovação prévia
-    if (createRes.status >= 400) {
+    // Se receber redirect (3xx) = sessão inválida/expirada. Não seguir para S3.
+    if (createRes.status >= 300 && createRes.status < 400) {
+      console.warn(`[ML-UTILS] Received redirect ${createRes.status} -> Session expired/invalid (would redirect to login/S3). Renewing cookies...`);
+      mlCookies = await renewAffiliateCookie(uid, db, mlCookies);
+      createRes = await attemptRequest(mlCookies);
+      createText = await createRes.text();
+      console.log(`[ML-UTILS] Second POST after redirect fix STATUS: ${createRes.status}`);
+      console.log(`[ML-UTILS] Second POST after redirect fix BODY:`, createText.substring(0, 500));
+    } else if (createRes.status >= 400) {
       console.log(`[ML-UTILS] ML link creation failed with ${createRes.status}, trying second renew cookie...`);
       mlCookies = await renewAffiliateCookie(uid, db, mlCookies);
       createRes = await attemptRequest(mlCookies);
       createText = await createRes.text();
       console.log(`[ML-UTILS] Second POST createLink STATUS: ${createRes.status}`);
-      console.log(`[ML-UTILS] Second POST createLink BODY:`, createText);
+      console.log(`[ML-UTILS] Second POST createLink BODY:`, createText.substring(0, 500));
     }
 
     let shortUrl = null;
