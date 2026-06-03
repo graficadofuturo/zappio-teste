@@ -20,8 +20,8 @@ async function startServer() {
     });
 
     // Mount Vercel-style API Routes dynamically
-    const offersHandler = (await import("../api_handlers/offers")).default;
-    const mlHandler = (await import("../api_handlers/mercadolivre")).default;
+    const offersHandler = (await import("../api_handlers/offers_handler")).default;
+    const mlHandler = (await import("../api_handlers/mercadolivre_handler")).default;
     
     const collectorRunHandler = (await import("../api_handlers/offers/collector/run")).default;
     const collectorCheckHandler = (await import("../api_handlers/cron/collect-offers")).default;
