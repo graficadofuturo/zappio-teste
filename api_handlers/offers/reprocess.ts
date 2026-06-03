@@ -47,7 +47,7 @@ export default async function handler(req, res) {
     const errors = [];
     const enrichedBatch = [];
 
-    const maxToProcess = 30;
+    const maxToProcess = 100;
     const toProcess = offers.slice(0, maxToProcess);
 
     // Process in parallel to prevent Vercel serverless function timeouts (10s limit)
