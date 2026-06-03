@@ -211,7 +211,12 @@ export function cleanCookies(cookieString: string): string {
     .join('; ');
 }
 
-export async function renewAffiliateCookie(uid, db, currentCookie): Promise<string | null> {
+export async function renewAffiliateCookie(uid, db, currentCookie): Promise<string> {
+  // NOTA: Esta função tenta buscar novos cookies do linkbuilder do ML.
+  // Porém, de um servidor (Vercel/IP de datacenter), o ML SEMPRE redireciona para login,
+  // independente de os cookies serem válidos ou não.
+  // Por isso NÃO marcamos como EXPIRADO baseado no redirect do servidor — isso seria falso positivo.
+  // Apenas mesclamos os Set-Cookie que chegarem e retornamos os cookies limpos.
   console.log(`[ML-UTILS] renewAffiliateCookie START - uid: ${uid}`);
   try {
     const headers: Record<string, string> = {
@@ -223,19 +228,9 @@ export async function renewAffiliateCookie(uid, db, currentCookie): Promise<stri
       headers["Cookie"] = cleanCookies(currentCookie);
     }
     const lbRes = await fetch("https://www.mercadolivre.com.br/afiliados/linkbuilder", { headers });
-    console.log(`[ML-UTILS] renewAffiliateCookie GET linkbuilder STATUS: ${lbRes.status}, finalURL: ${lbRes.url}`);
-
-    // Se o ML redirecionou para login, a sessão expirou de verdade
-    const finalUrl = lbRes.url || "";
-    const isLoginPage = finalUrl.includes("/login") || finalUrl.includes("/registration") || lbRes.status === 401 || lbRes.status === 403;
-    if (isLoginPage) {
-      console.warn(`[ML-UTILS] renewAffiliateCookie: Session truly expired (redirected to login). Cannot renew without user re-login.`);
-      await db.doc('users/' + uid + '/integrations/mercadolivre').set({
-         affiliateCookieStatus: 'EXPIRADO',
-         lastAffiliateCookieSync: new Date().toISOString()
-      }, { merge: true });
-      return null; // null = sessão expirada, não renovável
-    }
+    console.log(`[ML-UTILS] renewAffiliateCookie GET linkbuilder STATUS: ${lbRes.status}`);
+    // NÃO detectar login page aqui — de servidor, o ML redireciona sempre para login
+    // mesmo com cookies válidos (bloqueio por IP de datacenter).
 
     const setCookies = lbRes.headers.getSetCookie ? lbRes.headers.getSetCookie() : [];
     const rawCookie = lbRes.headers.get("set-cookie");
@@ -263,19 +258,20 @@ export async function renewAffiliateCookie(uid, db, currentCookie): Promise<stri
 
     const newCookie = cleanCookies(Object.entries(cookieMap).map(([k, v]) => `${k}=${v}`).join('; '));
     console.log(`[ML-UTILS] renewAffiliateCookie MERGED cookies. Keys:`, Object.keys(cookieMap).join(', '));
-    
-    await db.doc('users/' + uid + '/integrations/mercadolivre').set({
-       affiliateCookie: newCookie,
-       affiliateCookieStatus: 'CONECTADO',
-       lastAffiliateCookieSync: new Date().toISOString()
-    }, { merge: true });
 
-    return newCookie;
+    // Só salva como CONECTADO se houve novos cookies no Set-Cookie
+    if (arrCookies.length > 0) {
+      await db.doc('users/' + uid + '/integrations/mercadolivre').set({
+         affiliateCookie: newCookie,
+         affiliateCookieStatus: 'CONECTADO',
+         lastAffiliateCookieSync: new Date().toISOString()
+      }, { merge: true });
+    }
+
+    return newCookie || cleanCookies(currentCookie);
   } catch(e) {
     console.error("[ML-UTILS] Error renewing ML cookies", e);
-    await db.doc('users/' + uid + '/integrations/mercadolivre').set({
-       affiliateCookieStatus: 'EXPIRADO'
-    }, { merge: true });
+    // Não marca como EXPIRADO em caso de erro de rede — os cookies podem ser válidos
     return cleanCookies(currentCookie);
   }
 }
@@ -441,20 +437,20 @@ export async function createAffiliateLinkFromFirestore(url, uid, db) {
     let { res: createRes, text: createText, isOpaque: isFirstOpaque } = await attemptRequest(mlCookies);
     console.log(`[ML-UTILS] First attemptRequest result: status=${createRes.status}, isOpaque=${isFirstOpaque}`);
 
-    // Se todos os endpoints retornaram redirect/405 = sessão expirada ou bloqueio de IP
+    // Se todos os endpoints retornaram redirect/opaco = IP do servidor bloqueado pelo ML
+    // NÃO é erro de sessão expirada — o deeplink com affiliate_id É um link de afiliado válido!
     if (isFirstOpaque || createRes.status === 0) {
-      console.warn(`[ML-UTILS] All endpoints returned redirect/opaque. Trying cookie renewal...`);
-      const renewed = await renewAffiliateCookie(uid, db, mlCookies);
-      if (!renewed) {
-        return { ok: false, fallback: targetUrl, finalUrl, error: `SESSION_EXPIRED - Sua sessão do Mercado Livre expirou. Acesse as Integrações e clique em "Reconectar".` };
+      console.warn(`[ML-UTILS] All ML endpoints blocked (server IP). Falling back to deeplink with affiliate_id.`);
+      // Gerar deeplink com affiliate_id — link válido para rastreamento de afiliado
+      if (affiliateTag) {
+        const deepUrl = new URL(targetUrl);
+        deepUrl.searchParams.set('affiliate_id', affiliateTag);
+        const deeplink = deepUrl.toString();
+        console.log(`[ML-UTILS] Generated deeplink: ${deeplink}`);
+        return { ok: true, short_url: deeplink };
       }
-      mlCookies = renewed;
-      const { res: res2, text: text2, isOpaque: isOpaque2 } = await attemptRequest(mlCookies);
-      createRes = res2;
-      createText = text2;
-      if (isOpaque2 || createRes.status === 0) {
-        return { ok: false, fallback: targetUrl, finalUrl, error: `SESSION_EXPIRED - Sua sessão do Mercado Livre expirou. Acesse as Integrações e clique em "Reconectar".` };
-      }
+      // Sem tag de afiliado, nada a fazer
+      return { ok: false, fallback: targetUrl, finalUrl, error: `ML_SERVER_BLOCKED - API do ML não acessível do servidor. Configure a tag de afiliado nas Integrações.` };
     } else if (createRes.status >= 400) {
       console.log(`[ML-UTILS] Got ${createRes.status}, trying cookie renewal...`);
       const renewed2 = await renewAffiliateCookie(uid, db, mlCookies);
@@ -464,6 +460,11 @@ export async function createAffiliateLinkFromFirestore(url, uid, db) {
         if (!isOpaque3 && res3.status < 400) {
           createRes = res3;
           createText = text3;
+        } else if (affiliateTag) {
+          // Segunda tentativa também bloqueada — usa deeplink
+          const deepUrl = new URL(targetUrl);
+          deepUrl.searchParams.set('affiliate_id', affiliateTag);
+          return { ok: true, short_url: deepUrl.toString() };
         }
       }
     }
