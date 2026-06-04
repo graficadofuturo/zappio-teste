@@ -8,8 +8,11 @@ import { simplifyProductTitle } from '../lib/productUtils.js';
 import { fetchJson } from '../utils/apiUtils.js';
 
 export default function Products() {
-  const [products, setProducts] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const cachedProducts = localStorage.getItem('products_list');
+  const initialProducts = cachedProducts ? JSON.parse(cachedProducts) : [];
+
+  const [products, setProducts] = useState<any[]>(initialProducts);
+  const [loading, setLoading] = useState(!cachedProducts);
   const [syncing, setSyncing] = useState<string | false>(false);
   const [editingLink, setEditingLink] = useState<string | null>(null);
   const [tempLink, setTempLink] = useState('');
@@ -31,12 +34,16 @@ export default function Products() {
   }, []);
 
   const loadProducts = async () => {
-    setLoading(true);
+    if (!localStorage.getItem('products_list')) {
+      setLoading(true);
+    }
     setSyncStatus(null);
     try {
       const data = await fetchJson(`/api/offers?action=list&category=todos&limit=100&uid=${GLOBAL_USER_ID}`);
       if (data.ok) {
-          setProducts(Array.isArray(data.offers) ? data.offers : []);
+          const offers = Array.isArray(data.offers) ? data.offers : [];
+          setProducts(offers);
+          localStorage.setItem('products_list', JSON.stringify(offers));
       }
     } catch (e: any) {
         console.error("Failed to load offers:", e);
@@ -233,6 +240,7 @@ export default function Products() {
                     });
                     await batch.commit();
                     setProducts([]);
+                    localStorage.removeItem('products_list');
                     setSyncStatus({ type: 'success', text: "Banco de ofertas limpo com sucesso!" });
                   } catch (err: any) {
                     setSyncStatus({ type: 'error', text: "Erro ao limpar banco: " + err.message });
@@ -423,7 +431,11 @@ export default function Products() {
                         try {
                           const id = product.id || product.productId || product.marketplaceProductId;
                           await deleteDoc(doc(db, 'offer_bank', id));
-                          setProducts(prev => prev.filter(p => (p.id || p.productId || p.marketplaceProductId) !== id));
+                          setProducts(prev => {
+                            const updated = prev.filter(p => (p.id || p.productId || p.marketplaceProductId) !== id);
+                            localStorage.setItem('products_list', JSON.stringify(updated));
+                            return updated;
+                          });
                         } catch (err: any) {
                           alert("Erro ao excluir: " + err.message);
                         }
@@ -546,12 +558,16 @@ export default function Products() {
                         });
                         const data = await res.json();
                         if (data.success && data.isAffiliate) {
-                          setProducts(prev => prev.map(prod => {
-                            if ((prod.id || prod.productId || prod.marketplaceProductId) === offerId) {
-                              return { ...prod, userAffiliateUrl: data.affiliateUrl };
-                            }
-                            return prod;
-                          }));
+                          setProducts(prev => {
+                            const updated = prev.map(prod => {
+                              if ((prod.id || prod.productId || prod.marketplaceProductId) === offerId) {
+                                return { ...prod, userAffiliateUrl: data.affiliateUrl };
+                              }
+                              return prod;
+                            });
+                            localStorage.setItem('products_list', JSON.stringify(updated));
+                            return updated;
+                          });
                         } else {
                           alert("Não foi possível gerar. Status: " + data?.rawResponse?.error);
                         }

@@ -18,8 +18,11 @@ interface Instance {
 }
 
 export default function WhatsAppInstances() {
-  const [instances, setInstances] = useState<Instance[]>([]);
-  const [loading, setLoading] = useState(true);
+  const cachedInstances = localStorage.getItem('whatsapp_instances_list');
+  const initialInstances = cachedInstances ? JSON.parse(cachedInstances) : [];
+
+  const [instances, setInstances] = useState<Instance[]>(initialInstances);
+  const [loading, setLoading] = useState(!cachedInstances);
   const [creatingInstance, setCreatingInstance] = useState(false);
   const [connectingInstance, setConnectingInstance] = useState<string | null>(null);
   const [syncingInstance, setSyncingInstance] = useState<string | null>(null);
@@ -51,6 +54,7 @@ export default function WhatsAppInstances() {
         return tB - tA;
       });
       setInstances(data);
+      localStorage.setItem('whatsapp_instances_list', JSON.stringify(data));
       setLoading(false);
     }, (e) => {
       handleFirestoreError(e, OperationType.LIST, 'whatsapp_instances');

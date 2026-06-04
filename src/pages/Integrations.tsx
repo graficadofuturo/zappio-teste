@@ -7,17 +7,28 @@ import { useSearchParams, useNavigate } from 'react-router-dom';
 import { fetchJson } from '../utils/apiUtils.js';
 
 export default function Integrations() {
-  const [integrations, setIntegrations] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const cachedIntegrations = localStorage.getItem('integrations_list');
+  const cachedMlApiStatus = localStorage.getItem('ml_api_status');
+  const cachedMlCookieConfig = localStorage.getItem('ml_cookie_config');
+  const cachedAliCookieConfig = localStorage.getItem('ali_cookie_config');
 
-  const [mercadoLivreConnected, setMercadoLivreConnected] = useState(false);
-  const [mercadoLivreLoading, setMercadoLivreLoading] = useState(true);
+  const initialIntegrations = cachedIntegrations ? JSON.parse(cachedIntegrations) : [];
+  const initialMlApiStatus = cachedMlApiStatus ? JSON.parse(cachedMlApiStatus) : null;
+  const initialMlCookieConfig = cachedMlCookieConfig ? JSON.parse(cachedMlCookieConfig) : null;
+  const initialAliCookieConfig = cachedAliCookieConfig ? JSON.parse(cachedAliCookieConfig) : null;
+
+  const [integrations, setIntegrations] = useState<any[]>(initialIntegrations);
+  const [loading, setLoading] = useState(!cachedIntegrations);
+
+  const initialMlConnected = initialMlApiStatus ? (initialMlApiStatus.connected === true || initialMlApiStatus.status === 'active' || initialMlApiStatus.status === 'connected') : false;
+  const [mercadoLivreConnected, setMercadoLivreConnected] = useState(initialMlConnected);
+  const [mercadoLivreLoading, setMercadoLivreLoading] = useState(!cachedMlApiStatus);
 
   const [syncing, setSyncing] = useState<string | null>(null);
   const [checkingApiStatus, setCheckingApiStatus] = useState(false);
   const [syncingMl, setSyncingMl] = useState(false);
   const [disconnectingMl, setDisconnectingMl] = useState(false);
-  const [mlApiStatus, setMlApiStatus] = useState<any>(null);
+  const [mlApiStatus, setMlApiStatus] = useState<any>(initialMlApiStatus);
   const [showDisconnectModal, setShowDisconnectModal] = useState(false);
 
   const [shopeeAppId, setShopeeAppId] = useState('');
@@ -25,13 +36,14 @@ export default function Integrations() {
   const [isShopeeFormOpen, setIsShopeeFormOpen] = useState(false);
   const [savingShopee, setSavingShopee] = useState(false);
 
-  const [mlCookieConfig, setMlCookieConfig] = useState<any>(null);
-  const [aliexpressConfig, setAliexpressConfig] = useState<any>(null);
-  const [aliexpressConnected, setAliexpressConnected] = useState(false);
-  const [aliexpressLoading, setAliexpressLoading] = useState(true);
+  const [mlCookieConfig, setMlCookieConfig] = useState<any>(initialMlCookieConfig);
+  const [aliexpressConfig, setAliexpressConfig] = useState<any>(initialAliCookieConfig);
+  const initialAliConnected = initialAliCookieConfig ? initialAliCookieConfig.hasCookie : false;
+  const [aliexpressConnected, setAliexpressConnected] = useState(initialAliConnected);
+  const [aliexpressLoading, setAliexpressLoading] = useState(!cachedAliCookieConfig);
   const [disconnectingAli, setDisconnectingAli] = useState(false);
   const [cookieInput, setCookieInput] = useState('');
-  const [tagInput, setTagInput] = useState('');
+  const [tagInput, setTagInput] = useState(initialMlCookieConfig?.affiliateTag || '');
   const [savingConfig, setSavingConfig] = useState(false);
   const [testUrl, setTestUrl] = useState('');
   const [testingUrl, setTestingUrl] = useState(false);
@@ -56,6 +68,7 @@ export default function Integrations() {
       const res = await fetch(`/api/integrations/mercadolivre/cookie-config?uid=${GLOBAL_USER_ID}`).then(r => r.json());
       if (res.ok && res.config) {
         setMlCookieConfig(res.config);
+        localStorage.setItem('ml_cookie_config', JSON.stringify(res.config));
         if (res.config.affiliateTag) {
           setTagInput(res.config.affiliateTag);
         }
@@ -67,14 +80,16 @@ export default function Integrations() {
 
   const fetchAliCookieConfig = async (isSilent = false) => {
     try {
-      if (!isSilent) setAliexpressLoading(true);
+      if (!isSilent && !localStorage.getItem('ali_cookie_config')) setAliexpressLoading(true);
       const res = await fetch(`/api/integrations/aliexpress/cookie-config?uid=${GLOBAL_USER_ID}`).then(r => r.json());
       if (res.ok && res.config) {
         setAliexpressConfig(res.config);
         setAliexpressConnected(res.config.hasCookie);
+        localStorage.setItem('ali_cookie_config', JSON.stringify(res.config));
       } else {
         setAliexpressConnected(false);
         setAliexpressConfig(null);
+        localStorage.removeItem('ali_cookie_config');
       }
     } catch (err) {
       console.error('ALI_COOKIE_CONFIG_ERR', err);
@@ -92,6 +107,9 @@ export default function Integrations() {
       }).then(r => r.json());
       if (res.ok) {
         showSuccess('AliExpress desconectado com sucesso.');
+        setAliexpressConnected(false);
+        setAliexpressConfig(null);
+        localStorage.removeItem('ali_cookie_config');
         await fetchAliCookieConfig();
       } else {
         showError('Erro ao desconectar AliExpress.');
@@ -178,14 +196,17 @@ export default function Integrations() {
 
     async function checkStatus() {
       try {
-        setMercadoLivreLoading(true);
-        setCheckingApiStatus(true);
+        if (!localStorage.getItem('ml_api_status')) {
+          setMercadoLivreLoading(true);
+          setCheckingApiStatus(true);
+        }
 
         try {
           const data = await fetchJson(`/api/mercadolivre?action=status&uid=${GLOBAL_USER_ID}`);
           console.log('ML_STATUS_RESULT', data);
 
           setMlApiStatus(data);
+          localStorage.setItem('ml_api_status', JSON.stringify(data));
           const isReallyConnected = data.connected === true || data.status === 'active' || data.status === 'connected';
           setMercadoLivreConnected(isReallyConnected);
 
@@ -247,11 +268,15 @@ export default function Integrations() {
   };
 
   const loadIntegrations = async () => {
-    setLoading(true);
+    if (!localStorage.getItem('integrations_list')) {
+      setLoading(true);
+    }
     try {
       const q = query(collection(db, 'ecommerce_keys'), where('user_id', '==', GLOBAL_USER_ID));
       const querySnapshot = await getDocs(q);
-      setIntegrations(querySnapshot.docs.map(d => ({ id: d.id, ...d.data() })));
+      const list = querySnapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+      setIntegrations(list);
+      localStorage.setItem('integrations_list', JSON.stringify(list));
     } catch (e) {
       handleFirestoreError(e, OperationType.LIST, 'ecommerce_keys');
     }
@@ -259,13 +284,14 @@ export default function Integrations() {
   };
 
   const checkMlApiStatus = async (isSilent = false) => {
-    if (!isSilent) {
+    if (!isSilent && !localStorage.getItem('ml_api_status')) {
       setCheckingApiStatus(true);
       setMercadoLivreLoading(true);
     }
     try {
       const data = await fetchJson(`/api/mercadolivre?action=status&uid=${GLOBAL_USER_ID}`);
       setMlApiStatus(data);
+      localStorage.setItem('ml_api_status', JSON.stringify(data));
       const isConnected = data.connected === true || data.status === 'active' || data.status === 'connected';
       setMercadoLivreConnected(isConnected);
 
@@ -320,6 +346,8 @@ export default function Integrations() {
       });
 
       setMercadoLivreConnected(false);
+      localStorage.removeItem('ml_api_status');
+      localStorage.removeItem('ml_cookie_config');
       showSuccess('Mercado Livre desconectado com sucesso.');
       await checkMlApiStatus();
     } catch (error: any) {

@@ -6,12 +6,15 @@ import { Calendar, MousePointerClick, Users, ShoppingCart, Tag, AlertCircle, Tre
 import { Link } from 'react-router-dom';
 
 export default function DashboardOverview() {
+  const cachedOverview = localStorage.getItem('overview_data');
+  const initialOverview = cachedOverview ? JSON.parse(cachedOverview) : null;
+
   const [filter, setFilter] = useState('7d');
-  const [hasIntegrations, setHasIntegrations] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [instances, setInstances] = useState<any[]>([]);
-  const [products, setProducts] = useState<any[]>([]);
-  const [metrics, setMetrics] = useState({
+  const [hasIntegrations, setHasIntegrations] = useState(initialOverview ? initialOverview.hasIntegrations : false);
+  const [loading, setLoading] = useState(!initialOverview);
+  const [instances, setInstances] = useState<any[]>(initialOverview ? initialOverview.instances : []);
+  const [products, setProducts] = useState<any[]>(initialOverview ? initialOverview.products : []);
+  const [metrics, setMetrics] = useState(initialOverview ? initialOverview.metrics : {
     clicks: 0,
     buyers: 0,
     orders: 0,
@@ -27,10 +30,15 @@ export default function DashboardOverview() {
 
   useEffect(() => {
     async function checkIntegrations() {
+      let hasInts = false;
+      let productDocs = [];
+      let instanceDocs = [];
+      let activeInstancesCount = 0;
+
       try {
         const q = query(collection(db, 'ecommerce_keys'), where('user_id', '==', GLOBAL_USER_ID));
         const qs = await getDocs(q);
-        let hasInts = !qs.empty;
+        hasInts = !qs.empty;
         
         // Check mercadolivre user-specific path
         try {
@@ -70,7 +78,7 @@ export default function DashboardOverview() {
         const qsProducts = await getDocs(collection(db, 'offer_bank'));
         productsCount = qsProducts.size;
         
-        const productDocs = qsProducts.docs.map(d => ({ id: d.id, ...d.data() }));
+        productDocs = qsProducts.docs.map(d => ({ id: d.id, ...d.data() }));
         setProducts(productDocs);
       } catch (e) {
         console.error("offer_bank count error", e);
@@ -112,9 +120,9 @@ export default function DashboardOverview() {
       try {
         const qInstances = query(collection(db, 'whatsapp_instances'), where('user_id', '==', GLOBAL_USER_ID));
         const qsInstances = await getDocs(qInstances);
-        const instanceDocs = qsInstances.docs.map(d => ({ id: d.id, ...d.data() }));
+        instanceDocs = qsInstances.docs.map(d => ({ id: d.id, ...d.data() }));
         setInstances(instanceDocs);
-        const activeInstancesCount = instanceDocs.filter((d: any) => d.status === 'open' || d.status === 'connected').length;
+        activeInstancesCount = instanceDocs.filter((d: any) => d.status === 'open' || d.status === 'connected').length;
 
         setMetrics(prev => ({
           ...prev,
@@ -123,6 +131,26 @@ export default function DashboardOverview() {
       } catch (e) {
         console.error("whatsapp_instances error", e);
       }
+
+      // Save everything to localStorage cache
+      localStorage.setItem('overview_data', JSON.stringify({
+        hasIntegrations: hasInts,
+        products: productDocs,
+        instances: instanceDocs,
+        metrics: {
+          clicks: clickCount,
+          buyers: buyerCount,
+          orders: orderCount,
+          estimatedSales: salesVal,
+          unpaidSales: unpaidVal,
+          estimatedGain: gainVal,
+          products: productsCount,
+          activeInstances: activeInstancesCount,
+          messagesSent: sentCount,
+          successRate: sRate,
+          errorRate: eRate
+        }
+      }));
 
       setLoading(false);
     }
