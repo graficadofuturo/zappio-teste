@@ -67,16 +67,28 @@ router.get("/debug-search", async (req, res) => {
 
     return res.json({
       ok: true,
-      docExists,
-      docKeys,
-      hasAccessToken: !!docData?.accessToken,
-      accessTokenType: typeof docData?.accessToken,
-      accessTokenLength: docData?.accessToken ? String(docData.accessToken).length : 0,
-      accessTokenStartsWithMock: docData?.accessToken ? String(docData.accessToken).startsWith('mock') : false,
-      globalExists,
-      globalKeys,
-      hasGlobalAccessToken: !!globalData?.accessToken,
-      globalAccessTokenLength: globalData?.accessToken ? String(globalData.accessToken).length : 0,
+      userDoc: {
+        exists: docExists,
+        connected: docData?.connected,
+        status: docData?.status,
+        hasAccessTokenCamel: !!docData?.accessToken,
+        accessTokenCamelLength: docData?.accessToken ? String(docData.accessToken).length : 0,
+        hasAccessTokenSnake: !!docData?.access_token,
+        accessTokenSnakeLength: docData?.access_token ? String(docData.access_token).length : 0,
+        hasRefreshTokenCamel: !!docData?.refreshToken,
+        hasRefreshTokenSnake: !!docData?.refresh_token,
+        disconnectedAt: docData?.disconnectedAt || null,
+        errorDetails: docData?.errorDetails || null
+      },
+      globalDoc: {
+        exists: globalExists,
+        connected: globalData?.connected,
+        status: globalData?.status,
+        hasAccessTokenCamel: !!globalData?.accessToken,
+        accessTokenCamelLength: globalData?.accessToken ? String(globalData.accessToken).length : 0,
+        hasRefreshTokenCamel: !!globalData?.refreshToken,
+        errorDetails: globalData?.errorDetails || null
+      },
       tokenResolved: !!token,
       tokenPrefix: token ? token.substring(0, 10) : null,
       apiResponse
