@@ -2,6 +2,7 @@ import { Router } from "express";
 import { getAdminDb, removeUndefinedDeep } from "../firebaseAdmin.js";
 import crypto from "crypto";
 import { getMlAccessToken } from "../../../api_handlers/_lib/ml-utils.js";
+import axios from "axios";
 
 const router = Router();
 
@@ -18,6 +19,45 @@ router.get("/debug-config", (req, res) => {
     appBaseUrl: appUrl,
     webhookUrl: process.env.ML_WEBHOOK_URL,
   });
+});
+
+router.get("/debug-search", async (req, res) => {
+  res.setHeader("Content-Type", "application/json; charset=utf-8");
+  try {
+    const { uid = 'default_user' } = req.query;
+    const token = await getMlAccessToken(String(uid));
+    
+    const headers: any = {
+      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+      "Accept": "application/json"
+    };
+    if (token) {
+      headers["Authorization"] = `Bearer ${token}`;
+    }
+    
+    const url = 'https://api.mercadolibre.com/sites/MLB/search?q=celular&limit=20';
+    try {
+      const resp = await axios.get(url, { headers });
+      return res.json({
+        ok: true,
+        hasToken: !!token,
+        tokenPrefix: token ? token.substring(0, 10) : null,
+        data: resp.data
+      });
+    } catch (apiErr: any) {
+      return res.status(200).json({
+        ok: false,
+        hasToken: !!token,
+        tokenPrefix: token ? token.substring(0, 10) : null,
+        status: apiErr.response?.status,
+        statusText: apiErr.response?.statusText,
+        data: apiErr.response?.data,
+        message: apiErr.message
+      });
+    }
+  } catch (err: any) {
+    return res.status(500).json({ ok: false, error: err.message });
+  }
 });
 
 router.get("/ping", (req, res) => {
