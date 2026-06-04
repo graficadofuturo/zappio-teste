@@ -171,8 +171,13 @@ export async function getMlAccessToken(uid?: string | null): Promise<string | nu
     const mlSnap = await db.doc(docPath).get();
     if (mlSnap.exists) {
       const mlData = mlSnap.data();
-      if (mlData && mlData.connected && mlData.accessToken && !mlData.accessToken.startsWith('mock')) {
-        return refreshAccessTokenIfExpired(docPath, mlData);
+      if (mlData && mlData.connected) {
+        const token = mlData.accessToken || mlData.access_token;
+        if (token && !token.startsWith('mock')) {
+          if (!mlData.accessToken) mlData.accessToken = token;
+          if (!mlData.refreshToken) mlData.refreshToken = mlData.refresh_token;
+          return refreshAccessTokenIfExpired(docPath, mlData);
+        }
       }
     }
   }
@@ -183,8 +188,13 @@ export async function getMlAccessToken(uid?: string | null): Promise<string | nu
     const globalSnap = await db.doc(docPath).get();
     if (globalSnap.exists) {
       const mlData = globalSnap.data();
-      if (mlData && mlData.connected && mlData.accessToken && !mlData.accessToken.startsWith('mock')) {
-        return refreshAccessTokenIfExpired(docPath, mlData);
+      if (mlData && mlData.connected) {
+        const token = mlData.accessToken || mlData.access_token;
+        if (token && !token.startsWith('mock')) {
+          if (!mlData.accessToken) mlData.accessToken = token;
+          if (!mlData.refreshToken) mlData.refreshToken = mlData.refresh_token;
+          return refreshAccessTokenIfExpired(docPath, mlData);
+        }
       }
     }
   } catch (e) {}
@@ -197,8 +207,13 @@ export async function getMlAccessToken(uid?: string | null): Promise<string | nu
        const mlSnap = await db.doc(docPath).get();
        if (mlSnap.exists) {
           const mlData = mlSnap.data();
-          if (mlData && mlData.connected && mlData.accessToken && !mlData.accessToken.startsWith('mock')) {
-             return refreshAccessTokenIfExpired(docPath, mlData);
+          if (mlData && mlData.connected) {
+            const token = mlData.accessToken || mlData.access_token;
+            if (token && !token.startsWith('mock')) {
+              if (!mlData.accessToken) mlData.accessToken = token;
+              if (!mlData.refreshToken) mlData.refreshToken = mlData.refresh_token;
+              return refreshAccessTokenIfExpired(docPath, mlData);
+            }
           }
        }
     }

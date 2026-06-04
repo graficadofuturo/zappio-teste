@@ -459,9 +459,15 @@ export default function Integrations() {
                 <Loader2 size={11} style={{ animation: 'spin 1s linear infinite' }} /> Verificando
               </div>
             ) : mercadoLivreConnected ? (
-              <div className="badge badge-green" style={{ display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0 }}>
-                <span className="pulse-dot" style={{ width: 6, height: 6, flexShrink: 0 }} /> Conectado
-              </div>
+              mlApiStatus && !mlApiStatus.oauthConnected ? (
+                <div className="badge badge-yellow" style={{ display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0 }}>
+                  <AlertCircle size={11} /> Requer OAuth
+                </div>
+              ) : (
+                <div className="badge badge-green" style={{ display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0 }}>
+                  <span className="pulse-dot" style={{ width: 6, height: 6, flexShrink: 0 }} /> Conectado
+                </div>
+              )
             ) : (
               <div className="badge badge-gray" style={{ flexShrink: 0 }}>Desconectado</div>
             )}
@@ -476,6 +482,15 @@ export default function Integrations() {
               marginBottom: 16,
               border: '1px solid var(--border-subtle, rgba(255,255,255,0.06))'
             }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 14px', borderBottom: '1px solid var(--border-subtle, rgba(255,255,255,0.06))' }}>
+                <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Robô (OAuth 2.0)</span>
+                <span
+                  className={`badge ${mlApiStatus?.oauthConnected ? 'badge-green' : 'badge-yellow'}`}
+                  style={{ fontSize: 10, padding: '2px 8px' }}
+                >
+                  {mlApiStatus?.oauthConnected ? '✓ Ativo' : '⏳ Pendente'}
+                </span>
+              </div>
               {mlApiStatus.nickname && (
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 14px', borderBottom: '1px solid var(--border-subtle, rgba(255,255,255,0.06))' }}>
                   <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Nickname</span>
@@ -507,50 +522,67 @@ export default function Integrations() {
           )}
 
           {/* Action Buttons */}
-          <div style={{ display: 'flex', gap: 10 }}>
-            {!mercadoLivreLoading && mercadoLivreConnected ? (
-              <>
-                <button
-                  className="btn btn-ghost btn-sm"
-                  onClick={() => checkMlApiStatus()}
-                  disabled={checkingApiStatus}
-                  style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
-                >
-                  {checkingApiStatus
-                    ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} />
-                    : <RefreshCw size={14} />}
-                  Verificar
-                </button>
-                <button
-                  className="btn btn-danger btn-sm"
-                  onClick={() => setShowDisconnectModal(true)}
-                  disabled={disconnectingMl}
-                  style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
-                >
-                  {disconnectingMl
-                    ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} />
-                    : <Trash2 size={14} />}
-                  Desconectar
-                </button>
-              </>
-            ) : (
-              <div style={{ width: '100%' }}>
-                <p style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 12, lineHeight: '1.4' }}>
-                  ⚠️ A conexão automática requer credenciais configuradas no <code style={{ color: 'var(--text-primary)', background: 'rgba(255,255,255,0.05)', padding: '2px 4px', borderRadius: 4 }}>.env</code>. Caso não as tenha, preencha a <strong>Configuração Manual</strong> abaixo.
-                </p>
-                <button
-                  className="btn btn-yellow"
-                  onClick={handleConnectML}
-                  disabled={syncing === 'ml' || mercadoLivreLoading}
-                  style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
-                >
-                  {syncing === 'ml'
-                    ? <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} />
-                    : <ExternalLink size={16} />}
-                  Conectar Mercado Livre
-                </button>
-              </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, width: '100%' }}>
+            {!mercadoLivreLoading && mercadoLivreConnected && mlApiStatus && !mlApiStatus.oauthConnected && (
+              <button
+                className="btn btn-yellow"
+                onClick={handleConnectML}
+                disabled={syncing === 'ml'}
+                style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
+              >
+                {syncing === 'ml' ? (
+                  <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} />
+                ) : (
+                  <Zap size={16} />
+                )}
+                Conectar Conta via OAuth (Ativa o Robô)
+              </button>
             )}
+            <div style={{ display: 'flex', gap: 10, width: '100%' }}>
+              {!mercadoLivreLoading && mercadoLivreConnected ? (
+                <>
+                  <button
+                    className="btn btn-ghost btn-sm"
+                    onClick={() => checkMlApiStatus()}
+                    disabled={checkingApiStatus}
+                    style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
+                  >
+                    {checkingApiStatus
+                      ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} />
+                      : <RefreshCw size={14} />}
+                    Verificar
+                  </button>
+                  <button
+                    className="btn btn-danger btn-sm"
+                    onClick={() => setShowDisconnectModal(true)}
+                    disabled={disconnectingMl}
+                    style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
+                  >
+                    {disconnectingMl
+                      ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} />
+                      : <Trash2 size={14} />}
+                    Desconectar
+                  </button>
+                </>
+              ) : (
+                <div style={{ width: '100%' }}>
+                  <p style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 12, lineHeight: '1.4' }}>
+                    ⚠️ A conexão automática requer credenciais configuradas no <code style={{ color: 'var(--text-primary)', background: 'rgba(255,255,255,0.05)', padding: '2px 4px', borderRadius: 4 }}>.env</code>. Caso não as tenha, preencha a <strong>Configuração Manual</strong> abaixo.
+                  </p>
+                  <button
+                    className="btn btn-yellow"
+                    onClick={handleConnectML}
+                    disabled={syncing === 'ml' || mercadoLivreLoading}
+                    style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
+                  >
+                    {syncing === 'ml'
+                      ? <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} />
+                      : <ExternalLink size={16} />}
+                    Conectar Mercado Livre
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
 

@@ -32,9 +32,14 @@ export default async function handler(req, res) {
       }
       
       const data = doc.data();
+      const hasOauth = !!(data.accessToken || data.access_token) && data.status !== 'EXPIRADO' && data.connected === true;
+      const hasCookie = !!(data.cookie || data.affiliateCookie);
+      
       return res.status(200).json({
         ok: true,
         connected: data.connected || data.enabled || false,
+        oauthConnected: hasOauth,
+        cookieConnected: hasCookie,
         status: data.status || 'CONECTADO',
         nickname: data.nickname || data.user_id,
         email: data.email,
