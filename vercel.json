@@ -16,7 +16,7 @@
     },
     {
       "path": "/api/cron/process-campaigns",
-      "schedule": "* * * * *"
+      "schedule": "0 0 * * *"
     }
   ]
 }
