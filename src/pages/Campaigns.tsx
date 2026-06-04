@@ -987,7 +987,10 @@ export default function Campaigns() {
                 <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '4px 0 0 0' }}>Defina quando e como sua campanha será enviada</p>
               </div>
               <div 
-                onClick={() => setAutoSendNow(!autoSendNow)}
+                onClick={() => {
+                  console.log("TOGGLE_DISPARO_CONTINUO_CLICKED", !autoSendNow);
+                  setAutoSendNow(!autoSendNow);
+                }}
                 style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', userSelect: 'none' }}
               >
                 <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)' }}>Disparo Contínuo</span>
