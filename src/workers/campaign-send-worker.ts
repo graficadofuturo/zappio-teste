@@ -148,7 +148,7 @@ export function startCampaignSendWorker() {
     } catch (e) {
       console.error('[SendWorker] Polling error:', e);
     }
-  }, 5000); // 5 seconds polling
+  }, 15000); // 15 seconds polling to conserve Firestore free quota
 }
 
 async function updateCampaignStatusIfNeeded(campaignId: string) {

@@ -37,8 +37,8 @@ async function runWorker() {
       }
     }
     
-    // Sleep for 10 seconds before next poll
-    await new Promise(res => setTimeout(res, 10000));
+    // Sleep for 30 seconds before next poll
+    await new Promise(res => setTimeout(res, 30000));
   }
 }
 

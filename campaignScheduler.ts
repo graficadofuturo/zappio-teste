@@ -122,7 +122,7 @@ export function startScheduler() {
     } catch (e) {
       console.error('[Scheduler] Poll error:', e);
     }
-  }, 2000);
+  }, 30000); // 30 seconds polling to conserve Firestore free quota
 }
 
 async function triggerCampaign(campaignDoc: any, camp: any, id: string) {
