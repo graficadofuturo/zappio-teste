@@ -6,7 +6,7 @@ import {
 } from 'firebase/firestore';
 import { handleFirestoreError, OperationType } from '../lib/firestore-utils.js';
 import { QRCodeSVG } from 'qrcode.react';
-import { Smartphone, RefreshCw, LogOut, Trash2, Plus } from 'lucide-react';
+import { Smartphone, RefreshCw, LogOut, Trash2, Plus, Edit2, Check, X } from 'lucide-react';
 
 interface Instance {
   id: string;
@@ -28,6 +28,10 @@ export default function WhatsAppInstances() {
   const [syncingInstance, setSyncingInstance] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
+
+  // Rename states
+  const [editingInstanceId, setEditingInstanceId] = useState<string | null>(null);
+  const [tempInstanceName, setTempInstanceName] = useState<string>('');
 
   // QR modal
   const [activeQRInstance, setActiveQRInstance] = useState<string | null>(null);
@@ -253,6 +257,19 @@ export default function WhatsAppInstances() {
     setSyncingInstance(null);
   };
 
+  const saveInstanceName = async (id: string) => {
+    if (!tempInstanceName.trim()) return;
+    try {
+      await updateDoc(doc(db, 'whatsapp_instances', id), {
+        instance_name: tempInstanceName.trim()
+      });
+      setEditingInstanceId(null);
+    } catch (e: any) {
+      console.error("Erro ao alterar nome da instância:", e);
+      setErrorMsg("Erro ao alterar nome: " + (e.message || e));
+    }
+  };
+
   const isConnected = (inst: Instance) =>
     inst.status === 'open' || inst.status === 'connected' ||
     inst.wa_status === 'connected' || inst.wa_status === 'open';
@@ -336,21 +353,95 @@ export default function WhatsAppInstances() {
 
                 {/* Header */}
                 <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 16 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1 }}>
                     <div style={{
                       width: 44, height: 44, borderRadius: 12,
                       background: connected ? 'var(--green-glow)' : 'var(--bg-surface)',
                       border: connected ? '1px solid var(--border-green)' : '1px solid var(--border-subtle)',
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      color: connected ? 'var(--green)' : 'var(--text-secondary)'
+                      color: connected ? 'var(--green)' : 'var(--text-secondary)',
+                      flexShrink: 0
                     }}>
                       <Smartphone size={20} />
                     </div>
-                    <div>
-                      <h3 style={{ fontFamily: 'Space Grotesk, sans-serif', fontSize: 15, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 2 }}>
-                        {instance.instance_name || `WhatsApp ${instance.id.slice(-4)}`}
-                      </h3>
-                      <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      {editingInstanceId === instance.id ? (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+                          <input
+                            type="text"
+                            value={tempInstanceName}
+                            onChange={e => setTempInstanceName(e.target.value)}
+                            onKeyDown={e => {
+                              if (e.key === 'Enter') saveInstanceName(instance.id);
+                              if (e.key === 'Escape') setEditingInstanceId(null);
+                            }}
+                            className="form-input"
+                            style={{
+                              fontSize: 13,
+                              padding: '2px 8px',
+                              height: 28,
+                              background: 'var(--bg-surface)',
+                              border: '1px solid var(--border-subtle)',
+                              borderRadius: 6,
+                              color: 'var(--text-primary)',
+                              width: '100%',
+                              maxWidth: 160
+                            }}
+                            autoFocus
+                          />
+                          <button
+                            onClick={() => saveInstanceName(instance.id)}
+                            style={{ background: 'none', border: 'none', padding: 4, color: 'var(--green)', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+                            title="Salvar"
+                          >
+                            <Check size={14} />
+                          </button>
+                          <button
+                            onClick={() => setEditingInstanceId(null)}
+                            style={{ background: 'none', border: 'none', padding: 4, color: '#f87171', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+                            title="Cancelar"
+                          >
+                            <X size={14} />
+                          </button>
+                        </div>
+                      ) : (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
+                          <h3 style={{
+                            fontFamily: 'Space Grotesk, sans-serif',
+                            fontSize: 15,
+                            fontWeight: 700,
+                            color: 'var(--text-primary)',
+                            margin: 0,
+                            whiteSpace: 'nowrap',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            maxWidth: 150
+                          }}>
+                            {instance.instance_name || `WhatsApp ${instance.id.slice(-4)}`}
+                          </h3>
+                          <button
+                            onClick={() => {
+                              setEditingInstanceId(instance.id);
+                              setTempInstanceName(instance.instance_name || '');
+                            }}
+                            style={{
+                              background: 'none',
+                              border: 'none',
+                              padding: 4,
+                              color: 'var(--text-muted)',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              opacity: 0.6,
+                              transition: 'opacity 0.2s'
+                            }}
+                            title="Editar nome"
+                          >
+                            <Edit2 size={13} />
+                          </button>
+                        </div>
+                      )}
+                      <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: 0 }}>
                         {instance.phone_number || 'Número não configurado'}
                       </p>
                     </div>
