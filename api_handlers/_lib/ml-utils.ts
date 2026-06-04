@@ -761,8 +761,7 @@ function generateMockOffers(keyword: string, category?: string | null) {
   // Try to find matching products by keyword
   let matches = catalog.filter(item => 
     item.title.toLowerCase().includes(normalizedKeyword) ||
-    item.category.toLowerCase().includes(normalizedKeyword) ||
-    (item.titleOriginal && item.titleOriginal.toLowerCase().includes(normalizedKeyword))
+    item.category.toLowerCase().includes(normalizedKeyword)
   );
 
   // If no direct matches, return all
@@ -867,7 +866,13 @@ async function collectByHtmlScraping(keyword: string, category?: string | null, 
         
         if (!price || isNaN(price)) return;
         
-        const itemId = extractMLItemId(link) || `MLB_SCRAPE_${Date.now()}_${Math.random()}`;
+        let itemId = null;
+        const matchMl = link.match(/MLB[-_]?(\d+)/i);
+        if (matchMl) {
+          itemId = 'MLB' + matchMl[1];
+        } else {
+          itemId = `MLB_SCRAPE_${Date.now()}_${Math.random()}`;
+        }
         
         let discountPercent = null;
         if (originalPrice && price && originalPrice > price) {
