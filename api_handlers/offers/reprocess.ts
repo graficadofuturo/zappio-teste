@@ -70,6 +70,23 @@ export default async function handler(req, res) {
           updated++;
         } else {
           console.warn(`REPROCESS_FAILED: Could not enrich ${url}`);
+          // Delete mock items to clean the database
+          if (
+            offer.id.startsWith('MLB_CATALOG') || 
+            url.includes('MLB_CATALOG') || 
+            url.includes('/p/MLB27338778') || 
+            url.includes('/p/MLB19619670') ||
+            url.includes('/p/MLB21619670') ||
+            url.includes('/p/MLB22452309') ||
+            url.includes('/p/MLB24523090') ||
+            url.includes('/p/MLB19619672') ||
+            url.includes('/p/MLB18890234') ||
+            url.includes('/p/MLB19273570')
+          ) {
+            console.log(`REPROCESS_DELETING_MOCK: Deleting mock item ${offer.id}`);
+            await db.collection("offer_bank").doc(offer.id).delete();
+            removed++;
+          }
         }
       } catch (err: any) {
         console.error(`REPROCESS_ERROR: ${url}`, err.message);

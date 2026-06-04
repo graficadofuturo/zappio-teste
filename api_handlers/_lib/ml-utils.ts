@@ -1013,8 +1013,17 @@ export async function collectAutomated(keyword: string, category?: string | null
        }
      }
      
-     console.log(`[collectAutomated] All search methods failed, returning simulated offers.`);
-     return generateMockOffers(keyword, category);
+     console.log(`[collectAutomated] All search methods failed.`);
+     if (process.env.NODE_ENV !== 'production' || process.env.ALLOW_MOCK_FALLBACK === 'true') {
+       console.log(`[collectAutomated] Dev environment: returning simulated offers.`);
+       return generateMockOffers(keyword, category);
+     }
+     
+     let errMsg = e.message || "Erro desconhecido";
+     if (e.response?.status === 403 || e.response?.status === 401 || e.status === 403 || e.status === 401) {
+       errMsg = `Falha na API do Mercado Livre (${e.response?.status || e.status}). Certifique-se de que sua conta está integrada em 'Integrações' e seus cookies de afiliado estão ativos e atualizados.`;
+     }
+     throw new Error(errMsg);
   }
 }
 
