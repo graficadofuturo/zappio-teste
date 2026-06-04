@@ -65,6 +65,20 @@ router.get("/debug-search", async (req, res) => {
       };
     }
 
+    // HTML scraping test as fallback
+    let scrapeResponse = null;
+    try {
+      const scrapeUrl = 'https://lista.mercadolivre.com.br/celular';
+      const scrapeHeaders = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8"
+      };
+      const resp = await axios.get(scrapeUrl, { headers: scrapeHeaders, timeout: 5000 });
+      scrapeResponse = { ok: true, status: resp.status, htmlLength: resp.data?.length };
+    } catch (scrapeErr: any) {
+      scrapeResponse = { ok: false, status: scrapeErr.response?.status || scrapeErr.message };
+    }
+
     return res.json({
       ok: true,
       userDoc: {
@@ -91,7 +105,8 @@ router.get("/debug-search", async (req, res) => {
       },
       tokenResolved: !!token,
       tokenPrefix: token ? token.substring(0, 10) : null,
-      apiResponse
+      apiResponse,
+      scrapeResponse
     });
   } catch (err: any) {
     return res.status(500).json({ ok: false, error: err.message });
