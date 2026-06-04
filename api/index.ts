@@ -9,6 +9,7 @@ import mlHandler from "../api_handlers/mercadolivre_handler.js";
 
 import collectorRunHandler from "../api_handlers/offers/collector/run.js";
 import collectorCheckHandler from "../api_handlers/cron/collect-offers.js";
+import processCampaignsHandler from "../api_handlers/cron/process-campaigns.js";
 import collectorStatusHandler from "../api_handlers/offers/collector/status.js";
 import offersListHandler from "../api_handlers/offers/list.js";
 import offersDebugHandler from "../api_handlers/offers/debug.js";
@@ -51,6 +52,7 @@ async function startServer() {
     
     app.all("/api/offers/collector/run", collectorRunHandler);
     app.all("/api/cron/collect-offers", collectorCheckHandler);
+    app.all("/api/cron/process-campaigns", processCampaignsHandler);
     app.all("/api/offers/collector/status", collectorStatusHandler);
     app.all("/api/offers/list", offersListHandler);
     app.all("/api/offers/debug", offersDebugHandler);

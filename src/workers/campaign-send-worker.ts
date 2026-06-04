@@ -38,6 +38,111 @@ try {
   console.error('[SendWorker] Initialization failed:', e);
 }
 
+export async function processPendingSendJobs(dbInstance: any) {
+  try {
+    // Find pending jobs
+    const jobsRef = dbInstance.collection('campaign_send_jobs');
+    const snapshot = await jobsRef
+      .where('status', '==', 'pending')
+      .limit(10)
+      .get();
+
+    if (snapshot.empty) return;
+
+    for (const doc of snapshot.docs) {
+      const job = doc.data();
+      const jobId = doc.id;
+
+      // Mark as processing
+      await doc.ref.update({
+          status: 'processing',
+          updatedAt: FieldValue.serverTimestamp()
+      });
+
+      console.log(`[SendWorker] Processing job ${jobId} for campaign ${job.campaignId}`);
+
+      try {
+          // Check provider
+          const provider = process.env.WHATSAPP_PROVIDER || 'baileys';
+          
+          if (provider === 'mock') {
+              console.log(`[SendWorker] MOCK SEND: ${job.targetPhoneOrGroupId}`);
+              // Mock success
+          } else {
+              // Actually send using baileys
+              let jid = job.targetPhoneOrGroupId;
+              if (!jid.includes('@')) {
+                  jid = `${jid}@s.whatsapp.net`;
+              }
+
+              await sendMessage(job.instanceId, jid, job.finalMessage, job.imageUrl);
+          }
+
+          // Success
+          await doc.ref.update({
+              status: 'sent',
+              sentAt: FieldValue.serverTimestamp(),
+              updatedAt: FieldValue.serverTimestamp()
+          });
+
+          // Log
+          await dbInstance.collection('campaign_send_logs').add({
+              campaignId: job.campaignId,
+              jobId: jobId,
+              userId: job.userId,
+              instanceId: job.instanceId,
+              targetId: job.targetId,
+              targetPhoneOrGroupId: job.targetPhoneOrGroupId,
+              status: 'success',
+              messagePreview: job.finalMessage.substring(0, 50),
+              providerResponse: 'OK',
+              errorCode: null,
+              errorMessage: null,
+              createdAt: FieldValue.serverTimestamp()
+          });
+
+          // Update campaign partially sent
+          await updateCampaignStatusIfNeeded(job.campaignId, dbInstance);
+
+      } catch (error: any) {
+          console.error(`[SendWorker] Job ${jobId} failed:`, error.message);
+          const attempts = (job.attempts || 0) + 1;
+          
+          const isNoConnection = error.message.includes('Instance not connected') || error.message.includes('não conectada') || error.message.includes('No WhatsApp connection');
+
+          const nextStatus = (attempts >= 3 || isNoConnection) ? 'failed' : 'pending';
+
+          await doc.ref.update({
+              status: nextStatus,
+              attempts: attempts,
+              errorCode: isNoConnection ? 'WHATSAPP_INSTANCE_NOT_CONNECTED' : 'SEND_ERROR',
+              errorMessage: error.message,
+              updatedAt: FieldValue.serverTimestamp()
+          });
+
+          await dbInstance.collection('campaign_send_logs').add({
+              campaignId: job.campaignId,
+              jobId: jobId,
+              userId: job.userId,
+              instanceId: job.instanceId,
+              targetId: job.targetId,
+              targetPhoneOrGroupId: job.targetPhoneOrGroupId,
+              status: 'error',
+              messagePreview: job.finalMessage.substring(0, 50),
+              providerResponse: null,
+              errorCode: isNoConnection ? 'WHATSAPP_INSTANCE_NOT_CONNECTED' : 'SEND_ERROR',
+              errorMessage: error.message,
+              createdAt: FieldValue.serverTimestamp()
+          });
+
+          await updateCampaignStatusIfNeeded(job.campaignId, dbInstance);
+      }
+    }
+  } catch (e) {
+    console.error('[SendWorker] Polling error:', e);
+  }
+}
+
 export function startCampaignSendWorker() {
   if (!db) {
     console.error('[SendWorker] Cannot start: DB not initialized');
@@ -46,114 +151,14 @@ export function startCampaignSendWorker() {
   console.log('[SendWorker] Started');
 
   setInterval(async () => {
-    try {
-      // Find pending jobs
-      const jobsRef = db.collection('campaign_send_jobs');
-      const snapshot = await jobsRef
-        .where('status', '==', 'pending')
-        .limit(10)
-        .get();
-
-      if (snapshot.empty) return;
-
-      for (const doc of snapshot.docs) {
-        const job = doc.data();
-        const jobId = doc.id;
-
-        // Mark as processing
-        await doc.ref.update({
-            status: 'processing',
-            updatedAt: FieldValue.serverTimestamp()
-        });
-
-        console.log(`[SendWorker] Processing job ${jobId} for campaign ${job.campaignId}`);
-
-        try {
-            // Check provider
-            const provider = process.env.WHATSAPP_PROVIDER || 'baileys';
-            
-            if (provider === 'mock') {
-                console.log(`[SendWorker] MOCK SEND: ${job.targetPhoneOrGroupId}`);
-                // Mock success
-            } else {
-                // Actually send using baileys
-                let jid = job.targetPhoneOrGroupId;
-                if (!jid.includes('@')) {
-                    jid = `${jid}@s.whatsapp.net`;
-                }
-
-                await sendMessage(job.instanceId, jid, job.finalMessage, job.imageUrl);
-            }
-
-            // Success
-            await doc.ref.update({
-                status: 'sent',
-                sentAt: FieldValue.serverTimestamp(),
-                updatedAt: FieldValue.serverTimestamp()
-            });
-
-            // Log
-            await db.collection('campaign_send_logs').add({
-                campaignId: job.campaignId,
-                jobId: jobId,
-                userId: job.userId,
-                instanceId: job.instanceId,
-                targetId: job.targetId,
-                targetPhoneOrGroupId: job.targetPhoneOrGroupId,
-                status: 'success',
-                messagePreview: job.finalMessage.substring(0, 50),
-                providerResponse: 'OK',
-                errorCode: null,
-                errorMessage: null,
-                createdAt: FieldValue.serverTimestamp()
-            });
-
-            // Update campaign partially sent
-            await updateCampaignStatusIfNeeded(job.campaignId);
-
-        } catch (error: any) {
-            console.error(`[SendWorker] Job ${jobId} failed:`, error.message);
-            const attempts = (job.attempts || 0) + 1;
-            
-            const isNoConnection = error.message.includes('Instance not connected') || error.message.includes('não conectada') || error.message.includes('No WhatsApp connection');
-
-            const nextStatus = (attempts >= 3 || isNoConnection) ? 'failed' : 'pending';
-
-            await doc.ref.update({
-                status: nextStatus,
-                attempts: attempts,
-                errorCode: isNoConnection ? 'WHATSAPP_INSTANCE_NOT_CONNECTED' : 'SEND_ERROR',
-                errorMessage: error.message,
-                updatedAt: FieldValue.serverTimestamp()
-            });
-
-            await db.collection('campaign_send_logs').add({
-                campaignId: job.campaignId,
-                jobId: jobId,
-                userId: job.userId,
-                instanceId: job.instanceId,
-                targetId: job.targetId,
-                targetPhoneOrGroupId: job.targetPhoneOrGroupId,
-                status: 'error',
-                messagePreview: job.finalMessage.substring(0, 50),
-                providerResponse: null,
-                errorCode: isNoConnection ? 'WHATSAPP_INSTANCE_NOT_CONNECTED' : 'SEND_ERROR',
-                errorMessage: error.message,
-                createdAt: FieldValue.serverTimestamp()
-            });
-
-            await updateCampaignStatusIfNeeded(job.campaignId);
-        }
-      }
-    } catch (e) {
-      console.error('[SendWorker] Polling error:', e);
-    }
+    await processPendingSendJobs(db);
   }, 15000); // 15 seconds polling to conserve Firestore free quota
 }
 
-async function updateCampaignStatusIfNeeded(campaignId: string) {
+async function updateCampaignStatusIfNeeded(campaignId: string, dbInstance?: any) {
+    const activeDb = dbInstance || db;
     try {
-        const jobsRef = db.collection('campaign_send_jobs').where('campaignId', '==', campaignId);
+        const jobsRef = activeDb.collection('campaign_send_jobs').where('campaignId', '==', campaignId);
         const snapshot = await jobsRef.get();
         if (snapshot.empty) return;
 
@@ -169,7 +174,7 @@ async function updateCampaignStatusIfNeeded(campaignId: string) {
             else pending++;
         });
 
-        const campaignRef = db.collection('campaigns').doc(campaignId);
+        const campaignRef = activeDb.collection('campaigns').doc(campaignId);
         
         // Only update if not scheduled continuous mode
         const campSnap = await campaignRef.get();
