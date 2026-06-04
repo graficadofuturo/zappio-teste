@@ -6,7 +6,7 @@ import {
 } from 'firebase/firestore';
 import { handleFirestoreError, OperationType } from '../lib/firestore-utils.js';
 import { QRCodeSVG } from 'qrcode.react';
-import { Smartphone, RefreshCw, LogOut, Trash2, Plus, Edit2, Check, X } from 'lucide-react';
+import { Smartphone, RefreshCw, LogOut, Trash2, Plus, Edit2, Check, X, QrCode } from 'lucide-react';
 
 interface Instance {
   id: string;
@@ -345,14 +345,8 @@ export default function WhatsAppInstances() {
                   transition: 'all 0.2s'
                 }}
               >
-                {/* Color top bar */}
-                <div style={{
-                  position: 'absolute', top: 0, left: 0, right: 0, height: 3,
-                  background: connected ? 'var(--green)' : 'var(--border-subtle)'
-                }} />
-
                 {/* Header */}
-                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 16 }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1 }}>
                     <div style={{
                       width: 44, height: 44, borderRadius: 12,
@@ -366,7 +360,7 @@ export default function WhatsAppInstances() {
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       {editingInstanceId === instance.id ? (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 2 }}>
                           <input
                             type="text"
                             value={tempInstanceName}
@@ -385,7 +379,7 @@ export default function WhatsAppInstances() {
                               borderRadius: 6,
                               color: 'var(--text-primary)',
                               width: '100%',
-                              maxWidth: 160
+                              maxWidth: 130
                             }}
                             autoFocus
                           />
@@ -405,67 +399,120 @@ export default function WhatsAppInstances() {
                           </button>
                         </div>
                       ) : (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
-                          <h3 style={{
-                            fontFamily: 'Space Grotesk, sans-serif',
-                            fontSize: 15,
-                            fontWeight: 700,
-                            color: 'var(--text-primary)',
-                            margin: 0,
-                            whiteSpace: 'nowrap',
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                            maxWidth: 150
-                          }}>
-                            {instance.instance_name || `WhatsApp ${instance.id.slice(-4)}`}
-                          </h3>
-                          <button
-                            onClick={() => {
-                              setEditingInstanceId(instance.id);
-                              setTempInstanceName(instance.instance_name || '');
-                            }}
-                            style={{
-                              background: 'none',
-                              border: 'none',
-                              padding: 4,
-                              color: 'var(--text-muted)',
-                              cursor: 'pointer',
-                              display: 'flex',
-                              alignItems: 'center',
-                              opacity: 0.6,
-                              transition: 'opacity 0.2s'
-                            }}
-                            title="Editar nome"
-                          >
-                            <Edit2 size={13} />
-                          </button>
-                        </div>
+                        <h3 style={{
+                          fontFamily: 'Space Grotesk, sans-serif',
+                          fontSize: 15,
+                          fontWeight: 700,
+                          color: 'var(--text-primary)',
+                          margin: '0 0 2px 0',
+                          whiteSpace: 'nowrap',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis'
+                        }}>
+                          {instance.instance_name || `WhatsApp ${instance.id.slice(-4)}`}
+                        </h3>
                       )}
-                      <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: 0 }}>
-                        {instance.phone_number || 'Número não configurado'}
-                      </p>
+                      
+                      {connected ? (
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--green)', fontWeight: 500 }}>
+                          <span className="pulse-dot" style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--green)', display: 'inline-block' }} />
+                          Conectado {instance.phone_number ? `(${instance.phone_number})` : ''}
+                        </span>
+                      ) : (
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--text-secondary)' }}>
+                          <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#d1d5db', display: 'inline-block' }} />
+                          Desconectado
+                        </span>
+                      )}
                     </div>
                   </div>
 
-                  {connected ? (
-                    <div className="badge badge-green" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <div className="pulse-dot" style={{ width: 6, height: 6 }} />
-                      Ativo
-                    </div>
-                  ) : (
-                    <div className="badge badge-gray">Offline</div>
-                  )}
+                  {/* Actions on Top-Right */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+                    <button
+                      onClick={() => {
+                        setEditingInstanceId(instance.id);
+                        setTempInstanceName(instance.instance_name || '');
+                      }}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        padding: 6,
+                        color: 'var(--text-muted)',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        borderRadius: 6,
+                        opacity: 0.7,
+                        transition: 'all 0.2s'
+                      }}
+                      onMouseEnter={e => {
+                        e.currentTarget.style.opacity = '1';
+                        e.currentTarget.style.background = 'var(--bg-surface)';
+                      }}
+                      onMouseLeave={e => {
+                        e.currentTarget.style.opacity = '0.7';
+                        e.currentTarget.style.background = 'none';
+                      }}
+                      title="Editar nome"
+                    >
+                      <Edit2 size={14} />
+                    </button>
+                    <button
+                      onClick={() => deleteInstance(instance.id)}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        padding: 6,
+                        color: '#f87171',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        borderRadius: 6,
+                        opacity: 0.7,
+                        transition: 'all 0.2s'
+                      }}
+                      onMouseEnter={e => {
+                        e.currentTarget.style.opacity = '1';
+                        e.currentTarget.style.background = 'rgba(239, 68, 68, 0.08)';
+                      }}
+                      onMouseLeave={e => {
+                        e.currentTarget.style.opacity = '0.7';
+                        e.currentTarget.style.background = 'none';
+                      }}
+                      title="Excluir instância"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
                 </div>
 
-                {/* Actions */}
-                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                {/* Divider */}
+                <div style={{ height: 1, background: 'var(--border-subtle)', margin: '18px 0 16px 0' }} />
+
+                {/* Bottom Action Area */}
+                <div>
                   {connected ? (
-                    <>
+                    <div style={{ display: 'flex', gap: 8 }}>
                       <button
                         className="btn btn-ghost btn-sm"
                         onClick={() => syncContacts(instance.id)}
                         disabled={syncingInstance === instance.id}
-                        style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
+                        style={{
+                          flex: 1,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: 6,
+                          fontSize: 12,
+                          padding: '8px 12px',
+                          background: 'rgba(59, 130, 246, 0.05)',
+                          border: '1px solid rgba(59, 130, 246, 0.15)',
+                          color: 'var(--blue, #3b82f6)',
+                          borderRadius: 8
+                        }}
                       >
                         {syncingInstance === instance.id ? <span className="spinner" /> : <RefreshCw size={12} />}
                         <span>Sincronizar</span>
@@ -473,34 +520,62 @@ export default function WhatsAppInstances() {
                       <button
                         className="btn btn-danger btn-sm"
                         onClick={() => disconnectInstance(instance.id)}
-                        style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
+                        style={{
+                          flex: 1,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: 6,
+                          fontSize: 12,
+                          padding: '8px 12px',
+                          background: 'rgba(239, 68, 68, 0.05)',
+                          border: '1px solid rgba(239, 68, 68, 0.15)',
+                          color: '#f87171',
+                          borderRadius: 8
+                        }}
                       >
                         <LogOut size={12} />
                         <span>Desconectar</span>
                       </button>
-                    </>
+                    </div>
                   ) : (
-                    <>
-                      <button
-                        className="btn btn-primary"
-                        onClick={() => connectInstance(instance.id)}
-                        disabled={connectingInstance === instance.id}
-                        style={{ flex: 1 }}
-                      >
-                        {connectingInstance === instance.id
-                          ? <span className="spinner" style={{ borderTopColor: '#022c1a' }} />
-                          : 'Conectar'
-                        }
-                      </button>
-                      <button
-                        className="btn btn-danger btn-sm"
-                        onClick={() => deleteInstance(instance.id)}
-                        title="Excluir instância"
-                        style={{ aspectRatio: '1', padding: '0 12px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    </>
+                    <button
+                      onClick={() => connectInstance(instance.id)}
+                      disabled={connectingInstance === instance.id}
+                      style={{
+                        width: '100%',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: 8,
+                        fontSize: 13,
+                        fontWeight: 600,
+                        padding: '10px 16px',
+                        background: 'rgba(99, 102, 241, 0.08)',
+                        border: '1px solid rgba(99, 102, 241, 0.20)',
+                        color: '#6366f1',
+                        borderRadius: 10,
+                        cursor: 'pointer',
+                        transition: 'all 0.2s'
+                      }}
+                      onMouseEnter={e => {
+                        e.currentTarget.style.background = 'rgba(99, 102, 241, 0.12)';
+                        e.currentTarget.style.borderColor = 'rgba(99, 102, 241, 0.30)';
+                      }}
+                      onMouseLeave={e => {
+                        e.currentTarget.style.background = 'rgba(99, 102, 241, 0.08)';
+                        e.currentTarget.style.borderColor = 'rgba(99, 102, 241, 0.20)';
+                      }}
+                    >
+                      {connectingInstance === instance.id ? (
+                        <span className="spinner" style={{ borderTopColor: '#6366f1' }} />
+                      ) : (
+                        <>
+                          <QrCode size={14} />
+                          <span>Gerar QR Code para Ligar</span>
+                        </>
+                      )}
+                    </button>
                   )}
                 </div>
               </div>
