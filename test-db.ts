@@ -1,4 +1,5 @@
-import { dbAdmin } from './src/lib/firebaseAdmin.ts';
+import { getAdminDb } from './src/api/firebaseAdmin.js';
+const dbAdmin = getAdminDb();
 
 async function run() {
   try {
