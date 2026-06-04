@@ -25,6 +25,21 @@ router.get("/debug-search", async (req, res) => {
   res.setHeader("Content-Type", "application/json; charset=utf-8");
   try {
     const { uid = 'default_user' } = req.query;
+    
+    const db = getAdminDb();
+    const docPath = `users/${uid}/integrations/mercadolivre`;
+    const mlSnap = await db.doc(docPath).get();
+    const docExists = mlSnap.exists;
+    const docData = docExists ? mlSnap.data() : null;
+    const docKeys = docData ? Object.keys(docData) : [];
+    
+    // Check global path too
+    const globalPath = `marketplace_integrations/mercadolivre`;
+    const globalSnap = await db.doc(globalPath).get();
+    const globalExists = globalSnap.exists;
+    const globalData = globalExists ? globalSnap.data() : null;
+    const globalKeys = globalData ? Object.keys(globalData) : [];
+
     const token = await getMlAccessToken(String(uid));
     
     const headers: any = {
@@ -36,25 +51,36 @@ router.get("/debug-search", async (req, res) => {
     }
     
     const url = 'https://api.mercadolibre.com/sites/MLB/search?q=celular&limit=20';
+    let apiResponse = null;
     try {
       const resp = await axios.get(url, { headers });
-      return res.json({
-        ok: true,
-        hasToken: !!token,
-        tokenPrefix: token ? token.substring(0, 10) : null,
-        data: resp.data
-      });
+      apiResponse = { ok: true, data: resp.data };
     } catch (apiErr: any) {
-      return res.status(200).json({
+      apiResponse = {
         ok: false,
-        hasToken: !!token,
-        tokenPrefix: token ? token.substring(0, 10) : null,
         status: apiErr.response?.status,
         statusText: apiErr.response?.statusText,
         data: apiErr.response?.data,
         message: apiErr.message
-      });
+      };
     }
+
+    return res.json({
+      ok: true,
+      docExists,
+      docKeys,
+      hasAccessToken: !!docData?.accessToken,
+      accessTokenType: typeof docData?.accessToken,
+      accessTokenLength: docData?.accessToken ? String(docData.accessToken).length : 0,
+      accessTokenStartsWithMock: docData?.accessToken ? String(docData.accessToken).startsWith('mock') : false,
+      globalExists,
+      globalKeys,
+      hasGlobalAccessToken: !!globalData?.accessToken,
+      globalAccessTokenLength: globalData?.accessToken ? String(globalData.accessToken).length : 0,
+      tokenResolved: !!token,
+      tokenPrefix: token ? token.substring(0, 10) : null,
+      apiResponse
+    });
   } catch (err: any) {
     return res.status(500).json({ ok: false, error: err.message });
   }
