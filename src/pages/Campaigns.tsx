@@ -977,301 +977,14 @@ export default function Campaigns() {
         {/* Left: Configuration */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
-          {/* Campaign Name */}
-          <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 16, padding: 24 }}>
-            <label className="form-label">Nome da Campanha</label>
-            <input
-              type="text"
-              className="form-input"
-              value={campaignName}
-              onChange={e => setCampaignName(e.target.value)}
-              placeholder="Ex: Promoção de Eletrônicos"
-            />
-          </div>
-
-          {/* Message Mode Toggle */}
-          <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 16, padding: 24 }}>
-            <label className="form-label">Modo de Mensagem</label>
-            <div className="tab-bar" style={{ marginBottom: 20 }}>
-              <button
-                className={`tab-item ${messageMode === 'manual' ? 'active' : ''}`}
-                onClick={() => setMessageMode('manual')}
-              >
-                Manual
-              </button>
-              <button
-                className={`tab-item ${messageMode === 'auto_offer' ? 'active' : ''}`}
-                onClick={() => {
-                  const wasManual = messageMode === 'manual';
-                  setMessageMode('auto_offer');
-                  if (wasManual || !message || message.trim() === '' || message.includes('{Category}') || message.includes('{product_cupom}')) {
-                    setMessage('⚡ {category} | {marketplace}\n\n🛍️ {product_title}\n\n🚫 {product_old_price}\n💲 {product_price}\n📉 {discountPercent}% OFF\n\n🎟️ {product_coupon}\n\n🛒 Comprar agora:\n{product_link}');
-                  }
-                }}
-              >
-                Oferta Automática
-              </button>
-            </div>
-
-            {messageMode === 'auto_offer' && (
-              <>
-                {(!marketplacesLoaded || isCheckingIntegration) ? (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', background: 'var(--bg-surface)', borderRadius: 10, border: '1px solid var(--border-subtle)', marginBottom: 16 }}>
-                    <span className="spinner" />
-                    <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>Carregando marketplaces conectados...</span>
-                  </div>
-                ) : (marketplaces.length === 0 || (marketplaces.length === 1 && marketplaces[0].id === 'mercadolivre_global' && offerMarketplace !== 'mercadolivre_global')) ? (
-                  <div style={{ background: 'rgba(239,68,68,0.07)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 12, padding: 16, marginBottom: 16, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, textAlign: 'center' }}>
-                    <AlertCircle size={24} style={{ color: '#f87171' }} />
-                    <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Conecte pelo menos um marketplace em Integrações para usar Oferta Automática.</p>
-                    <button onClick={() => navigate('/integrations')} className="btn btn-primary btn-sm">Ir para Integrações</button>
-                  </div>
-                ) : (
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
-                    <div>
-                      <label className="form-label">Marketplace</label>
-                      <select className="form-input form-select" value={offerMarketplace} onChange={e => setOfferMarketplace(e.target.value)}>
-                        {marketplaces.length >= 2 && <option value="all">Todos</option>}
-                        {!marketplaces.some((m: any) => m.id === 'mercadolivre_global') && (
-                          <option value="mercadolivre_global">Mercado Livre (Banco Global)</option>
-                        )}
-                        {marketplaces.map((m: any) => <option key={m.id} value={m.id}>{m.name}</option>)}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="form-label">Categoria</label>
-                      <select className="form-input form-select" value={offerCategory} onChange={e => setOfferCategory(e.target.value)}>
-                        {categories.length > 0 ? categories.map(c => <option key={c} value={c}>{c}</option>) : <option value="todos">Todos</option>}
-                      </select>
-                    </div>
-                  </div>
-                )}
-                {marketplacesLoaded && !isCheckingIntegration && marketplaces.length > 0 && (
-                  <p style={{ fontSize: 11, color: 'var(--green)', lineHeight: 1.6, background: 'var(--green-glow)', padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border-green)', marginBottom: 16 }}>
-                    O sistema selecionará automaticamente ofertas de <strong>{offerMarketplace === 'all' ? 'todos os marketplaces conectados' : marketplaces.find((m: any) => m.id === offerMarketplace)?.name}</strong> na categoria <strong>{offerCategory}</strong>.
-                  </p>
-                )}
-              </>
-            )}
-
-            {/* Template / Message */}
-            <div style={{ position: 'relative' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-                <label className="form-label" style={{ marginBottom: 0 }}>Mensagem / Template</label>
-                <div style={{ display: 'flex', gap: 8 }}>
-                  {messageMode === 'auto_offer' && (
-                    <div style={{ position: 'relative' }}>
-                      <button
-                        type="button"
-                        className="btn btn-ghost btn-sm"
-                        style={{ fontSize: 12 }}
-                        onClick={() => setShowVariableMenu(!showVariableMenu)}
-                      >
-                        {'{ }'} Variável
-                      </button>
-                      {showVariableMenu && (
-                        <div style={{ position: 'absolute', right: 0, top: '100%', marginTop: 4, width: 240, background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 12, boxShadow: '0 8px 32px rgba(0,0,0,0.4)', zIndex: 20, padding: 8 }}>
-                          <p style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--text-muted)', padding: '4px 8px', marginBottom: 4 }}>Produto ML</p>
-                          {[
-                            { id: '{category}', label: 'Categoria' },
-                            { id: '{marketplace}', label: 'Marketplace' },
-                            { id: '{product_title}', label: 'Título' },
-                            { id: '{product_price}', label: 'Preço atual' },
-                            { id: '{product_old_price}', label: 'Preço antigo' },
-                            { id: '{discountPercent}', label: 'Desconto' },
-                            { id: '{product_coupon}', label: 'Cupom' },
-                            { id: '{product_link}', label: 'Link' }
-                          ].map(v => (
-                            <button
-                              key={v.id}
-                              type="button"
-                              onClick={() => { setMessage(prev => prev + v.id); setShowVariableMenu(false); }}
-                              style={{ width: '100%', textAlign: 'left', padding: '6px 8px', fontSize: 12, display: 'flex', justifyContent: 'space-between', borderRadius: 8, background: 'transparent', color: 'var(--text-primary)', cursor: 'pointer' }}
-                            >
-                              <span style={{ fontWeight: 500 }}>{v.label}</span>
-                              <span style={{ fontFamily: 'monospace', fontSize: 10, color: 'var(--text-muted)' }}>{v.id}</span>
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  )}
-                  <button
-                    type="button"
-                    className="btn btn-ghost btn-sm"
-                    style={{ fontSize: 12 }}
-                    onClick={() => setIsAiSectionOpen(!isAiSectionOpen)}
-                  >
-                    <Wand2 size={13} /> IA
-                  </button>
-                </div>
-              </div>
-              <textarea
-                className="form-input form-textarea"
-                value={message}
-                onChange={e => setMessage(e.target.value)}
-                placeholder={messageMode === 'auto_offer'
-                  ? '{product_title}\n{product_price} | {discountPercent}% OFF\n{product_link}'
-                  : 'Sua mensagem aqui...'
-                }
-                rows={8}
-              />
-            </div>
-
-            {/* AI Section */}
-            {isAiSectionOpen && (
-              <div style={{ marginTop: 16, background: 'var(--bg-surface)', borderRadius: 12, padding: 16, border: '1px solid var(--border-subtle)' }}>
-                <p style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 12 }}>Assistente IA</p>
-                <div style={{ marginBottom: 12 }}>
-                  <label className="form-label">Instruções para a IA</label>
-                  <textarea
-                    value={instructionIA}
-                    onChange={e => setInstructionIA(e.target.value)}
-                    placeholder="Ex: Transforme este texto em uma oferta irresistível com foco em urgência..."
-                    rows={2}
-                    className="form-input form-textarea"
-                  />
-                </div>
-                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
-                  {[
-                    { label: 'Melhorar Copy', action: 'Melhore este texto focando em conversão' },
-                    { label: 'Criar Variações', action: 'Crie 3 variações curtas deste texto' },
-                    { label: 'Mudar Tom', action: 'Mude o tom para ser mais engraçado e amigável' },
-                    { label: 'Simplificar', action: 'Simplifique o texto para ser rápido de ler' },
-                    { label: 'Persuadir', action: 'Torne o texto muito mais persuasivo' },
-                    { label: 'Storytelling', action: 'Conte uma pequena história sobre o benefício deste produto' },
-                  ].map(({ label, action }) => (
-                    <button
-                      key={label} type="button"
-                      className="btn btn-secondary btn-sm"
-                      disabled={isAiGeneratingCopy}
-                      onClick={() => handleAICalling(action)}
-                      style={{ fontSize: 12 }}
-                    >
-                      {isAiGeneratingCopy ? <span className="spinner" /> : <Wand2 size={12} />}
-                      {label}
-                    </button>
-                  ))}
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: 12, borderTop: '1px solid var(--border-subtle)' }}>
-                  <span style={{ fontSize: 11, color: 'var(--text-muted)', fontStyle: 'italic' }}>IA alimentada por Gemini Flash 1.5</span>
-                  <button
-                    onClick={() => handleAICalling(instructionIA || 'Melhore meu copy')}
-                    disabled={isAiGeneratingCopy || !message}
-                    className="btn btn-primary btn-sm"
-                  >
-                    {isAiGeneratingCopy ? <><span className="spinner" style={{ borderTopColor: '#022c1a' }} /> Processando...</> : <><Sparkles size={13} /> Aplicar com IA</>}
-                  </button>
-                </div>
-
-                {aiVariations && (
-                  <div style={{ marginTop: 16, background: 'var(--bg-elevated)', borderRadius: 12, padding: 16, border: '1px solid var(--border-subtle)' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-                      <h4 style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)' }}>Sugestões da IA</h4>
-                      <button onClick={() => setAiVariations(null)} className="btn btn-ghost btn-icon btn-sm"><Trash2 size={13} /></button>
-                    </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                      {aiVariations.map((v, i) => (
-                        <div key={i} style={{ background: 'var(--bg-card)', padding: 12, borderRadius: 10, border: '1px solid var(--border-subtle)', position: 'relative' }}>
-                          <p style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.6, paddingRight: 32 }}>{v.text}</p>
-                          <button
-                            onClick={() => { setMessage(v.text); setAiVariations(null); }}
-                            className="btn btn-ghost btn-icon btn-sm"
-                            style={{ position: 'absolute', top: 8, right: 8 }}
-                            title="Usar esta variação"
-                          >
-                            <CheckCircle2 size={14} />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* Image URL */}
-          <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 16, padding: 24 }}>
-            <label className="form-label">URL da Imagem (opcional)</label>
-            <input
-              type="url"
-              className="form-input"
-              value={imageUrl}
-              onChange={e => setImageUrl(e.target.value)}
-              placeholder="https://..."
-            />
-          </div>
-
-          {/* Target: Instance & Group */}
-          <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 16, padding: 24 }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-              <label className="form-label" style={{ marginBottom: 0 }}>Destinos de Envio</label>
-              <button type="button" className="btn btn-ghost btn-sm" style={{ fontSize: 12 }}
-                onClick={() => setTargets(prev => [...prev, { instance_id: '', group_id: '' }])}
-              >
-                <Plus size={13} /> Adicionar
-              </button>
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {targets.map((target, idx) => (
-                <div key={idx} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: 10, alignItems: 'center' }}>
-                  <select
-                    className="form-input form-select"
-                    style={{ fontSize: 13 }}
-                    value={target.instance_id}
-                    onChange={e => {
-                      const newTargets = [...targets];
-                      newTargets[idx].instance_id = e.target.value;
-                      newTargets[idx].group_id = '';
-                      setTargets(newTargets);
-                    }}
-                  >
-                    <option value="">WhatsApp...</option>
-                    {instances.map((inst: any) => (
-                      <option key={inst.id} value={inst.id}>{inst.instance_name || inst.id}</option>
-                    ))}
-                  </select>
-                  <select
-                    className="form-input form-select"
-                    style={{ fontSize: 13 }}
-                    value={target.group_id}
-                    onChange={e => {
-                      const newTargets = [...targets];
-                      newTargets[idx].group_id = e.target.value;
-                      setTargets(newTargets);
-                    }}
-                    disabled={!target.instance_id}
-                  >
-                    {target.instance_id ? (
-                      <>
-                        <option value="">Grupo/Contato...</option>
-                        {groups.filter((g: any) => g.id.startsWith(target.instance_id + '_')).map((g: any) => (
-                          <option key={g.id} value={g.id}>{g.name} ({g.type === 'group' ? 'Grupo' : 'Contato'})</option>
-                        ))}
-                      </>
-                    ) : (
-                      <option value="" disabled>Selecione a instância primeiro...</option>
-                    )}
-                  </select>
-                  {targets.length > 1 && (
-                    <button type="button" className="btn btn-danger btn-icon btn-sm"
-                      onClick={() => setTargets(targets.filter((_, i) => i !== idx))}
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Scheduling */}
-          <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 16, padding: 24 }}>
+          {/* Configuração de Disparo (Scheduling at the top) */}
+          <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-medium)', borderRadius: 12, padding: 24, boxShadow: 'var(--shadow-sm)' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
               <div>
-                <p style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)', fontFamily: 'Space Grotesk, sans-serif' }}>⏱️ Configuração de Disparo</p>
-                <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>Defina quando e como a campanha será enviada</p>
+                <p style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)', fontFamily: 'Space Grotesk, sans-serif', margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <Clock size={16} /> Configuração de Disparo
+                </p>
+                <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '4px 0 0 0' }}>Defina quando e como sua campanha será enviada</p>
               </div>
               <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
                 <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)' }}>Disparo Contínuo</span>
@@ -1284,9 +997,10 @@ export default function Campaigns() {
                     position: 'relative', transition: 'all 0.2s'
                   }}>
                     <div style={{
-                      position: 'absolute', top: 3, left: autoSendNow ? 22 : 3,
+                      position: 'absolute', top: 3, left: autoSendNow ? 23 : 3,
                       width: 16, height: 16, borderRadius: '50%',
-                      background: autoSendNow ? '#022c1a' : 'var(--text-muted)',
+                      background: '#ffffff',
+                      boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
                       transition: 'left 0.2s'
                     }} />
                   </div>
@@ -1294,22 +1008,26 @@ export default function Campaigns() {
               </label>
             </div>
 
+            <div style={{ height: 1, background: 'var(--border-subtle)', margin: '16px 0', opacity: 0.8 }} />
+
             {autoSendNow ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                 <div>
-                  <label className="form-label">Intervalo entre Envios (MM:SS)</label>
-                  <input
-                    type="text" className="form-input"
-                    style={{ maxWidth: 140, fontFamily: 'monospace' }}
-                    value={sendInterval}
-                    onChange={e => setSendInterval(e.target.value)}
-                    placeholder="01:00"
-                  />
-                  <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6 }}>00:30 = 30s, 01:00 = 1min, 60:00 = 1h</p>
+                  <label className="form-label" style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 8 }}>Intervalo de Envio (MM:SS)</label>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <input
+                      type="text" className="form-input"
+                      style={{ maxWidth: 100, fontFamily: 'monospace', height: 38, textAlign: 'center', fontSize: 14 }}
+                      value={sendInterval}
+                      onChange={e => setSendInterval(e.target.value)}
+                      placeholder="00:00"
+                    />
+                    <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>ex: 00:01 (1 seg), 01:00 (1 min)</span>
+                  </div>
                 </div>
-                <div style={{ background: 'var(--green-glow)', border: '1px solid var(--border-green)', borderRadius: 10, padding: 12 }}>
-                  <p style={{ fontSize: 12, color: 'var(--green)', lineHeight: 1.6 }}>
-                    <strong>Modo Contínuo Ativo:</strong> A campanha enviará mensagens automaticamente no intervalo definido, selecionando produtos variados do Banco de Ofertas.
+                <div style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-medium)', borderRadius: 10, padding: 14 }}>
+                  <p style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.6, margin: 0 }}>
+                    <strong>Disparo Contínuo Ativo:</strong> A campanha vai enviar mensagens ciclicamente respeitando o intervalo definido, selecionando automaticamente produtos variados do <strong>Banco de Ofertas (Robot)</strong>.
                   </p>
                 </div>
               </div>
@@ -1410,6 +1128,408 @@ export default function Campaigns() {
                 )}
               </div>
             )}
+          </div>
+
+          {/* Campaign Name */}
+          <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-medium)', borderRadius: 12, padding: 24, boxShadow: 'var(--shadow-sm)' }}>
+            <label className="form-label" style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 12 }}>Nome da Campanha</label>
+            <input
+              type="text"
+              className="form-input"
+              value={campaignName}
+              onChange={e => setCampaignName(e.target.value)}
+              placeholder="Promoção Relâmpago..."
+              style={{ height: 42, fontSize: 14 }}
+            />
+          </div>
+
+          {/* Target: Instance & Group (side by side setup) */}
+          <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-medium)', borderRadius: 12, padding: 24, boxShadow: 'var(--shadow-sm)' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              {targets.map((target, idx) => (
+                <div key={idx} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: 16, alignItems: 'end' }}>
+                    <div style={{ flex: 1 }}>
+                      <label className="form-label" style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 8 }}>Instância do WhatsApp</label>
+                      <select
+                        className="form-input form-select"
+                        style={{ fontSize: 13, height: 42 }}
+                        value={target.instance_id}
+                        onChange={e => {
+                          const newTargets = [...targets];
+                          newTargets[idx].instance_id = e.target.value;
+                          newTargets[idx].group_id = '';
+                          setTargets(newTargets);
+                        }}
+                      >
+                        <option value="">Selecione a conexão...</option>
+                        {instances.map((inst: any) => (
+                          <option key={inst.id} value={inst.id}>{inst.instance_name || inst.id}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <label className="form-label" style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 8 }}>Alvo de Envio</label>
+                      <select
+                        className="form-input form-select"
+                        style={{ fontSize: 13, height: 42 }}
+                        value={target.group_id}
+                        onChange={e => {
+                          const newTargets = [...targets];
+                          newTargets[idx].group_id = e.target.value;
+                          setTargets(newTargets);
+                        }}
+                        disabled={!target.instance_id}
+                      >
+                        {target.instance_id ? (
+                          <>
+                            <option value="">Selecione o grupo/contato...</option>
+                            {groups.filter((g: any) => g.id.startsWith(target.instance_id + '_')).map((g: any) => (
+                              <option key={g.id} value={g.id}>{g.name} ({g.type === 'group' ? 'Grupo' : 'Contato'})</option>
+                            ))}
+                          </>
+                        ) : (
+                          <option value="" disabled>Selecione a instância primeiro...</option>
+                        )}
+                      </select>
+                    </div>
+                    {targets.length > 1 && (
+                      <button type="button" className="btn btn-danger btn-icon" style={{ height: 42, width: 42, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                        onClick={() => setTargets(targets.filter((_, i) => i !== idx))}
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+              
+              <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
+                <button
+                  type="button"
+                  onClick={() => setTargets(prev => [...prev, { instance_id: '', group_id: '' }])}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: 'var(--blue, #3b82f6)',
+                    cursor: 'pointer',
+                    fontSize: 13,
+                    fontWeight: 600,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    padding: 0
+                  }}
+                >
+                  <span style={{ fontSize: 16, lineHeight: 1 }}>+</span> Adicionar outro Alvo
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Copyright Expert IA Accordion */}
+          <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-medium)', borderRadius: 12, overflow: 'hidden', boxShadow: 'var(--shadow-sm)' }}>
+            <div 
+              onClick={() => setIsAiSectionOpen(!isAiSectionOpen)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '16px 24px',
+                cursor: 'pointer',
+                background: 'var(--bg-elevated)',
+                transition: 'background-color 0.2s'
+              }}
+              onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'var(--bg-surface)'; }}
+              onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'var(--bg-elevated)'; }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div style={{
+                  width: 28, height: 28, borderRadius: 8,
+                  background: 'var(--blue-glow, rgba(59, 130, 246, 0.1))',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  color: 'var(--blue, #3b82f6)'
+                }}>
+                  <Bot size={16} />
+                </div>
+                <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)' }}>Copyright Expert IA</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{
+                  fontSize: 10,
+                  fontWeight: 700,
+                  color: 'var(--blue, #3b82f6)',
+                  background: 'var(--blue-glow, rgba(59, 130, 246, 0.15))',
+                  padding: '2px 8px',
+                  borderRadius: 6,
+                  letterSpacing: '0.5px'
+                }}>ASSISTENTE ATIVO</span>
+                {isAiSectionOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+              </div>
+            </div>
+
+            {isAiSectionOpen && (
+              <div style={{ padding: 24, borderTop: '1px solid var(--border-subtle)', display: 'flex', flexDirection: 'column', gap: 16 }}>
+                <div>
+                  <label className="form-label">Instruções para a IA</label>
+                  <textarea
+                    value={instructionIA}
+                    onChange={e => setInstructionIA(e.target.value)}
+                    placeholder="Ex: Transforme este texto em uma oferta irresistível com foco em urgência..."
+                    rows={2}
+                    className="form-input form-textarea"
+                  />
+                </div>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  {[
+                    { label: 'Melhorar Copy', action: 'Melhore este texto focando em conversão' },
+                    { label: 'Criar Variações', action: 'Crie 3 variações curtas deste texto' },
+                    { label: 'Mudar Tom', action: 'Mude o tom para ser mais engraçado e amigável' },
+                    { label: 'Simplificar', action: 'Simplifique o texto para ser rápido de ler' },
+                    { label: 'Persuadir', action: 'Torne o texto muito mais persuasivo' },
+                    { label: 'Storytelling', action: 'Conte uma pequena história sobre o benefício deste produto' },
+                  ].map(({ label, action }) => (
+                    <button
+                      key={label} type="button"
+                      className="btn btn-secondary btn-sm"
+                      disabled={isAiGeneratingCopy}
+                      onClick={() => handleAICalling(action)}
+                      style={{ fontSize: 12 }}
+                    >
+                      {isAiGeneratingCopy ? <span className="spinner" /> : <Wand2 size={12} />}
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: 12, borderTop: '1px solid var(--border-subtle)' }}>
+                  <span style={{ fontSize: 11, color: 'var(--text-muted)', fontStyle: 'italic' }}>IA alimentada por Gemini Flash 1.5</span>
+                  <button
+                    onClick={() => handleAICalling(instructionIA || 'Melhore meu copy')}
+                    disabled={isAiGeneratingCopy || !message}
+                    className="btn btn-primary btn-sm"
+                  >
+                    {isAiGeneratingCopy ? <><span className="spinner" style={{ borderTopColor: '#022c1a' }} /> Processando...</> : <><Sparkles size={13} /> Aplicar com IA</>}
+                  </button>
+                </div>
+
+                {aiVariations && (
+                  <div style={{ marginTop: 16, background: 'var(--bg-elevated)', borderRadius: 12, padding: 16, border: '1px solid var(--border-subtle)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                      <h4 style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)' }}>Sugestões da IA</h4>
+                      <button onClick={() => setAiVariations(null)} className="btn btn-ghost btn-icon btn-sm"><Trash2 size={13} /></button>
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                      {aiVariations.map((v, i) => (
+                        <div key={i} style={{ background: 'var(--bg-card)', padding: 12, borderRadius: 10, border: '1px solid var(--border-subtle)', position: 'relative' }}>
+                          <p style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.6, paddingRight: 32 }}>{v.text}</p>
+                          <button
+                            onClick={() => { setMessage(v.text); setAiVariations(null); }}
+                            className="btn btn-ghost btn-icon btn-sm"
+                            style={{ position: 'absolute', top: 8, right: 8 }}
+                            title="Usar esta variação"
+                          >
+                            <CheckCircle2 size={14} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Message Mode Cards Selection */}
+          <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-medium)', borderRadius: 12, padding: 24, boxShadow: 'var(--shadow-sm)' }}>
+            <label className="form-label" style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 16 }}>Modo de Mensagem</label>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+              {/* Card 1: Mensagem Personalizada */}
+              <div 
+                onClick={() => setMessageMode('manual')}
+                style={{
+                  border: messageMode === 'manual' ? '2px solid var(--blue, #3b82f6)' : '1px solid var(--border-medium)',
+                  background: messageMode === 'manual' ? 'var(--blue-glow, rgba(59, 130, 246, 0.05))' : 'transparent',
+                  borderRadius: 12,
+                  padding: '24px 16px',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  textAlign: 'center',
+                  transition: 'all 0.2s',
+                  gap: 12
+                }}
+              >
+                <div style={{
+                  width: 44,
+                  height: 44,
+                  borderRadius: '50%',
+                  background: messageMode === 'manual' ? 'var(--blue, #3b82f6)' : 'var(--bg-elevated)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: messageMode === 'manual' ? '#fff' : 'var(--text-secondary)',
+                  transition: 'all 0.2s'
+                }}>
+                  <Type size={18} />
+                </div>
+                <div>
+                  <h4 style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)', margin: '0 0 4px 0', fontFamily: 'Space Grotesk, sans-serif' }}>Mensagem Personalizada</h4>
+                  <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: 0, lineHeight: 1.4 }}>Texto real fixo em todos os envios</p>
+                </div>
+              </div>
+
+              {/* Card 2: Oferta Automática */}
+              <div 
+                onClick={() => {
+                  setMessageMode('auto_offer');
+                  if (!message || message.trim() === '' || message.includes('{Category}') || message.includes('{product_cupom}')) {
+                    setMessage('⚡ {category} | {marketplace}\n\n🛍️ {product_title}\n\n🚫 {product_old_price}\n💲 {product_price}\n📉 {discountPercent}% OFF\n\n🎟️ {product_coupon}\n\n🛒 Comprar agora:\n{product_link}');
+                  }
+                }}
+                style={{
+                  border: messageMode === 'auto_offer' ? '2px solid var(--blue, #3b82f6)' : '1px solid var(--border-medium)',
+                  background: messageMode === 'auto_offer' ? 'var(--blue-glow, rgba(59, 130, 246, 0.05))' : 'transparent',
+                  borderRadius: 12,
+                  padding: '24px 16px',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  textAlign: 'center',
+                  transition: 'all 0.2s',
+                  gap: 12
+                }}
+              >
+                <div style={{
+                  width: 44,
+                  height: 44,
+                  borderRadius: '50%',
+                  background: messageMode === 'auto_offer' ? 'var(--blue, #3b82f6)' : 'var(--bg-elevated)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: messageMode === 'auto_offer' ? '#fff' : 'var(--text-secondary)',
+                  transition: 'all 0.2s'
+                }}>
+                  <Sparkles size={18} />
+                </div>
+                <div>
+                  <h4 style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)', margin: '0 0 4px 0', fontFamily: 'Space Grotesk, sans-serif' }}>Oferta Automática</h4>
+                  <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: 0, lineHeight: 1.4 }}>Usa produtos reais do Banco de Ofertas</p>
+                </div>
+              </div>
+            </div>
+
+            {messageMode === 'auto_offer' && (
+              <div style={{ marginTop: 20, paddingTop: 20, borderTop: '1px solid var(--border-subtle)' }}>
+                {(!marketplacesLoaded || isCheckingIntegration) ? (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', background: 'var(--bg-surface)', borderRadius: 10, border: '1px solid var(--border-subtle)' }}>
+                    <span className="spinner" />
+                    <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>Carregando marketplaces conectados...</span>
+                  </div>
+                ) : (marketplaces.length === 0 || (marketplaces.length === 1 && marketplaces[0].id === 'mercadolivre_global' && offerMarketplace !== 'mercadolivre_global')) ? (
+                  <div style={{ background: 'rgba(239,68,68,0.07)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 12, padding: 16, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, textAlign: 'center' }}>
+                    <AlertCircle size={24} style={{ color: '#f87171' }} />
+                    <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Conecte pelo menos um marketplace em Integrações para usar Oferta Automática.</p>
+                    <button onClick={() => navigate('/integrations')} className="btn btn-primary btn-sm">Ir para Integrações</button>
+                  </div>
+                ) : (
+                  <>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
+                      <div>
+                        <label className="form-label" style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 8 }}>Marketplace</label>
+                        <select className="form-input form-select" value={offerMarketplace} onChange={e => setOfferMarketplace(e.target.value)} style={{ height: 40 }}>
+                          {marketplaces.length >= 2 && <option value="all">Todos</option>}
+                          {!marketplaces.some((m: any) => m.id === 'mercadolivre_global') && (
+                            <option value="mercadolivre_global">Mercado Livre (Banco Global)</option>
+                          )}
+                          {marketplaces.map((m: any) => <option key={m.id} value={m.id}>{m.name}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="form-label" style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 8 }}>Categoria</label>
+                        <select className="form-input form-select" value={offerCategory} onChange={e => setOfferCategory(e.target.value)} style={{ height: 40 }}>
+                          {categories.length > 0 ? categories.map(c => <option key={c} value={c}>{c}</option>) : <option value="Todos">Todos</option>}
+                        </select>
+                      </div>
+                    </div>
+                    {marketplacesLoaded && !isCheckingIntegration && marketplaces.length > 0 && (
+                      <p style={{ fontSize: 11, color: 'var(--green)', lineHeight: 1.6, background: 'var(--green-glow)', padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border-green)', margin: 0 }}>
+                        O sistema selecionará automaticamente ofertas de <strong>{offerMarketplace === 'all' ? 'todos os marketplaces conectados' : marketplaces.find((m: any) => m.id === offerMarketplace)?.name}</strong> na categoria <strong>{offerCategory}</strong>.
+                      </p>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* WhatsApp Message Editor */}
+          <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-medium)', borderRadius: 12, padding: 24, boxShadow: 'var(--shadow-sm)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+              <label className="form-label" style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 0 }}>Mensagem do WhatsApp</label>
+              
+              <div style={{ position: 'relative' }}>
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-sm"
+                  style={{ fontSize: 12, display: 'flex', alignItems: 'center', gap: 4, height: 28, padding: '0 8px', color: 'var(--blue, #3b82f6)', fontWeight: 600 }}
+                  onClick={() => setShowVariableMenu(!showVariableMenu)}
+                >
+                  <span>{'{ }'} Inserir Variável</span>
+                </button>
+                {showVariableMenu && (
+                  <div style={{ position: 'absolute', right: 0, top: '100%', marginTop: 4, width: 240, background: 'var(--bg-card)', border: '1px solid var(--border-medium)', borderRadius: 12, boxShadow: 'var(--shadow-lg)', zIndex: 20, padding: 8 }}>
+                    <p style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--text-muted)', padding: '4px 8px', marginBottom: 4 }}>Produto ML</p>
+                    {[
+                      { id: '{category}', label: 'Categoria' },
+                      { id: '{marketplace}', label: 'Marketplace' },
+                      { id: '{product_title}', label: 'Título' },
+                      { id: '{product_price}', label: 'Preço atual' },
+                      { id: '{product_old_price}', label: 'Preço antigo' },
+                      { id: '{discountPercent}', label: 'Desconto' },
+                      { id: '{product_coupon}', label: 'Cupom' },
+                      { id: '{product_link}', label: 'Link' }
+                    ].map(v => (
+                      <button
+                        key={v.id}
+                        type="button"
+                        onClick={() => { setMessage(prev => prev + v.id); setShowVariableMenu(false); }}
+                        style={{ width: '100%', textAlign: 'left', padding: '6px 8px', fontSize: 12, display: 'flex', justifyContent: 'space-between', borderRadius: 8, background: 'transparent', color: 'var(--text-primary)', cursor: 'pointer', border: 'none' }}
+                        onMouseEnter={e => e.currentTarget.style.backgroundColor = 'var(--bg-elevated)'}
+                        onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
+                      >
+                        <span style={{ fontWeight: 500 }}>{v.label}</span>
+                        <span style={{ fontFamily: 'monospace', fontSize: 10, color: 'var(--text-muted)' }}>{v.id}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <textarea
+              className="form-input form-textarea"
+              value={message}
+              onChange={e => setMessage(e.target.value)}
+              placeholder="Digite sua mensagem."
+              rows={8}
+              style={{ fontSize: 14, lineHeight: 1.5, minHeight: 180 }}
+            />
+
+            {/* Inline Image URL Input inside message card */}
+            <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid var(--border-subtle)' }}>
+              <label className="form-label" style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 8 }}>URL da Imagem (opcional)</label>
+              <input
+                type="url"
+                className="form-input"
+                value={imageUrl}
+                onChange={e => setImageUrl(e.target.value)}
+                placeholder="https://..."
+                style={{ height: 42, fontSize: 14 }}
+              />
+            </div>
           </div>
         </div>
 
