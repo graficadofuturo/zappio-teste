@@ -178,14 +178,21 @@ router.get("/:id/preview-offer", async (req, res) => {
             query = query.where('marketplace', '==', mp);
         }
         
-        const snapshot = await query.orderBy('updatedAt', 'desc').limit(5).get();
+        const snapshot = await query.limit(5).get();
         
         if (snapshot.empty) {
             res.status(404).json({ error: "Nenhum produto encontrado no Banco de Ofertas para este filtro." });
             return;
         }
         
-        const doc = snapshot.docs[0];
+        // Sort docs in memory by updatedAt descending
+        const sortedDocs = [...snapshot.docs].sort((a: any, b: any) => {
+            const timeA = a.data().updatedAt?.toDate?.()?.getTime() || a.data().updatedAt || 0;
+            const timeB = b.data().updatedAt?.toDate?.()?.getTime() || b.data().updatedAt || 0;
+            return timeB - timeA;
+        });
+        
+        const doc = sortedDocs[0];
         const data = doc.data();
         
         // Use the resolution logic for preview as well

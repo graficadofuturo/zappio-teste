@@ -1,47 +1,15 @@
-import { initializeApp, cert, getApps } from 'firebase-admin/app';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import fs from 'fs';
 import { sendMessage } from './whatsappService.js';
 import { resolveProductLinkForSending } from './src/api/campaignService.js';
 import { convertToAffiliateLink } from './api_handlers/_lib/ml-utils.js';
 import { validateCampaignLinksBeforeSending, replaceOriginalLinksWithAffiliateLinks, resolveCampaignMessageBeforeSending } from './src/lib/affiliate/affiliate-resolver.js';
-
+import { getAdminDb } from './src/api/firebaseAdmin.js';
 
 let db: any;
 
 try {
-  let config: any = {};
-  if (fs.existsSync('./firebase-applet-config.json')) {
-    config = JSON.parse(fs.readFileSync('./firebase-applet-config.json', 'utf8'));
-  }
-
-  const apps = getApps() || [];
-  if (!apps.length) {
-    if (process.env.FIREBASE_SERVICE_ACCOUNT_KEY) {
-      try {
-        const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY);
-        if (serviceAccount.private_key) {
-          serviceAccount.private_key = serviceAccount.private_key.replace(/\\n/g, "\n");
-        }
-        initializeApp({
-          credential: cert(serviceAccount),
-          projectId: config.projectId,
-        });
-      } catch (e) {
-        console.error('[Scheduler] Invalid FIREBASE_SERVICE_ACCOUNT_KEY JSON format:', e);
-      }
-    } else {
-      console.warn('[Scheduler] WARNING: FIREBASE_SERVICE_ACCOUNT_KEY is not set. Scheduler will not run.');
-      // We don't initialize admin to prevent ADC errors
-    }
-  }
-
-  if ((getApps() || []).length) {
-    const dbId = config.firestoreDatabaseId && config.firestoreDatabaseId !== '(default)' 
-      ? config.firestoreDatabaseId 
-      : undefined;
-    db = getFirestore(getApps()[0], dbId);
-  }
+  db = getAdminDb();
 } catch (e) {
   console.error('[Scheduler] Initialization failed:', e);
 }
@@ -210,11 +178,16 @@ async function triggerCampaign(campaignDoc: any, camp: any, id: string, dbInstan
                     query = query.where('category', '==', category);
                 }
                 
-                const prodsSnap = await query.orderBy('updatedAt', 'desc').limit(100).get();
+                const prodsSnap = await query.limit(100).get();
                 allProds = prodsSnap.docs.filter((d: any) => d && d.id && typeof d.data === 'function').map((d: any) => ({
                     id: d.id,
                     ...(d.data() || {})
                 }));
+                allProds.sort((a: any, b: any) => {
+                    const timeA = a.updatedAt?.toDate?.()?.getTime() || a.updatedAt || 0;
+                    const timeB = b.updatedAt?.toDate?.()?.getTime() || b.updatedAt || 0;
+                    return timeB - timeA;
+                });
 
                 // Get Sent History for this campaign
                 const sentHistorySnap = await activeDb.collection('campaign_sent_products')

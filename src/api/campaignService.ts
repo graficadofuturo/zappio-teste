@@ -37,7 +37,7 @@ export async function getNextProductForCampaign(db: any, campaignId: string, cat
   }
 
   // 3. Get the most recently updated offers 
-  const offersSnapshot = await query.orderBy('updatedAt', 'desc').limit(200).get();
+  const offersSnapshot = await query.limit(200).get();
   let offers = offersSnapshot.docs.map((doc: any) => {
     const data = doc.data();
     return { 
@@ -55,6 +55,12 @@ export async function getNextProductForCampaign(db: any, campaignId: string, cat
       category: data.category,
       ...data 
     };
+  });
+  // Sort in memory by updatedAt descending
+  offers.sort((a: any, b: any) => {
+    const timeA = a.updatedAt?.toDate?.()?.getTime() || a.updatedAt || 0;
+    const timeB = b.updatedAt?.toDate?.()?.getTime() || b.updatedAt || 0;
+    return timeB - timeA;
   });
 
   // Filter by allowed marketplaces if provided

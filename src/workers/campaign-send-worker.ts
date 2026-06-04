@@ -1,39 +1,12 @@
-import { initializeApp, cert, getApps } from 'firebase-admin/app';
-import { getFirestore, FieldValue } from 'firebase-admin/firestore';
+import { FieldValue } from 'firebase-admin/firestore';
 import fs from 'fs';
 import { sendMessage } from '../../whatsappService.js';
+import { getAdminDb } from '../api/firebaseAdmin.js';
 
 let db: any;
 
 try {
-  let config: any = {};
-  if (fs.existsSync('./firebase-applet-config.json')) {
-    config = JSON.parse(fs.readFileSync('./firebase-applet-config.json', 'utf8'));
-  }
-
-  if (!(getApps() || []).length) {
-    if (process.env.FIREBASE_SERVICE_ACCOUNT_KEY) {
-      try {
-        const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY);
-        if (serviceAccount.private_key) {
-          serviceAccount.private_key = serviceAccount.private_key.replace(/\\n/g, "\n");
-        }
-        initializeApp({
-          credential: cert(serviceAccount),
-          projectId: config.projectId,
-        });
-      } catch (e) {
-        console.error('[SendWorker] Invalid FIREBASE_SERVICE_ACCOUNT_KEY JSON format:', e);
-      }
-    }
-  }
-
-  if ((getApps() || []).length) {
-    const dbId = config.firestoreDatabaseId && config.firestoreDatabaseId !== '(default)' 
-      ? config.firestoreDatabaseId 
-      : undefined;
-    db = getFirestore(getApps()[0], dbId);
-  }
+  db = getAdminDb();
 } catch (e) {
   console.error('[SendWorker] Initialization failed:', e);
 }
