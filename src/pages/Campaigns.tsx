@@ -1542,18 +1542,6 @@ export default function Campaigns() {
               imageUrl={imageUrl}
               dummyProduct={messageMode === 'auto_offer' ? (isGeneratingPreview ? { ...previewProduct, product_link: 'Convertendo link afiliado...', product_affiliate_link: 'Convertendo link afiliado...' } : previewProduct) : (products.length > 0 ? products[0] : null)}
             />
-            {(() => {
-              const prod = messageMode === 'auto_offer' ? previewProduct : (products.length > 0 ? products[0] : null);
-              if (!isGeneratingPreview && prod?.affiliatePending) {
-                return (
-                  <div style={{ marginTop: 12, display: 'flex', alignItems: 'flex-start', gap: 8, background: 'rgba(234,179,8,0.1)', border: '1px solid rgba(234,179,8,0.25)', borderRadius: 10, padding: 10, fontSize: 12, color: '#ca8a04' }}>
-                    <AlertCircle size={14} style={{ flexShrink: 0, marginTop: 1 }} />
-                    <p>Link afiliado pendente. O disparo usará os conversores configurados ou aguardará ação manual.</p>
-                  </div>
-                );
-              }
-              return null;
-            })()}
           </div>
         </div>
       </div>
