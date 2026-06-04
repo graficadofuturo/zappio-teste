@@ -515,19 +515,33 @@ export default function Products() {
                   </div>
 
                   {/* Actions */}
-                  <div style={{ display: 'flex', gap: 8, marginTop: 'auto', paddingTop: 8 }}>
+                  <div style={{ display: 'flex', gap: 6, marginTop: 'auto', paddingTop: 8 }}>
                     <a
-                      href={originalLink || '#'}
+                      href={link || '#'}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="btn btn-ghost btn-sm"
-                      style={{ flex: 1, fontSize: 12 }}
+                      style={{ flex: 1, fontSize: 11, padding: '6px 8px', textAlign: 'center' }}
                     >
                       Ver produto
                     </a>
                     <button
+                      className="btn btn-ghost btn-sm"
+                      style={{ flex: 1, fontSize: 11, padding: '6px 8px' }}
+                      onClick={() => {
+                        if (link) {
+                          navigator.clipboard.writeText(link);
+                          setSyncStatus({ type: 'success', text: `Link do produto "${displayTitle.substring(0, 20)}..." copiado para a área de transferência!` });
+                        } else {
+                          alert("Link indisponível para cópia.");
+                        }
+                      }}
+                    >
+                      Copiar
+                    </button>
+                    <button
                       className="btn btn-primary btn-sm"
-                      style={{ flex: 1, fontSize: 12 }}
+                      style={{ flex: 1, fontSize: 11, padding: '6px 8px' }}
                       onClick={() => navigate('/campaigns', {
                         state: {
                           offerId: product.id || product.productId || product.marketplaceProductId,

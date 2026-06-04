@@ -615,7 +615,7 @@ function generateMockOffers(keyword: string, category?: string | null) {
     {
       title: "Apple iPhone 15 128 GB - Preto",
       url: "https://www.mercadolivre.com.br/p/MLB27338778",
-      imageUrl: "https://http2.mlstatic.com/D_NQ_NP_918545-MLA71784381395_092023-O.webp",
+      imageUrl: "https://images.unsplash.com/photo-1695048133142-1a20484d2569?w=500&auto=format&fit=crop&q=60",
       price: 4699.00,
       originalPrice: 5499.00,
       category: "Smartphones"
@@ -623,7 +623,7 @@ function generateMockOffers(keyword: string, category?: string | null) {
     {
       title: "Apple iPhone 14 128 GB - Estelar",
       url: "https://www.mercadolivre.com.br/p/MLB19619670",
-      imageUrl: "https://http2.mlstatic.com/D_NQ_NP_736123-MLA51523412341_092022-O.webp",
+      imageUrl: "https://images.unsplash.com/photo-1678652197831-2d180705cd2c?w=500&auto=format&fit=crop&q=60",
       price: 3899.00,
       originalPrice: 4599.00,
       category: "Smartphones"
@@ -631,7 +631,7 @@ function generateMockOffers(keyword: string, category?: string | null) {
     {
       title: "Samsung Galaxy S23 Ultra 5G 256 GB",
       url: "https://www.mercadolivre.com.br/p/MLB21619670",
-      imageUrl: "https://http2.mlstatic.com/D_NQ_NP_671745-MLA53612341234_022023-O.webp",
+      imageUrl: "https://images.unsplash.com/photo-1610945265064-0e34e5519bbf?w=500&auto=format&fit=crop&q=60",
       price: 4999.00,
       originalPrice: 5999.00,
       category: "Smartphones"
@@ -639,7 +639,7 @@ function generateMockOffers(keyword: string, category?: string | null) {
     {
       title: "Amazon Echo Dot 5th Gen - Preto",
       url: "https://www.mercadolivre.com.br/p/MLB22452309",
-      imageUrl: "https://http2.mlstatic.com/D_NQ_NP_621415-MLA54988775438_042023-O.webp",
+      imageUrl: "https://images.unsplash.com/photo-1543512214-318c7553f230?w=500&auto=format&fit=crop&q=60",
       price: 349.00,
       originalPrice: 429.00,
       category: "Eletrônicos"
@@ -647,7 +647,7 @@ function generateMockOffers(keyword: string, category?: string | null) {
     {
       title: "Amazon Echo Pop - Lavanda",
       url: "https://www.mercadolivre.com.br/p/MLB24523090",
-      imageUrl: "https://http2.mlstatic.com/D_NQ_NP_715456-MLA69523412341_052023-O.webp",
+      imageUrl: "https://images.unsplash.com/photo-1518443855757-dfad73aefac4?w=500&auto=format&fit=crop&q=60",
       price: 229.00,
       originalPrice: 299.00,
       category: "Eletrônicos"
@@ -655,7 +655,7 @@ function generateMockOffers(keyword: string, category?: string | null) {
     {
       title: "Novo Kindle 11ª Geração 16 GB - Preto",
       url: "https://www.mercadolivre.com.br/p/MLB19619672",
-      imageUrl: "https://http2.mlstatic.com/D_NQ_NP_895123-MLA51523412341_092022-O.webp",
+      imageUrl: "https://images.unsplash.com/photo-1592496001020-d31bd830651f?w=500&auto=format&fit=crop&q=60",
       price: 449.00,
       originalPrice: 499.00,
       category: "Eletrônicos"
@@ -663,7 +663,7 @@ function generateMockOffers(keyword: string, category?: string | null) {
     {
       title: "JBL Flip 6 Caixa de Som Portátil - Preto",
       url: "https://www.mercadolivre.com.br/p/MLB18890234",
-      imageUrl: "https://http2.mlstatic.com/D_NQ_NP_621115-MLA50901234123_082022-O.webp",
+      imageUrl: "https://images.unsplash.com/photo-1608043152269-423dbba4e7e1?w=500&auto=format&fit=crop&q=60",
       price: 599.00,
       originalPrice: 699.00,
       category: "Eletrônicos"
@@ -671,15 +671,15 @@ function generateMockOffers(keyword: string, category?: string | null) {
     {
       title: "Garrafa Térmica Classic Stanley 1.4 L - Verde",
       url: "https://www.mercadolivre.com.br/p/MLB19273570",
-      imageUrl: "https://http2.mlstatic.com/D_NQ_NP_678225-MLU72605993856_112023-O.webp",
+      imageUrl: "https://images.unsplash.com/photo-1602143407151-7111542de6e8?w=500&auto=format&fit=crop&q=60",
       price: 299.00,
       originalPrice: 349.00,
-      category: "Geral"
+      category: "Casa e Cozinha"
     },
     {
       title: "Tênis Nike Revolution 6 Next Nature",
       url: "https://www.mercadolivre.com.br/p/MLB18890235",
-      imageUrl: "https://http2.mlstatic.com/D_NQ_NP_830911-MLA71536830588_092023-O.webp",
+      imageUrl: "https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=500&auto=format&fit=crop&q=60",
       price: 279.00,
       originalPrice: 329.00,
       category: "Moda e Acessórios"
@@ -687,7 +687,7 @@ function generateMockOffers(keyword: string, category?: string | null) {
     {
       title: "Tênis Adidas Runfalcon 3.0 Masculino",
       url: "https://www.mercadolivre.com.br/p/MLB21390235",
-      imageUrl: "https://http2.mlstatic.com/D_NQ_NP_830911-MLA71536830588_092023-O.webp",
+      imageUrl: "https://images.unsplash.com/photo-1587563871167-1ee9c731aefb?w=500&auto=format&fit=crop&q=60",
       price: 249.00,
       originalPrice: 299.00,
       category: "Moda e Acessórios"
@@ -695,17 +695,65 @@ function generateMockOffers(keyword: string, category?: string | null) {
     {
       title: "Fritadeira sem Óleo Air Fryer Mondial 4L - Preto",
       url: "https://www.mercadolivre.com.br/p/MLB20023412",
-      imageUrl: "https://http2.mlstatic.com/D_NQ_NP_678225-MLA71536830588_092023-O.webp",
+      imageUrl: "https://images.unsplash.com/photo-1621972750749-0fbb1abb7736?w=500&auto=format&fit=crop&q=60",
       price: 349.00,
       originalPrice: 429.00,
-      category: "Geral"
+      category: "Casa e Cozinha"
     },
     {
       title: "Fone de Ouvido Bluetooth JBL Wave Flex - Preto",
       url: "https://www.mercadolivre.com.br/p/MLB21452310",
-      imageUrl: "https://http2.mlstatic.com/D_NQ_NP_908149-MLA71782897495_092023-O.webp",
+      imageUrl: "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=500&auto=format&fit=crop&q=60",
       price: 199.00,
       originalPrice: 249.00,
+      category: "Eletrônicos"
+    },
+    {
+      title: "Tênis de Corrida Kappa Masculino",
+      url: "https://www.mercadolivre.com.br/p/MLB21390235",
+      imageUrl: "https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=500&auto=format&fit=crop&q=60",
+      price: 189.00,
+      originalPrice: 239.00,
+      category: "Moda e Acessórios"
+    },
+    {
+      title: "Creatina Monohidratada 250g Growth Supplements",
+      url: "https://www.mercadolivre.com.br/p/MLB20023410",
+      imageUrl: "https://images.unsplash.com/photo-1579758629938-03607ccdbaba?w=500&auto=format&fit=crop&q=60",
+      price: 99.00,
+      originalPrice: 119.00,
+      category: "Esporte e Fitness"
+    },
+    {
+      title: "Smart TV LED Philco 43\" 4K Roku Audio",
+      url: "https://www.mercadolivre.com.br/p/MLB23490234",
+      imageUrl: "https://images.unsplash.com/photo-1593305841991-05c297ba4575?w=500&auto=format&fit=crop&q=60",
+      price: 1499.00,
+      originalPrice: 1899.00,
+      category: "Eletrônicos"
+    },
+    {
+      title: "Chave De Impacto A Bateria 21v Bivolt Pol 2400 Rpm",
+      url: "https://www.mercadolivre.com.br/p/MLB22390234",
+      imageUrl: "https://images.unsplash.com/photo-1504148455328-c376907d081c?w=500&auto=format&fit=crop&q=60",
+      price: 389.00,
+      originalPrice: 489.00,
+      category: "Ferramentas"
+    },
+    {
+      title: "Cadeirinha Infantil Para Carro 9-36kg Passeio Cosco",
+      url: "https://www.mercadolivre.com.br/p/MLB22490234",
+      imageUrl: "https://images.unsplash.com/photo-1591088398332-8a7791972843?w=500&auto=format&fit=crop&q=60",
+      price: 349.00,
+      originalPrice: 449.00,
+      category: "Geral"
+    },
+    {
+      title: "Lâmpada Inteligente Smart LED Wi-Fi RGB 10W",
+      url: "https://www.mercadolivre.com.br/p/MLB22590234",
+      imageUrl: "https://images.unsplash.com/photo-1550985616-10810253b84d?w=500&auto=format&fit=crop&q=60",
+      price: 49.00,
+      originalPrice: 69.00,
       category: "Eletrônicos"
     }
   ];
@@ -713,7 +761,8 @@ function generateMockOffers(keyword: string, category?: string | null) {
   // Try to find matching products by keyword
   let matches = catalog.filter(item => 
     item.title.toLowerCase().includes(normalizedKeyword) ||
-    item.category.toLowerCase().includes(normalizedKeyword)
+    item.category.toLowerCase().includes(normalizedKeyword) ||
+    (item.titleOriginal && item.titleOriginal.toLowerCase().includes(normalizedKeyword))
   );
 
   // If no direct matches, return all
@@ -750,9 +799,128 @@ function generateMockOffers(keyword: string, category?: string | null) {
   });
 }
 
+async function collectByHtmlScraping(keyword: string, category?: string | null, cookies?: string | null): Promise<any[]> {
+  try {
+    const url = 'https://lista.mercadolivre.com.br/' + encodeURIComponent(keyword);
+    console.log(`[HTML_SEARCH_SCRAPER] Fetching search page with cookies for: ${keyword}`);
+    
+    const headers: Record<string, string> = {
+      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+      "Accept-Language": "pt-BR,pt;q=0.9,en;q=0.8",
+      "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+      "Referer": "https://www.mercadolivre.com.br/",
+    };
+    
+    if (cookies) {
+      headers["Cookie"] = cleanCookies(cookies);
+    }
+    
+    const res = await axios.get(url, { headers, timeout: 8000 });
+    const html = res.data;
+    const $ = cheerio.load(html);
+    
+    const offers: any[] = [];
+    // Selectors covering lists and grid layouts
+    const items = $('.ui-search-layout__item, .poly-card, .ui-search-result__wrapper, .ui-search-result');
+    console.log(`[HTML_SEARCH_SCRAPER] Found ${items.length} items on HTML page for keyword: ${keyword}`);
+    
+    items.each((_, el) => {
+      try {
+        const item = $(el);
+        
+        let title = item.find('.ui-search-item__title, .poly-component__title, [class*="title"]').first().text().trim();
+        if (!title) {
+          title = item.find('h2').first().text().trim();
+        }
+        if (!title) return;
+        
+        let link = item.find('a.ui-search-link, a.poly-component__title-sp, a.poly-component__title, [class*="title"] a, .ui-search-result__image a').first().attr('href');
+        if (!link) {
+          link = item.find('a').first().attr('href');
+        }
+        if (!link) return;
+        
+        // Find image src, handling lazy-loading attributes
+        const imgEl = item.find('img.ui-search-result-image__element, img.poly-component__picture, [class*="image"] img').first();
+        let imageUrl = imgEl.attr('src') || imgEl.attr('data-src') || imgEl.attr('data-original');
+        if (!imageUrl) {
+          const firstImg = item.find('img').first();
+          imageUrl = firstImg.attr('src') || firstImg.attr('data-src') || firstImg.attr('data-original');
+        }
+        
+        let price = null;
+        let originalPrice = null;
+        
+        const fractionEl = item.find('.andes-money-amount__fraction').first();
+        if (fractionEl.length) {
+          const fraction = fractionEl.text().replace(/\./g, '');
+          const cents = item.find('.andes-money-amount__cents').first().text() || '00';
+          price = parseFloat(`${fraction}.${cents}`);
+        }
+        
+        const prevEl = item.find('.andes-money-amount--previous, del .andes-money-amount__fraction').first();
+        if (prevEl.length) {
+          const fraction = prevEl.text().replace(/\./g, '');
+          const cents = prevEl.parent().find('.andes-money-amount__cents').first().text() || '00';
+          originalPrice = parseFloat(`${fraction}.${cents}`);
+        }
+        
+        if (!price || isNaN(price)) return;
+        
+        const itemId = extractMLItemId(link) || `MLB_SCRAPE_${Date.now()}_${Math.random()}`;
+        
+        let discountPercent = null;
+        if (originalPrice && price && originalPrice > price) {
+          discountPercent = Math.round(((originalPrice - price) / originalPrice) * 100);
+        }
+        
+        const shortTitle = simplifyProductTitle(title);
+        
+        offers.push({
+          id: itemId,
+          productId: itemId,
+          title: shortTitle,
+          titleShort: shortTitle,
+          titleOriginal: title,
+          price: price,
+          originalPrice: originalPrice,
+          discountPercent: discountPercent,
+          hasDiscount: !!(originalPrice && originalPrice > price),
+          isLightningDeal: false,
+          imageUrl: imageUrl || null,
+          productUrl: link,
+          category: normalizeOfferCategory(category, title, 'Geral'),
+          marketplace: 'mercadolivre',
+          updatedAt: new Date().toISOString()
+        });
+      } catch (innerErr) {
+        // Skip individual item errors
+      }
+    });
+    
+    return offers;
+  } catch (err: any) {
+    console.error(`[HTML_SEARCH_SCRAPER] Scraping search page failed for ${keyword}:`, err.message);
+    return [];
+  }
+}
+
 export async function collectAutomated(keyword: string, category?: string | null, uid?: string | null) {
   try {
      const token = await getMlAccessToken(uid);
+     
+     // If we don't have an OAuth token, try cookie-based HTML search scraping first!
+     if (!token) {
+       const cookies = await getMlCookies(uid);
+       if (cookies) {
+         console.log(`[collectAutomated] No OAuth token found, but cookies are available. Trying cookie-based HTML search scraping...`);
+         const htmlOffers = await collectByHtmlScraping(keyword, category, cookies);
+         if (htmlOffers && htmlOffers.length > 0) {
+           return htmlOffers;
+         }
+       }
+     }
+
      const headers: any = {
        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
        "Accept": "application/json"
@@ -804,7 +972,19 @@ export async function collectAutomated(keyword: string, category?: string | null
         };
      });
   } catch(e: any) {
-     console.error("collectAutomated API failed, falling back to simulated offers. Error:", e.message);
+     console.error("collectAutomated API failed. Error:", e.message);
+     
+     // Fallback to cookie-based HTML scraping if we haven't tried it yet
+     const cookies = await getMlCookies(uid);
+     if (cookies) {
+       console.log(`[collectAutomated] API call failed. Trying cookie-based HTML search scraping as fallback...`);
+       const htmlOffers = await collectByHtmlScraping(keyword, category, cookies);
+       if (htmlOffers && htmlOffers.length > 0) {
+         return htmlOffers;
+       }
+     }
+     
+     console.log(`[collectAutomated] All search methods failed, returning simulated offers.`);
      return generateMockOffers(keyword, category);
   }
 }
