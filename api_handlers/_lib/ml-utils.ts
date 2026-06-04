@@ -850,18 +850,42 @@ async function collectByHtmlScraping(keyword: string, category?: string | null, 
         let price = null;
         let originalPrice = null;
         
-        const fractionEl = item.find('.andes-money-amount__fraction').first();
-        if (fractionEl.length) {
-          const fraction = fractionEl.text().replace(/\./g, '');
-          const cents = item.find('.andes-money-amount__cents').first().text() || '00';
-          price = parseFloat(`${fraction}.${cents}`);
+        // Find previous/original price first
+        const prevEl = item.find('.andes-money-amount--previous, del .andes-money-amount, .ui-search-price__original-value .andes-money-amount').first();
+        if (prevEl.length) {
+          const fractionEl = prevEl.find('.andes-money-amount__fraction').first();
+          if (fractionEl.length) {
+            const fraction = fractionEl.text().replace(/\./g, '');
+            const cents = prevEl.find('.andes-money-amount__cents').first().text() || '00';
+            originalPrice = parseFloat(`${fraction}.${cents}`);
+          }
         }
         
-        const prevEl = item.find('.andes-money-amount--previous, del .andes-money-amount__fraction').first();
-        if (prevEl.length) {
-          const fraction = prevEl.text().replace(/\./g, '');
-          const cents = prevEl.parent().find('.andes-money-amount__cents').first().text() || '00';
-          originalPrice = parseFloat(`${fraction}.${cents}`);
+        // Find the current/promotional price by filtering out previous prices
+        const moneyAmounts = item.find('.andes-money-amount');
+        let currentPriceEl = null;
+        moneyAmounts.each((_, amEl) => {
+          const am = $(amEl);
+          if (
+            am.hasClass('andes-money-amount--previous') || 
+            am.closest('.andes-money-amount--previous').length || 
+            am.closest('del').length || 
+            am.closest('.ui-search-price__original-value').length
+          ) {
+            return; // skip original price elements
+          }
+          if (!currentPriceEl) {
+            currentPriceEl = am;
+          }
+        });
+        
+        if (currentPriceEl) {
+          const fractionEl = currentPriceEl.find('.andes-money-amount__fraction').first();
+          if (fractionEl.length) {
+            const fraction = fractionEl.text().replace(/\./g, '');
+            const cents = currentPriceEl.find('.andes-money-amount__cents').first().text() || '00';
+            price = parseFloat(`${fraction}.${cents}`);
+          }
         }
         
         if (!price || isNaN(price)) return;
