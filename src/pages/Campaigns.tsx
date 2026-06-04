@@ -986,12 +986,15 @@ export default function Campaigns() {
                 </p>
                 <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '4px 0 0 0' }}>Defina quando e como sua campanha será enviada</p>
               </div>
-              <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
+              <div 
+                onClick={() => setAutoSendNow(!autoSendNow)}
+                style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', userSelect: 'none' }}
+              >
                 <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)' }}>Disparo Contínuo</span>
                 <div style={{ position: 'relative' }}>
-                  <input type="checkbox" style={{ display: 'none' }} checked={autoSendNow} onChange={e => setAutoSendNow(e.target.checked)} />
-                  <div onClick={() => setAutoSendNow(!autoSendNow)} style={{
-                    width: 44, height: 24, borderRadius: 12, cursor: 'pointer',
+                  <input type="checkbox" style={{ display: 'none' }} checked={autoSendNow} readOnly />
+                  <div style={{
+                    width: 44, height: 24, borderRadius: 12,
                     background: autoSendNow ? 'var(--green)' : 'var(--bg-elevated)',
                     border: '1px solid ' + (autoSendNow ? 'var(--border-green)' : 'var(--border-medium)'),
                     position: 'relative', transition: 'all 0.2s'
@@ -1005,7 +1008,7 @@ export default function Campaigns() {
                     }} />
                   </div>
                 </div>
-              </label>
+              </div>
             </div>
 
             <div style={{ height: 1, background: 'var(--border-subtle)', margin: '16px 0', opacity: 0.8 }} />
