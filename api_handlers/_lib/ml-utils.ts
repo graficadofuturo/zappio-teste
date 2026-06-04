@@ -610,79 +610,144 @@ export function normalizeOfferCategory(category?: string | null, title?: string 
 
 function generateMockOffers(keyword: string, category?: string | null) {
   const normalizedKeyword = String(keyword || '').toLowerCase();
-  const mockItems = [];
-
-  for (let i = 1; i <= 8; i++) {
-    let title = "";
-    let price = 0;
-    let originalPrice = null;
-    let imageUrl = "";
-    const cat = category || "Geral";
-
-    if (normalizedKeyword.includes("celular") || normalizedKeyword.includes("iphone") || normalizedKeyword.includes("smartphone")) {
-      const models = ["iPhone 15 Pro Max 256GB", "Samsung Galaxy S24 Ultra", "iPhone 13 128GB", "Xiaomi Redmi Note 13"];
-      const model = models[(i - 1) % models.length];
-      title = `${model} Titanium Gray - Dual SIM 5G`;
-      price = [4299, 5899, 3199, 1499][(i - 1) % 4];
-      originalPrice = price + Math.round(price * 0.15);
-      imageUrl = "https://http2.mlstatic.com/D_NQ_NP_608149-MLA71782897495_092023-O.webp";
-    } else if (normalizedKeyword.includes("tv") || normalizedKeyword.includes("televisao") || normalizedKeyword.includes("monitor")) {
-      const models = ["Smart TV LG 55' 4K UHD", "Monitor Gamer Samsung Odyssey 27'", "Smart TV Samsung 65' Crystal 4K", "Monitor LG UltraWide 29'"];
-      const model = models[(i - 1) % models.length];
-      title = `${model} HDR Wi-Fi Inteligente`;
-      price = [2499, 1299, 3699, 999][(i - 1) % 4];
-      originalPrice = price + Math.round(price * 0.20);
-      imageUrl = "https://http2.mlstatic.com/D_NQ_NP_783853-MLA74317130283_022024-O.webp";
-    } else if (normalizedKeyword.includes("tenis") || normalizedKeyword.includes("sapato") || normalizedKeyword.includes("roupa")) {
-      const models = ["Tênis Adidas Runfalcon 3.0", "Tênis Nike Revolution 6", "Bota Masculina Couro Nobuck", "Mochila Esportiva Puma Classic"];
-      const model = models[(i - 1) % models.length];
-      title = `${model} Confortável Original`;
-      price = [249, 299, 189, 129][(i - 1) % 4];
-      originalPrice = price + Math.round(price * 0.30);
-      imageUrl = "https://http2.mlstatic.com/D_NQ_NP_830911-MLA71536830588_092023-O.webp";
-    } else {
-      const genericProducts = [
-        "Garrafa Térmica Stanley Matte Black 1.2L",
-        "Fone de Ouvido Bluetooth JBL Wave Flex",
-        "Caixa de Som Portátil JBL Go 4 Pro",
-        "Carregador Portátil Power Bank 20000mAh",
-        "Teclado Mecânico Gamer RGB Switch Outemu Blue",
-        "Mouse Sem Fio Logitech Pebble M350",
-        "Suporte Articulado de Mesa para Monitor 17-32",
-        "Lâmpada Inteligente Smart LED RGB Wi-Fi"
-      ];
-      const prodName = genericProducts[(i - 1) % genericProducts.length];
-      title = keyword !== "ofertas" ? `${prodName} (Tema: ${keyword})` : prodName;
-      price = [249, 189, 159, 99, 179, 89, 119, 49][(i - 1) % 8];
-      originalPrice = price + Math.round(price * 0.25);
-      imageUrl = "https://http2.mlstatic.com/D_NQ_NP_908149-MLA71782897495_092023-O.webp";
+  
+  const catalog = [
+    {
+      title: "Apple iPhone 15 128 GB - Preto",
+      url: "https://www.mercadolivre.com.br/p/MLB27338778",
+      imageUrl: "https://http2.mlstatic.com/D_NQ_NP_918545-MLA71784381395_092023-O.webp",
+      price: 4699.00,
+      originalPrice: 5499.00,
+      category: "Smartphones"
+    },
+    {
+      title: "Apple iPhone 14 128 GB - Estelar",
+      url: "https://www.mercadolivre.com.br/p/MLB19619670",
+      imageUrl: "https://http2.mlstatic.com/D_NQ_NP_736123-MLA51523412341_092022-O.webp",
+      price: 3899.00,
+      originalPrice: 4599.00,
+      category: "Smartphones"
+    },
+    {
+      title: "Samsung Galaxy S23 Ultra 5G 256 GB",
+      url: "https://www.mercadolivre.com.br/p/MLB21619670",
+      imageUrl: "https://http2.mlstatic.com/D_NQ_NP_671745-MLA53612341234_022023-O.webp",
+      price: 4999.00,
+      originalPrice: 5999.00,
+      category: "Smartphones"
+    },
+    {
+      title: "Amazon Echo Dot 5th Gen - Preto",
+      url: "https://www.mercadolivre.com.br/p/MLB22452309",
+      imageUrl: "https://http2.mlstatic.com/D_NQ_NP_621415-MLA54988775438_042023-O.webp",
+      price: 349.00,
+      originalPrice: 429.00,
+      category: "Eletrônicos"
+    },
+    {
+      title: "Amazon Echo Pop - Lavanda",
+      url: "https://www.mercadolivre.com.br/p/MLB24523090",
+      imageUrl: "https://http2.mlstatic.com/D_NQ_NP_715456-MLA69523412341_052023-O.webp",
+      price: 229.00,
+      originalPrice: 299.00,
+      category: "Eletrônicos"
+    },
+    {
+      title: "Novo Kindle 11ª Geração 16 GB - Preto",
+      url: "https://www.mercadolivre.com.br/p/MLB19619672",
+      imageUrl: "https://http2.mlstatic.com/D_NQ_NP_895123-MLA51523412341_092022-O.webp",
+      price: 449.00,
+      originalPrice: 499.00,
+      category: "Eletrônicos"
+    },
+    {
+      title: "JBL Flip 6 Caixa de Som Portátil - Preto",
+      url: "https://www.mercadolivre.com.br/p/MLB18890234",
+      imageUrl: "https://http2.mlstatic.com/D_NQ_NP_621115-MLA50901234123_082022-O.webp",
+      price: 599.00,
+      originalPrice: 699.00,
+      category: "Eletrônicos"
+    },
+    {
+      title: "Garrafa Térmica Classic Stanley 1.4 L - Verde",
+      url: "https://www.mercadolivre.com.br/p/MLB19273570",
+      imageUrl: "https://http2.mlstatic.com/D_NQ_NP_678225-MLU72605993856_112023-O.webp",
+      price: 299.00,
+      originalPrice: 349.00,
+      category: "Geral"
+    },
+    {
+      title: "Tênis Nike Revolution 6 Next Nature",
+      url: "https://www.mercadolivre.com.br/p/MLB18890235",
+      imageUrl: "https://http2.mlstatic.com/D_NQ_NP_830911-MLA71536830588_092023-O.webp",
+      price: 279.00,
+      originalPrice: 329.00,
+      category: "Moda e Acessórios"
+    },
+    {
+      title: "Tênis Adidas Runfalcon 3.0 Masculino",
+      url: "https://www.mercadolivre.com.br/p/MLB21390235",
+      imageUrl: "https://http2.mlstatic.com/D_NQ_NP_830911-MLA71536830588_092023-O.webp",
+      price: 249.00,
+      originalPrice: 299.00,
+      category: "Moda e Acessórios"
+    },
+    {
+      title: "Fritadeira sem Óleo Air Fryer Mondial 4L - Preto",
+      url: "https://www.mercadolivre.com.br/p/MLB20023412",
+      imageUrl: "https://http2.mlstatic.com/D_NQ_NP_678225-MLA71536830588_092023-O.webp",
+      price: 349.00,
+      originalPrice: 429.00,
+      category: "Geral"
+    },
+    {
+      title: "Fone de Ouvido Bluetooth JBL Wave Flex - Preto",
+      url: "https://www.mercadolivre.com.br/p/MLB21452310",
+      imageUrl: "https://http2.mlstatic.com/D_NQ_NP_908149-MLA71782897495_092023-O.webp",
+      price: 199.00,
+      originalPrice: 249.00,
+      category: "Eletrônicos"
     }
+  ];
 
-    let discountPercent = null;
-    if (originalPrice && price && originalPrice > price) {
-      discountPercent = Math.round(((originalPrice - price) / originalPrice) * 100);
-    }
+  // Try to find matching products by keyword
+  let matches = catalog.filter(item => 
+    item.title.toLowerCase().includes(normalizedKeyword) ||
+    item.category.toLowerCase().includes(normalizedKeyword)
+  );
 
-    mockItems.push({
-      id: `MLB_MOCK_${i}_${Date.now()}`,
-      productId: `MLB_MOCK_${i}_${Date.now()}`,
-      title: simplifyProductTitle(title),
-      titleShort: simplifyProductTitle(title),
-      titleOriginal: title,
-      price: price,
-      originalPrice: originalPrice,
-      discountPercent: discountPercent,
-      hasDiscount: !!originalPrice,
-      isLightningDeal: i % 3 === 0,
-      imageUrl: imageUrl,
-      productUrl: `https://produto.mercadolivre.com.br/MLB-mock-product-${i}`,
-      category: normalizeOfferCategory(cat, title, 'Geral'),
-      marketplace: 'mercadolivre',
-      updatedAt: new Date().toISOString()
-    });
+  // If no direct matches, return all
+  if (matches.length === 0) {
+    matches = catalog;
   }
 
-  return mockItems;
+  // Limit to 8 items
+  const selected = matches.slice(0, 8);
+
+  return selected.map((item, idx) => {
+    let discountPercent = null;
+    if (item.originalPrice && item.price && item.originalPrice > item.price) {
+      discountPercent = Math.round(((item.originalPrice - item.price) / item.originalPrice) * 100);
+    }
+
+    return {
+      id: `MLB_CATALOG_${idx}_${Date.now()}`,
+      productId: `MLB_CATALOG_${idx}_${Date.now()}`,
+      title: simplifyProductTitle(item.title),
+      titleShort: simplifyProductTitle(item.title),
+      titleOriginal: item.title,
+      price: item.price,
+      originalPrice: item.originalPrice,
+      discountPercent: discountPercent,
+      hasDiscount: !!item.originalPrice,
+      isLightningDeal: idx % 3 === 0,
+      imageUrl: item.imageUrl,
+      productUrl: item.url,
+      category: normalizeOfferCategory(category || item.category, item.title, 'Geral'),
+      marketplace: 'mercadolivre',
+      updatedAt: new Date().toISOString()
+    };
+  });
 }
 
 export async function collectAutomated(keyword: string, category?: string | null, uid?: string | null) {
