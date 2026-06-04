@@ -339,7 +339,7 @@ export default function WhatsAppInstances() {
                   background: 'var(--bg-card)',
                   border: connected ? '1px solid var(--border-green)' : '1px solid var(--border-subtle)',
                   borderRadius: 16,
-                  padding: '24px 20px',
+                  padding: 24,
                   position: 'relative',
                   overflow: 'hidden',
                   transition: 'all 0.2s'
@@ -352,8 +352,8 @@ export default function WhatsAppInstances() {
                 }} />
 
                 {/* Header */}
-                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1, minWidth: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 16 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1 }}>
                     <div style={{
                       width: 44, height: 44, borderRadius: 12,
                       background: connected ? 'var(--green-glow)' : 'var(--bg-surface)',
@@ -364,6 +364,7 @@ export default function WhatsAppInstances() {
                     }}>
                       <Smartphone size={20} />
                     </div>
+                    
                     <div style={{ flex: 1, minWidth: 0 }}>
                       {editingInstanceId === instance.id ? (
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
@@ -385,7 +386,7 @@ export default function WhatsAppInstances() {
                               borderRadius: 6,
                               color: 'var(--text-primary)',
                               width: '100%',
-                              maxWidth: 140
+                              maxWidth: 160
                             }}
                             autoFocus
                           />
@@ -413,36 +414,39 @@ export default function WhatsAppInstances() {
                           margin: '0 0 2px 0',
                           whiteSpace: 'nowrap',
                           overflow: 'hidden',
-                          textOverflow: 'ellipsis'
+                          textOverflow: 'ellipsis',
+                          maxWidth: 140
                         }}>
                           {instance.instance_name || `WhatsApp ${instance.id.slice(-4)}`}
                         </h3>
                       )}
                       
-                      {/* Status indicator under name */}
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, marginTop: 4 }}>
-                        <span style={{
-                          width: 6,
-                          height: 6,
-                          borderRadius: '50%',
-                          background: connected ? 'var(--green)' : '#cbd5e1',
-                          display: 'inline-block',
-                          boxShadow: connected ? '0 0 8px var(--green)' : 'none'
-                        }} />
-                        <span style={{ color: connected ? 'var(--green)' : 'var(--text-secondary)', fontWeight: 500 }}>
-                          {connected ? 'Conectado' : 'Desconectado'}
-                        </span>
+                      {/* Status indicator row matching the user's design image */}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <span style={{
+                            width: 8,
+                            height: 8,
+                            borderRadius: '50%',
+                            background: connected ? 'var(--green)' : '#9ca3af',
+                            display: 'inline-block'
+                          }} />
+                          <span style={{ fontSize: 13, color: 'var(--text-secondary)', fontWeight: 500 }}>
+                            {connected ? 'Conectado' : 'Desconectado'}
+                          </span>
+                        </div>
                         {instance.phone_number && (
-                          <span style={{ color: 'var(--text-muted)' }}>
-                            • {instance.phone_number}
+                          <span style={{ fontSize: 12, color: 'var(--text-muted)', paddingLeft: 14 }}>
+                            {instance.phone_number}
                           </span>
                         )}
                       </div>
                     </div>
                   </div>
 
-                  {editingInstanceId !== instance.id && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+                  {/* Actions in top right next to each other */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginLeft: 8, flexShrink: 0 }}>
+                    {editingInstanceId !== instance.id && (
                       <button
                         onClick={() => {
                           setEditingInstanceId(instance.id);
@@ -456,76 +460,67 @@ export default function WhatsAppInstances() {
                           cursor: 'pointer',
                           display: 'flex',
                           alignItems: 'center',
-                          justifyContent: 'center',
                           borderRadius: 8,
-                          transition: 'background 0.2s, color 0.2s'
+                          transition: 'background-color 0.2s, color 0.2s'
                         }}
                         onMouseEnter={e => {
-                          e.currentTarget.style.background = 'var(--bg-surface)';
+                          e.currentTarget.style.backgroundColor = 'var(--bg-surface)';
                           e.currentTarget.style.color = 'var(--text-primary)';
                         }}
                         onMouseLeave={e => {
-                          e.currentTarget.style.background = 'none';
+                          e.currentTarget.style.backgroundColor = 'transparent';
                           e.currentTarget.style.color = 'var(--text-muted)';
                         }}
                         title="Editar nome"
                       >
-                        <Edit2 size={14} />
+                        <Edit2 size={15} />
                       </button>
-                      <button
-                        onClick={() => deleteInstance(instance.id)}
-                        style={{
-                          background: 'none',
-                          border: 'none',
-                          padding: 6,
-                          color: 'var(--text-muted)',
-                          cursor: 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          borderRadius: 8,
-                          transition: 'background 0.2s, color 0.2s'
-                        }}
-                        onMouseEnter={e => {
-                          e.currentTarget.style.background = 'rgba(239, 68, 68, 0.08)';
-                          e.currentTarget.style.color = '#f87171';
-                        }}
-                        onMouseLeave={e => {
-                          e.currentTarget.style.background = 'none';
-                          e.currentTarget.style.color = 'var(--text-muted)';
-                        }}
-                        title="Excluir instância"
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    </div>
-                  )}
+                    )}
+                    <button
+                      onClick={() => deleteInstance(instance.id)}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        padding: 6,
+                        color: 'var(--text-muted)',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        borderRadius: 8,
+                        transition: 'background-color 0.2s, color 0.2s'
+                      }}
+                      onMouseEnter={e => {
+                        e.currentTarget.style.backgroundColor = 'var(--bg-surface)';
+                        e.currentTarget.style.color = '#ef4444';
+                      }}
+                      onMouseLeave={e => {
+                        e.currentTarget.style.backgroundColor = 'transparent';
+                        e.currentTarget.style.color = 'var(--text-muted)';
+                      }}
+                      title="Excluir instância"
+                    >
+                      <Trash2 size={15} />
+                    </button>
+                  </div>
                 </div>
 
-                {/* Divider */}
+                {/* Horizontal divider line matching the user's design image */}
                 <div style={{
                   height: 1,
                   background: 'var(--border-subtle)',
-                  margin: '20px 0 16px 0'
+                  margin: '16px 0',
+                  opacity: 0.8
                 }} />
 
-                {/* Actions */}
-                <div>
+                {/* Bottom Row Actions */}
+                <div style={{ display: 'flex', gap: 8 }}>
                   {connected ? (
-                    <div style={{ display: 'flex', gap: 8 }}>
+                    <>
                       <button
                         className="btn btn-ghost btn-sm"
                         onClick={() => syncContacts(instance.id)}
                         disabled={syncingInstance === instance.id}
-                        style={{
-                          flex: 1,
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          gap: 6,
-                          height: 40,
-                          borderRadius: 10
-                        }}
+                        style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, height: 38 }}
                       >
                         {syncingInstance === instance.id ? <span className="spinner" /> : <RefreshCw size={12} />}
                         <span>Sincronizar</span>
@@ -533,53 +528,43 @@ export default function WhatsAppInstances() {
                       <button
                         className="btn btn-danger btn-sm"
                         onClick={() => disconnectInstance(instance.id)}
-                        style={{
-                          flex: 1,
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          gap: 6,
-                          height: 40,
-                          borderRadius: 10
-                        }}
+                        style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, height: 38 }}
                       >
                         <LogOut size={12} />
                         <span>Desconectar</span>
                       </button>
-                    </div>
+                    </>
                   ) : (
                     <button
-                      className="btn btn-primary"
+                      className="btn"
                       onClick={() => connectInstance(instance.id)}
                       disabled={connectingInstance === instance.id}
                       style={{
-                        width: '100%',
+                        flex: 1,
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
                         gap: 8,
-                        padding: '10px 16px',
+                        height: 38,
+                        background: 'var(--green-glow)',
+                        border: '1px solid var(--border-green)',
+                        color: 'var(--green)',
                         borderRadius: 10,
-                        fontSize: 13,
                         fontWeight: 600,
                         cursor: 'pointer',
-                        transition: 'all 0.2s',
-                        background: 'rgba(59, 130, 246, 0.08)',
-                        border: '1px solid rgba(59, 130, 246, 0.2)',
-                        color: 'var(--blue, #3b82f6)',
-                        height: 40
+                        transition: 'all 0.2s'
                       }}
                       onMouseEnter={e => {
-                        e.currentTarget.style.background = 'rgba(59, 130, 246, 0.15)';
-                        e.currentTarget.style.borderColor = 'rgba(59, 130, 246, 0.4)';
+                        e.currentTarget.style.background = 'var(--green)';
+                        e.currentTarget.style.color = '#fff';
                       }}
                       onMouseLeave={e => {
-                        e.currentTarget.style.background = 'rgba(59, 130, 246, 0.08)';
-                        e.currentTarget.style.borderColor = 'rgba(59, 130, 246, 0.2)';
+                        e.currentTarget.style.background = 'var(--green-glow)';
+                        e.currentTarget.style.color = 'var(--green)';
                       }}
                     >
                       {connectingInstance === instance.id ? (
-                        <><span className="spinner" style={{ borderTopColor: 'var(--blue)' }} /> Gerando...</>
+                        <span className="spinner" style={{ borderTopColor: 'var(--green)' }} />
                       ) : (
                         <>
                           <QrCode size={14} />
