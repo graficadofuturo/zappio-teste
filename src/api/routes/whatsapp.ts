@@ -75,12 +75,49 @@ router.get("/status", async (req, res) => {
 router.get("/sync", async (req, res) => {
   const { instanceId } = req.query;
   if (!instanceId || typeof instanceId !== 'string') return res.status(400).json({ error: "instanceId is required" });
-  const { instanceStatus, fetchGroupsSafely } = await import("../../../whatsappService.js");
-  const status = instanceStatus.get(instanceId);
+  
+  const { instanceStatus, connectWhatsApp, fetchGroupsSafely } = await import("../../../whatsappService.js");
+  let status = instanceStatus.get(instanceId);
+
+  if (!status) {
+    // Check if we can auto-reconnect
+    try {
+      const db = getAdminDb();
+      const sessionSnap = await db.collection("whatsapp_sessions").doc(instanceId).get();
+      const fs = await import("fs");
+      const path = await import("path");
+      const authDir = process.env.VERCEL ? `/tmp/baileys_auth_info_${instanceId}` : `baileys_auth_info_${instanceId}`;
+      const localCredsExists = fs.existsSync(path.join(authDir, 'creds.json'));
+
+      if (sessionSnap.exists || localCredsExists) {
+        console.log(`[WA-ROUTE] Auto-reconnect triggered via /sync for instance ${instanceId}`);
+        await connectWhatsApp(instanceId);
+        
+        // Wait for connection to establish
+        let attempts = 0;
+        const maxAttempts = 30; // 15 seconds
+        while (attempts < maxAttempts) {
+          const current = instanceStatus.get(instanceId);
+          if (current && current.status === 'connected') {
+            break;
+          }
+          if (current && (current.status === 'error' || current.status === 'qrcode' || current.status === 'disconnected')) {
+            break;
+          }
+          await new Promise(resolve => setTimeout(resolve, 500));
+          attempts++;
+        }
+        status = instanceStatus.get(instanceId);
+      }
+    } catch (e) {
+      console.error("[WA-ROUTE] Error auto-reconnecting on /sync:", e);
+    }
+  }
+
   if (!status) return res.status(404).json({ error: "not found" });
   
   if (status.status === 'connected') {
-    await fetchGroupsSafely(instanceId);
+    await fetchGroupsSafely(instanceId, true); // force fetch
   }
   
   res.json({
@@ -103,7 +140,6 @@ router.post("/connect", async (req, res) => {
   const { connectWhatsApp, instanceStatus } = await import("../../../whatsappService.js");
 
   // Hook into status updates to persist QR + connected state in Firestore
-  // We poll the in-memory status briefly to push updates to Firestore
   const pushUpdates = setInterval(async () => {
     const cur = instanceStatus.get(instanceId);
     if (!cur) return;
@@ -128,7 +164,23 @@ router.post("/connect", async (req, res) => {
     clearInterval(pushUpdates);
     return res.status(500).json({ status: 'error', error: (status as any).error });
   }
-  res.json(status || { status: 'initializing' });
+
+  // Block/wait until we get a QR code or connected state, or up to 15 seconds
+  let attempts = 0;
+  const maxAttempts = 30; // 15 seconds
+  while (attempts < maxAttempts) {
+    const cur = instanceStatus.get(instanceId);
+    if (cur && (cur.status === 'qrcode' || cur.status === 'connected' || cur.status === 'error')) {
+      break;
+    }
+    await new Promise(resolve => setTimeout(resolve, 500));
+    attempts++;
+  }
+
+  clearInterval(pushUpdates);
+
+  const finalStatus = instanceStatus.get(instanceId) || { status: 'initializing' };
+  res.json(finalStatus);
 });
 
 router.post("/disconnect", async (req, res) => {
