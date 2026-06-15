@@ -26,9 +26,22 @@ async function saveStatusToFirestore(instanceId: string, data: Record<string, an
   try {
     const { getAdminDb } = await import("./src/api/firebaseAdmin.js");
     const db = getAdminDb();
+    
+    // Preserve existing user_id if it exists to avoid breaking multi-user configurations
+    let userId = 'default_user';
+    try {
+      const docRef = db.doc(`whatsapp_instances/${instanceId}`);
+      const docSnap = await docRef.get();
+      if (docSnap.exists) {
+        userId = docSnap.data()?.user_id || 'default_user';
+      }
+    } catch (dbErr) {
+      console.warn(`[WA-SERVICE] Could not retrieve existing user_id for ${instanceId}, falling back to default_user:`, dbErr);
+    }
+
     await db.doc(`whatsapp_instances/${instanceId}`).set({
       ...data,
-      user_id: 'default_user'
+      user_id: userId
     }, { merge: true });
   } catch (e) {
     console.error("[WA-SERVICE] Failed to save status to Firestore:", e);
@@ -414,52 +427,119 @@ export async function loadExistingInstances() {
   }
 }
 
+// Helper: Find any connected fallback instance belonging to the same user or globally
+async function findConnectedFallbackInstance(originalInstanceId: string): Promise<string | null> {
+  try {
+    const { getAdminDb } = await import("./src/api/firebaseAdmin.js");
+    const db = getAdminDb();
+    
+    // Retrieve owner of original instance
+    const origSnap = await db.collection("whatsapp_instances").doc(originalInstanceId).get();
+    const originalUserId = origSnap.exists ? origSnap.data()?.user_id || 'default_user' : 'default_user';
+
+    // Query connected instances for this user
+    const connectedSnap = await db.collection("whatsapp_instances")
+      .where("status", "==", "connected")
+      .where("user_id", "==", originalUserId)
+      .get();
+
+    for (const doc of connectedSnap.docs) {
+      if (doc.id === originalInstanceId) continue;
+      // Check if session credentials exist in firestore
+      const sessionDoc = await db.collection("whatsapp_sessions").doc(doc.id).get();
+      if (sessionDoc.exists) {
+        console.log(`[WA-SERVICE] Found connected fallback instance ${doc.id} for user ${originalUserId}`);
+        return doc.id;
+      }
+    }
+
+    // Secondary fallback: check any globally connected instance with active sessions
+    const allConnectedSnap = await db.collection("whatsapp_instances")
+      .where("status", "==", "connected")
+      .get();
+
+    for (const doc of allConnectedSnap.docs) {
+      if (doc.id === originalInstanceId) continue;
+      const sessionDoc = await db.collection("whatsapp_sessions").doc(doc.id).get();
+      if (sessionDoc.exists) {
+        console.log(`[WA-SERVICE] Found globally connected fallback instance ${doc.id}`);
+        return doc.id;
+      }
+    }
+  } catch (e) {
+    console.error("[WA-SERVICE] Error finding connected fallback instance:", e);
+  }
+  return null;
+}
+
 export async function sendMessage(instanceId: string, to: string, message: string, image_url?: string) {
   if (!instanceId || !to) {
     throw new Error(`Parâmetros de destino inválidos: instanceId=${instanceId}, to=${to}`);
   }
 
-  let sock = instances.get(instanceId);
+  let resolvedInstanceId = instanceId;
+  let sock = instances.get(resolvedInstanceId);
   
   // If not in memory, check if credentials exist and auto-reconnect
   if (!sock || typeof sock.sendMessage !== 'function') {
-    console.log(`[WA-SERVICE] Instance ${instanceId} not found in memory. Checking if credentials exist...`);
+    console.log(`[WA-SERVICE] Instance ${resolvedInstanceId} not found in memory. Checking if credentials exist...`);
     const { getAdminDb } = await import("./src/api/firebaseAdmin.js");
     const db = getAdminDb();
-    const sessionDoc = await db.collection("whatsapp_sessions").doc(instanceId).get();
-    const localCredsExists = fs.existsSync(path.join(getAuthDir(instanceId), 'creds.json'));
+    const sessionDoc = await db.collection("whatsapp_sessions").doc(resolvedInstanceId).get();
+    const localCredsExists = fs.existsSync(path.join(getAuthDir(resolvedInstanceId), 'creds.json'));
 
     if (sessionDoc.exists || localCredsExists) {
-      console.log(`[WA-SERVICE] Credentials exist. Initiating on-the-fly auto-reconnect for ${instanceId}...`);
-      await connectWhatsApp(instanceId);
+      console.log(`[WA-SERVICE] Credentials exist. Initiating on-the-fly auto-reconnect for ${resolvedInstanceId}...`);
+      await connectWhatsApp(resolvedInstanceId);
 
       // Poll until connected or error/qrcode
       let attempts = 0;
       const maxAttempts = 30; // 15 seconds
       while (attempts < maxAttempts) {
-        const status = instanceStatus.get(instanceId);
+        const status = instanceStatus.get(resolvedInstanceId);
         if (status && status.status === 'connected') {
-          console.log(`[WA-SERVICE] Auto-reconnect succeeded for ${instanceId}`);
+          console.log(`[WA-SERVICE] Auto-reconnect succeeded for ${resolvedInstanceId}`);
           break;
         }
         if (status && (status.status === 'error' || status.status === 'qrcode' || status.status === 'disconnected')) {
-          throw new Error(`Instância de WhatsApp desconectada ou requer novo escaneamento (status: ${status.status}).`);
+          break; // Stop waiting if it fails, so we can try fallback
         }
         await new Promise(resolve => setTimeout(resolve, 500));
         attempts++;
       }
 
-      sock = instances.get(instanceId);
+      sock = instances.get(resolvedInstanceId);
+    }
+  }
+
+  // Fallback: If instance is still not connected or ready, try alternative connected instances
+  const currentStatus = instanceStatus.get(resolvedInstanceId)?.status;
+  if (!sock || typeof sock.sendMessage !== 'function' || currentStatus !== 'connected' || !sock.user) {
+    console.log(`[WA-SERVICE] Instance ${resolvedInstanceId} is disconnected/unavailable. Searching for fallback...`);
+    const fallbackId = await findConnectedFallbackInstance(resolvedInstanceId);
+    if (fallbackId) {
+      console.log(`[WA-SERVICE] Falling back to connected instance ${fallbackId}`);
+      resolvedInstanceId = fallbackId;
+      sock = instances.get(resolvedInstanceId);
+
+      // Reconnect fallback if not in memory
       if (!sock || typeof sock.sendMessage !== 'function') {
-        throw new Error('Instância de WhatsApp não pôde ser conectada a tempo.');
+        await connectWhatsApp(resolvedInstanceId);
+        let attempts = 0;
+        const maxAttempts = 30;
+        while (attempts < maxAttempts) {
+          const status = instanceStatus.get(resolvedInstanceId);
+          if (status && status.status === 'connected') break;
+          await new Promise(resolve => setTimeout(resolve, 500));
+          attempts++;
+        }
+        sock = instances.get(resolvedInstanceId);
       }
-    } else {
-      throw new Error('Instância de WhatsApp não conectada ou inválida. Por favor, acesse a página "Instâncias" para conectar seu WhatsApp.');
     }
   }
   
   // Basic check for Baileys internal state readiness
-  if (!sock.user) {
+  if (!sock || typeof sock.sendMessage !== 'function' || !sock.user) {
     throw new Error('Instância de WhatsApp não conectada ou inválida. Por favor, acesse a página "Instâncias" para conectar seu WhatsApp.');
   }
 
