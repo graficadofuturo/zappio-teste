@@ -26,9 +26,35 @@ router.get("/status", async (req, res) => {
     return res.json(memStatus);
   }
 
-  // Fallback: Check if session credentials exist (either locally or in Firestore)
+  // Fallback: Check if session credentials exist or if it is currently generating QR code/initializing in Firestore
   try {
     const db = getAdminDb();
+    const instDoc = await db.doc(`whatsapp_instances/${instanceId}`).get();
+    
+    if (instDoc.exists) {
+      const instData = instDoc.data() || {};
+      
+      // If Firestore says it is in qrcode status, return that state so it can be rendered by the frontend
+      if (instData.wa_status === 'qrcode' && instData.wa_qr) {
+        return res.json({
+          status: 'qrcode',
+          qr: instData.wa_qr,
+          groups: [],
+          contacts: []
+        });
+      }
+      
+      // If Firestore says it is initializing or connecting, return that state
+      if (instData.wa_status === 'initializing' || instData.wa_status === 'connecting') {
+        return res.json({
+          status: instData.wa_status,
+          qr: null,
+          groups: [],
+          contacts: []
+        });
+      }
+    }
+
     const sessionSnap = await db.collection("whatsapp_sessions").doc(instanceId).get();
     
     // Check local creds
