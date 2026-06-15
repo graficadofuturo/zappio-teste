@@ -326,8 +326,38 @@ router.get("/debug-trigger", async (req, res) => {
     const app = getFirebaseAdminApp();
     const appOptions = app?.options || {};
     
-    const campaignsRef = db.collection('campaigns');
-    const snapshot = await campaignsRef
+    // Parse project ID from service account key
+    let serviceAccountProjectId = null;
+    try {
+      const saKey = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
+      if (saKey) {
+        const parsed = JSON.parse(saKey);
+        serviceAccountProjectId = parsed.project_id;
+      }
+    } catch (e) {}
+    
+    // List collections
+    let collections = [];
+    try {
+      const colRefs = await db.listCollections();
+      collections = colRefs.map((c: any) => c.id);
+    } catch (e: any) {
+      collections = ["Error listing collections: " + e.message];
+    }
+    
+    // Query ALL campaigns without filters
+    const allCampaignsSnap = await db.collection('campaigns').get();
+    const campaignsList = allCampaignsSnap.docs.map((doc: any) => ({
+      id: doc.id,
+      name: doc.data().name,
+      status: doc.data().status,
+      trigger_type: doc.data().trigger_type,
+      auto_send_now: doc.data().auto_send_now,
+      send_interval: doc.data().send_interval,
+      last_run: doc.data().last_run ? (doc.data().last_run.toDate ? doc.data().last_run.toDate() : doc.data().last_run) : null
+    }));
+    
+    const snapshot = await db.collection('campaigns')
       .where('trigger_type', 'in', ['scheduled', 'auto'])
       .where('status', '==', 'scheduled')
       .get();
@@ -379,11 +409,14 @@ router.get("/debug-trigger", async (req, res) => {
       ok: true,
       firebaseConfig: {
         projectId: appOptions.projectId || null,
+        serviceAccountProjectId,
         hasServiceAccount: !!process.env.FIREBASE_SERVICE_ACCOUNT_KEY,
         databaseId: process.env.FIRESTORE_DATABASE_ID || "(default)",
-        envKeys: Object.keys(process.env).filter(k => k.includes("FIREBASE") || k.includes("GOOGLE") || k.includes("FIRESTORE"))
       },
-      campaignsFound: snapshot.size,
+      collections,
+      totalCampaigns: allCampaignsSnap.size,
+      campaignsList,
+      scheduledCampaignsFound: snapshot.size,
       results
     });
   } catch (e: any) {
