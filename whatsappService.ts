@@ -280,12 +280,10 @@ export async function connectWhatsApp(instanceId: string) {
         
         if (shouldReconnect) {
           const current = instanceStatus.get(instanceId) || { status: 'initializing' };
-          instanceStatus.set(instanceId, { ...current, status: 'disconnected' });
-          await saveStatusToFirestore(instanceId, { wa_status: 'disconnected', wa_qr: null, status: 'disconnected' });
-          // Reconnect with a slight delay
-          setTimeout(() => {
-            connectWhatsApp(instanceId).catch(err => console.error(`[Instance ${instanceId}] Reconnect failed:`, err));
-          }, 5000);
+          instanceStatus.set(instanceId, { ...current, status: 'connecting' });
+          await saveStatusToFirestore(instanceId, { wa_status: 'connecting', wa_qr: null, status: 'connecting' });
+          // Reconnect immediately to avoid timeouts in serverless execution environments
+          connectWhatsApp(instanceId).catch(err => console.error(`[Instance ${instanceId}] Reconnect failed:`, err));
         } else {
           const current = instanceStatus.get(instanceId) || { status: 'initializing' };
           instanceStatus.set(instanceId, { ...current, status: 'disconnected' });
@@ -437,32 +435,29 @@ async function findConnectedFallbackInstance(originalInstanceId: string): Promis
     const origSnap = await db.collection("whatsapp_instances").doc(originalInstanceId).get();
     const originalUserId = origSnap.exists ? origSnap.data()?.user_id || 'default_user' : 'default_user';
 
-    // Query connected instances for this user
-    const connectedSnap = await db.collection("whatsapp_instances")
-      .where("status", "==", "connected")
+    // Query all instances for this user
+    const instancesSnap = await db.collection("whatsapp_instances")
       .where("user_id", "==", originalUserId)
       .get();
 
-    for (const doc of connectedSnap.docs) {
+    for (const doc of instancesSnap.docs) {
       if (doc.id === originalInstanceId) continue;
       // Check if session credentials exist in firestore
       const sessionDoc = await db.collection("whatsapp_sessions").doc(doc.id).get();
       if (sessionDoc.exists) {
-        console.log(`[WA-SERVICE] Found connected fallback instance ${doc.id} for user ${originalUserId}`);
+        console.log(`[WA-SERVICE] Found fallback instance with session credentials: ${doc.id} for user ${originalUserId}`);
         return doc.id;
       }
     }
 
-    // Secondary fallback: check any globally connected instance with active sessions
-    const allConnectedSnap = await db.collection("whatsapp_instances")
-      .where("status", "==", "connected")
-      .get();
+    // Secondary fallback: check any instance globally with active session credentials
+    const allInstancesSnap = await db.collection("whatsapp_instances").get();
 
-    for (const doc of allConnectedSnap.docs) {
+    for (const doc of allInstancesSnap.docs) {
       if (doc.id === originalInstanceId) continue;
       const sessionDoc = await db.collection("whatsapp_sessions").doc(doc.id).get();
       if (sessionDoc.exists) {
-        console.log(`[WA-SERVICE] Found globally connected fallback instance ${doc.id}`);
+        console.log(`[WA-SERVICE] Found globally active fallback instance with session credentials: ${doc.id}`);
         return doc.id;
       }
     }
