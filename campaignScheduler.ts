@@ -113,7 +113,7 @@ export function startScheduler() {
   }, 30000); // 30 seconds polling to conserve Firestore free quota
 }
 
-async function triggerCampaign(campaignDoc: any, camp: any, id: string, dbInstance?: any) {
+export async function triggerCampaign(campaignDoc: any, camp: any, id: string, dbInstance?: any) {
     const activeDb = dbInstance || db;
     console.log(`[Scheduler] Triggering campaign: ${camp.name} (${id})`);
     
