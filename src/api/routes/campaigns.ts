@@ -317,4 +317,66 @@ router.post("/trigger-tick", async (req, res) => {
   }
 });
 
+router.get("/debug-trigger", async (req, res) => {
+  try {
+    const db = getAdminDb();
+    const campaignsRef = db.collection('campaigns');
+    const snapshot = await campaignsRef
+      .where('trigger_type', 'in', ['scheduled', 'auto'])
+      .where('status', '==', 'scheduled')
+      .get();
+      
+    const results = [];
+    for (const doc of snapshot.docs) {
+      const camp = doc.data();
+      const lastRun = camp.last_run?.toDate?.() || new Date(0);
+      const now = new Date();
+      const diffMs = now.getTime() - lastRun.getTime();
+      
+      let triggered = false;
+      let reason = "";
+      
+      if (camp.trigger_type === 'auto') {
+          if (camp.auto_send_now && camp.send_interval) {
+             const parts = camp.send_interval.split(':');
+             const m = parseInt(parts[0], 10) || 0;
+             const s = parseInt(parts[1], 10) || 0;
+             const intervalMs = (m * 60 + s) * 1000;
+             
+             if (diffMs >= intervalMs && intervalMs > 0) {
+               triggered = true;
+               reason = "Should trigger";
+             } else {
+               reason = `Interval not met: diffMs=${diffMs}, intervalMs=${intervalMs}`;
+             }
+          } else {
+             reason = `Missing auto_send_now or send_interval`;
+          }
+      } else {
+         reason = `Not auto campaign`;
+      }
+      
+      results.push({
+        id: doc.id,
+        name: camp.name,
+        trigger_type: camp.trigger_type,
+        status: camp.status,
+        last_run: lastRun.toISOString(),
+        now: now.toISOString(),
+        diffMs,
+        triggered,
+        reason
+      });
+    }
+    
+    res.json({
+      ok: true,
+      campaignsFound: snapshot.size,
+      results
+    });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message || String(e) });
+  }
+});
+
 export default router;
