@@ -1092,6 +1092,9 @@ export async function saveOffers(offers: any[], uid: string | null = null) {
   let count = 0;
   const batch = db.batch();
   for (const offer of offers) {
+     if (!offer.status) {
+       offer.status = 'active';
+     }
      const ref = db.collection('offer_bank').doc((offer.id || offer.permalink || encodeURIComponent(offer.productUrl || 'null')).substring(0, 50));
      batch.set(ref, offer, { merge: true });
      count++;
