@@ -4,7 +4,7 @@ import { normalizeMercadoLivreProductUrl } from '../../services/affiliateService
 export async function getMLAuthUrl(origin: string, state: string, redirectUri: string) {
     const clientId = process.env.ML_CLIENT_ID;
     if (!clientId) throw new Error("ML_CLIENT_ID not configured");
-    return `https://auth.mercadolivre.com.br/authorization?response_type=code&client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${encodeURIComponent(state)}`;
+    return `https://auth.mercadolivre.com.br/authorization?response_type=code&client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${encodeURIComponent(state)}&scope=offline_access`;
 }
 
 export async function getMercadoLivreUser(accessToken: string) {

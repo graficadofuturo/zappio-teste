@@ -31,7 +31,7 @@ export default async function handler(req, res) {
       });
     }
 
-    const authorizationUrl = `https://auth.mercadolivre.com.br/authorization?response_type=code&client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${encodedState}`;
+    const authorizationUrl = `https://auth.mercadolivre.com.br/authorization?response_type=code&client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${encodedState}&scope=offline_access`;
 
     return res.status(200).json({
       ok: true,
