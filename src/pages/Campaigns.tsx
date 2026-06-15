@@ -494,13 +494,15 @@ export default function Campaigns() {
 
   const handleTogglePause = async (id: string, currentStatus: string) => {
     try {
-      const isStarting = ['paused', 'draft', 'failed', 'sent'].includes(currentStatus);
-      const newStatus = isStarting ? 'scheduled' : 'paused';
+      const isRunning = currentStatus === 'scheduled';
+      const newStatus = isRunning ? 'paused' : 'scheduled';
       await updateDoc(doc(db, 'campaigns', id), {
         status: newStatus,
         updated_at: serverTimestamp()
       });
+      showSuccess(isRunning ? "Campanha pausada com sucesso!" : "Campanha ativada com sucesso!");
     } catch (e: any) {
+      showError("Erro ao alterar status da campanha.");
       handleFirestoreError(e, OperationType.UPDATE, 'campaigns');
     }
   }
