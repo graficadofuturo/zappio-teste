@@ -354,7 +354,12 @@ router.get("/debug-trigger", async (req, res) => {
       trigger_type: doc.data().trigger_type,
       auto_send_now: doc.data().auto_send_now,
       send_interval: doc.data().send_interval,
-      last_run: doc.data().last_run ? (doc.data().last_run.toDate ? doc.data().last_run.toDate() : doc.data().last_run) : null
+      last_run: doc.data().last_run ? (doc.data().last_run.toDate ? doc.data().last_run.toDate() : doc.data().last_run) : null,
+      last_run_message: doc.data().last_run_message || null,
+      lastSendError: doc.data().lastSendError || null,
+      lastSendStatus: doc.data().lastSendStatus || null,
+      targets: doc.data().targets || null,
+      message_mode: doc.data().message_mode || null
     }));
     
     const snapshot = await db.collection('campaigns')
