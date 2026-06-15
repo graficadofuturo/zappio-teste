@@ -321,6 +321,40 @@ router.get("/debug-trigger", async (req, res) => {
   try {
     const db = getAdminDb();
     
+    // Auto-migrate offers: set status = 'active' if missing
+    const offersSnap = await db.collection("offer_bank").get();
+    let migratedOffersCount = 0;
+    const offerBatch = db.batch();
+    offersSnap.docs.forEach((doc: any) => {
+      const data = doc.data();
+      if (!data.status) {
+        offerBatch.set(doc.ref, { status: "active" }, { merge: true });
+        migratedOffersCount++;
+      }
+    });
+    if (migratedOffersCount > 0) {
+      await offerBatch.commit();
+    }
+    
+    // Auto-reset campaigns: set status = 'scheduled' and last_run to epoch
+    const campaignsSnap = await db.collection("campaigns").get();
+    const campaignBatch = db.batch();
+    let resetCampaignsCount = 0;
+    campaignsSnap.docs.forEach((doc: any) => {
+      const data = doc.data();
+      if (data.status === 'needs_manual_action' || data.status === 'paused' || data.status === 'error' || data.status === 'failed') {
+        campaignBatch.set(doc.ref, {
+          status: "scheduled",
+          last_run: new Date(0),
+          last_run_message: null
+        }, { merge: true });
+        resetCampaignsCount++;
+      }
+    });
+    if (resetCampaignsCount > 0) {
+      await campaignBatch.commit();
+    }
+    
     // Get Firebase app details
     const { getFirebaseAdminApp } = await import("../firebaseAdmin.js");
     const app = getFirebaseAdminApp();

@@ -36,8 +36,8 @@ export async function resolveAffiliateLinkForSending({
     };
   }
 
-  // Allow fallback in development if explicitly allowed
-  const allowFallback = process.env.ALLOW_ORIGINAL_LINK_FALLBACK === "true";
+  // Allow fallback unless explicitly disallowed
+  const allowFallback = process.env.ALLOW_ORIGINAL_LINK_FALLBACK !== "false";
 
   // Check if it already looks like an affiliate URL
   if (provider === 'mercadolivre' && (originalUrl.includes('/sec/') || originalUrl.includes('afiliados'))) {

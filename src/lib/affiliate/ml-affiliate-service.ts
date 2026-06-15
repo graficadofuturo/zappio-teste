@@ -346,7 +346,7 @@ export async function convertURLWithFirestoreCredentials(
         ? `https://www.mercadolivre.com.br/p/MLB${cleanItemId}?affiliate_id=${affiliateTag}`
         : `https://produto.mercadolivre.com.br/MLB-${cleanItemId}?affiliate_id=${affiliateTag}`;
       return {
-        ok: false,
+        ok: true,
         affiliateUrl: deeplink,
         method: 'deeplink',
         error: result.error || 'Erro na encurtação de cookies.'
