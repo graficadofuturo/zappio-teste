@@ -27,7 +27,6 @@ router.get("/status", async (req, res) => {
   }
 
   // Fallback: Check if session credentials exist (either locally or in Firestore)
-  // to auto-reconnect in the background
   try {
     const db = getAdminDb();
     const sessionSnap = await db.collection("whatsapp_sessions").doc(instanceId).get();
@@ -39,35 +38,31 @@ router.get("/status", async (req, res) => {
     const localCredsExists = fs.existsSync(path.join(authDir, 'creds.json'));
 
     if (sessionSnap.exists || localCredsExists) {
-      console.log(`[WA-ROUTE] Auto-reconnect triggered via /status for instance ${instanceId}`);
-      const { connectWhatsApp } = await import("../../../whatsappService.js");
-      connectWhatsApp(instanceId).catch(err => console.error(`[WA-ROUTE] Auto-reconnect failed for ${instanceId}:`, err));
+      console.log(`[WA-ROUTE] Session exists in database or disk for ${instanceId}. Returning connected.`);
       
+      // Best-effort background reconnect (warm up the socket in memory)
+      const { connectWhatsApp } = await import("../../../whatsappService.js");
+      connectWhatsApp(instanceId).catch(err => console.error(`[WA-ROUTE] Background connect failed:`, err));
+
       return res.json({
-        status: 'initializing',
+        status: 'connected',
+        qr: null,
+        groups: [],
+        contacts: []
+      });
+    } else {
+      // Credentials do not exist, so it is disconnected. Clean up the status in Firestore as well.
+      await saveStatusToFirestore(instanceId, { wa_status: 'disconnected', wa_qr: null, status: 'disconnected' });
+      return res.json({
+        status: 'disconnected',
         qr: null,
         groups: [],
         contacts: []
       });
     }
   } catch (e) {
-    console.error("[WA-ROUTE] Error in status auto-reconnect check:", e);
+    console.error("[WA-ROUTE] Error in status check:", e);
   }
-
-  // Fallback: read from Firestore (handles cold serverless starts)
-  try {
-    const db = getAdminDb();
-    const snap = await db.doc(`whatsapp_instances/${instanceId}`).get();
-    if (snap.exists) {
-      const data = snap.data() as any;
-      return res.json({
-        status: data.wa_status || 'disconnected',
-        qr: data.wa_qr || null,
-        groups: [],
-        contacts: []
-      });
-    }
-  } catch (e) {}
 
   return res.json({ status: 'disconnected', groups: [], contacts: [] });
 });
