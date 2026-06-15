@@ -501,6 +501,13 @@ export default function Campaigns() {
         updated_at: serverTimestamp()
       });
       showSuccess(isRunning ? "Campanha pausada com sucesso!" : "Campanha ativada com sucesso!");
+      
+      if (newStatus === 'scheduled') {
+        // Trigger scheduler check immediately on the backend
+        fetch('/api/campaigns/trigger-tick', { method: 'POST' }).catch(err => {
+          console.error("Failed to trigger campaign tick:", err);
+        });
+      }
     } catch (e: any) {
       showError("Erro ao alterar status da campanha.");
       handleFirestoreError(e, OperationType.UPDATE, 'campaigns');

@@ -8,12 +8,26 @@ import Integrations from './pages/Integrations.js';
 import Products from './pages/Products.js';
 import Subscription from './pages/Subscription.js';
 import AdminOverview from './pages/admin/AdminOverview.js';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 
 function App() {
   const [isAdmin, setIsAdmin] = useState(true);
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    // Background ping to execute campaign scheduler ticks while dashboard is open
+    const interval = setInterval(() => {
+      fetch('/api/campaigns/trigger-tick', { method: 'POST' }).catch(err => {
+        console.error("[App] Failed to background trigger campaign tick:", err);
+      });
+    }, 45000); // 45 seconds
+    
+    // First trigger immediately on mount
+    fetch('/api/campaigns/trigger-tick', { method: 'POST' }).catch(() => {});
+
+    return () => clearInterval(interval);
+  }, []);
 
   return (
     <Router>

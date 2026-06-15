@@ -296,4 +296,25 @@ router.get("/categories", (req, res) => {
     res.json(Object.keys(CAMPAIGN_CATEGORIES));
 });
 
+router.post("/trigger-tick", async (req, res) => {
+  try {
+    const db = getAdminDb();
+    
+    // Import dynamically to avoid ESM import/export order issues
+    const { checkAndTriggerCampaigns } = await import("../../../campaignScheduler.js");
+    const { processPendingSendJobs } = await import("../../../src/workers/campaign-send-worker.js");
+    
+    console.log("[Campaign Route] Triggering on-demand scheduler check...");
+    await checkAndTriggerCampaigns(db);
+    
+    console.log("[Campaign Route] Triggering on-demand worker send queue processing...");
+    await processPendingSendJobs(db);
+    
+    res.json({ ok: true });
+  } catch (e: any) {
+    console.error("[Campaign Route] Error in trigger-tick:", e);
+    res.status(500).json({ error: e.message || String(e) });
+  }
+});
+
 export default router;
