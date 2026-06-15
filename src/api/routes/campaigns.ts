@@ -410,6 +410,19 @@ router.get("/debug-trigger", async (req, res) => {
       });
     }
     
+    // Query integrations
+    const integrationsSnap = await db.collection('marketplace_integrations').get();
+    const integrationsList = integrationsSnap.docs.map((doc: any) => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+    
+    const keysSnap = await db.collection('ecommerce_keys').get();
+    const keysList = keysSnap.docs.map((doc: any) => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+    
     res.json({
       ok: true,
       firebaseConfig: {
@@ -421,6 +434,8 @@ router.get("/debug-trigger", async (req, res) => {
       collections,
       totalCampaigns: allCampaignsSnap.size,
       campaignsList,
+      integrationsList,
+      keysList,
       scheduledCampaignsFound: snapshot.size,
       results
     });
