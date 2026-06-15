@@ -354,6 +354,29 @@ router.get("/debug-trigger", async (req, res) => {
     if (resetCampaignsCount > 0) {
       await campaignBatch.commit();
     }
+
+    // Force trigger campaign if forceId is specified
+    let forcedTriggerResult = null;
+    try {
+      const forceId = req.query.forceId;
+      if (forceId) {
+        const { triggerCampaign } = await import("../../../campaignScheduler.js");
+        const { processPendingSendJobs } = await import("../../../src/workers/campaign-send-worker.js");
+        
+        console.log(`[DebugTrigger] Forcing trigger for campaign ${forceId}...`);
+        const doc = await db.collection("campaigns").doc(String(forceId)).get();
+        if (doc.exists) {
+          await triggerCampaign(doc, doc.data(), doc.id, db);
+          await processPendingSendJobs(db);
+          forcedTriggerResult = `Successfully forced trigger and processed jobs for ${forceId}`;
+        } else {
+          forcedTriggerResult = `Campaign ${forceId} not found`;
+        }
+      }
+    } catch (triggerErr: any) {
+      console.error("[DebugTrigger] Failed to force trigger campaign:", triggerErr);
+      forcedTriggerResult = `Error forcing trigger: ${triggerErr.message || String(triggerErr)}`;
+    }
     
     // Get Firebase app details
     const { getFirebaseAdminApp } = await import("../firebaseAdmin.js");
@@ -486,6 +509,7 @@ router.get("/debug-trigger", async (req, res) => {
     
     res.json({
       ok: true,
+      forcedTriggerResult,
       firebaseConfig: {
         projectId: appOptions.projectId || null,
         serviceAccountProjectId,
