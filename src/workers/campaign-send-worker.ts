@@ -67,7 +67,7 @@ export async function processPendingSendJobs(dbInstance: any) {
               targetId: job.targetId,
               targetPhoneOrGroupId: job.targetPhoneOrGroupId,
               status: 'success',
-              messagePreview: job.finalMessage.substring(0, 50),
+              messagePreview: (job.finalMessage || '').substring(0, 50),
               providerResponse: 'OK',
               errorCode: null,
               errorMessage: null,
@@ -81,7 +81,13 @@ export async function processPendingSendJobs(dbInstance: any) {
           console.error(`[SendWorker] Job ${jobId} failed:`, error.message);
           const attempts = (job.attempts || 0) + 1;
           
-          const isNoConnection = error.message.includes('Instance not connected') || error.message.includes('não conectada') || error.message.includes('No WhatsApp connection');
+          const errMsg = error.message || '';
+          const isNoConnection = errMsg.includes('Instance not connected') 
+              || errMsg.includes('não conectada') 
+              || errMsg.includes('No WhatsApp connection')
+              || errMsg.includes('Cannot read properties of undefined')
+              || errMsg.includes('não pôde ser conectada')
+              || errMsg.includes('requer novo escaneamento');
 
           const nextStatus = (attempts >= 3 || isNoConnection) ? 'failed' : 'pending';
 

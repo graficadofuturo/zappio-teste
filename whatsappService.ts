@@ -460,7 +460,7 @@ export async function sendMessage(instanceId: string, to: string, message: strin
   
   // Basic check for Baileys internal state readiness
   if (!sock.user) {
-    console.warn(`[WhatsAppService] Instance ${instanceId} has no "user" info yet. Send might fail.`);
+    throw new Error('Instância de WhatsApp não conectada ou inválida. Por favor, acesse a página "Instâncias" para conectar seu WhatsApp.');
   }
 
   try {

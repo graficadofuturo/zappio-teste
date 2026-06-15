@@ -468,6 +468,21 @@ router.get("/debug-trigger", async (req, res) => {
       createdAt: doc.data().createdAt ? (doc.data().createdAt.toDate ? doc.data().createdAt.toDate() : doc.data().createdAt) : null,
       targetPhoneOrGroupId: doc.data().targetPhoneOrGroupId
     }));
+
+    // Query WhatsApp instances
+    const waInstancesSnap = await db.collection('whatsapp_instances').get();
+    const waInstancesList = waInstancesSnap.docs.map((doc: any) => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+
+    // Query WhatsApp sessions
+    const waSessionsSnap = await db.collection('whatsapp_sessions').get();
+    const waSessionsList = waSessionsSnap.docs.map((doc: any) => ({
+      id: doc.id,
+      updatedAt: doc.data().updatedAt || null,
+      filesCount: doc.data().files ? Object.keys(doc.data().files).length : 0
+    }));
     
     res.json({
       ok: true,
@@ -483,6 +498,8 @@ router.get("/debug-trigger", async (req, res) => {
       integrationsList,
       keysList,
       jobsList,
+      waInstancesList,
+      waSessionsList,
       scheduledCampaignsFound: snapshot.size,
       results
     });

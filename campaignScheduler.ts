@@ -45,6 +45,23 @@ export async function checkAndTriggerCampaigns(dbInstance: any) {
 
       if (camp.trigger_type === 'auto') {
           if (camp.auto_send_now && camp.send_interval) {
+             // Check scheduled_days constraint (if configured)
+             const autoDays = camp.scheduled_days || [];
+             if (autoDays.length > 0 && !autoDays.includes(currentDay)) {
+                continue; // Not scheduled for today
+             }
+
+             // Check scheduled_times constraint (if configured)
+             const autoTimes = camp.scheduled_times || [];
+             if (autoTimes.length > 0) {
+                // Build a time window: only allow sending during configured hours
+                // For each scheduled time HH:MM, allow sending within that minute
+                const isInTimeWindow = autoTimes.some((t: string) => t === currentTimeStr);
+                if (!isInTimeWindow) {
+                   continue; // Not in any of the scheduled time windows
+                }
+             }
+
              const parts = camp.send_interval.split(':');
              const m = parseInt(parts[0], 10) || 0;
              const s = parseInt(parts[1], 10) || 0;
