@@ -457,6 +457,18 @@ router.get("/debug-trigger", async (req, res) => {
       ...doc.data()
     }));
     
+    // Query send jobs
+    const jobsSnap = await db.collection('campaign_send_jobs').orderBy('createdAt', 'desc').limit(5).get();
+    const jobsList = jobsSnap.docs.map((doc: any) => ({
+      id: doc.id,
+      campaignId: doc.data().campaignId,
+      status: doc.data().status,
+      attempts: doc.data().attempts,
+      errorMessage: doc.data().errorMessage,
+      createdAt: doc.data().createdAt ? (doc.data().createdAt.toDate ? doc.data().createdAt.toDate() : doc.data().createdAt) : null,
+      targetPhoneOrGroupId: doc.data().targetPhoneOrGroupId
+    }));
+    
     res.json({
       ok: true,
       firebaseConfig: {
@@ -470,6 +482,7 @@ router.get("/debug-trigger", async (req, res) => {
       campaignsList,
       integrationsList,
       keysList,
+      jobsList,
       scheduledCampaignsFound: snapshot.size,
       results
     });
