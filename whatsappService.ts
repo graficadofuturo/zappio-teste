@@ -2,6 +2,7 @@ import makeWASocket, { DisconnectReason, useMultiFileAuthState, fetchLatestBaile
 import Pino from 'pino';
 import NodeCache from 'node-cache';
 import fs from 'fs';
+import path from 'path';
 
 // Mute known noisy libsignal/Baileys errors that are handled internally by retries
 if (!(console as any).__libsignalSuppressed) {
@@ -40,6 +41,74 @@ function getAuthDir(instanceId: string) {
     return `/tmp/baileys_auth_info_${instanceId}`;
   }
   return `baileys_auth_info_${instanceId}`;
+}
+
+// Helper: save session credentials directory to Firestore
+async function saveSessionToFirestore(instanceId: string) {
+  try {
+    const authDir = getAuthDir(instanceId);
+    if (!fs.existsSync(authDir)) return;
+
+    const files = fs.readdirSync(authDir);
+    const sessionData: Record<string, string> = {};
+
+    for (const file of files) {
+      const filePath = path.join(authDir, file);
+      if (fs.statSync(filePath).isFile()) {
+        const content = fs.readFileSync(filePath).toString('base64');
+        const safeKey = Buffer.from(file).toString('base64url');
+        sessionData[safeKey] = content;
+      }
+    }
+
+    if (Object.keys(sessionData).length === 0) return;
+
+    const { getAdminDb } = await import("./src/api/firebaseAdmin.js");
+    const db = getAdminDb();
+    await db.collection("whatsapp_sessions").doc(instanceId).set({
+      files: sessionData,
+      updatedAt: new Date().toISOString()
+    });
+    console.log(`[WA-SERVICE] Saved session files to Firestore for instance ${instanceId}`);
+  } catch (e) {
+    console.error("[WA-SERVICE] Failed to save session to Firestore:", e);
+  }
+}
+
+// Helper: restore session credentials directory from Firestore
+async function restoreSessionFromFirestore(instanceId: string) {
+  try {
+    const { getAdminDb } = await import("./src/api/firebaseAdmin.js");
+    const db = getAdminDb();
+    const doc = await db.collection("whatsapp_sessions").doc(instanceId).get();
+    if (!doc.exists) {
+      console.log(`[WA-SERVICE] No saved session in Firestore for instance ${instanceId}`);
+      return false;
+    }
+
+    const data = doc.data();
+    if (!data || !data.files) return false;
+
+    const authDir = getAuthDir(instanceId);
+    if (!fs.existsSync(authDir)) {
+      fs.mkdirSync(authDir, { recursive: true });
+    }
+
+    const files = data.files;
+    for (const safeKey of Object.keys(files)) {
+      const filename = Buffer.from(safeKey, 'base64url').toString('utf-8');
+      const base64Content = files[safeKey];
+      const content = Buffer.from(base64Content, 'base64');
+      const filePath = path.join(authDir, filename);
+      fs.writeFileSync(filePath, content);
+    }
+
+    console.log(`[WA-SERVICE] Restored session files from Firestore for instance ${instanceId}`);
+    return true;
+  } catch (e) {
+    console.error("[WA-SERVICE] Failed to restore session from Firestore:", e);
+    return false;
+  }
 }
 
 // Helper: clear auth credentials directory
@@ -117,6 +186,9 @@ export async function connectWhatsApp(instanceId: string) {
     });
 
     const authDir = getAuthDir(instanceId);
+    if (!fs.existsSync(path.join(authDir, 'creds.json'))) {
+      await restoreSessionFromFirestore(instanceId);
+    }
     const { state, saveCreds } = await useMultiFileAuthState(authDir);
     const { version } = await fetchLatestBaileysVersion();
     
@@ -146,7 +218,13 @@ export async function connectWhatsApp(instanceId: string) {
 
     instances.set(instanceId, sock);
 
-    sock.ev.on('creds.update', saveCreds);
+    sock.ev.on('creds.update', async () => {
+      await saveCreds();
+      // Small delay to ensure files are written to disk before we upload them
+      setTimeout(async () => {
+        await saveSessionToFirestore(instanceId);
+      }, 500);
+    });
 
     // Store messages for potential retries
     sock.ev.on('messages.upsert', async (m) => {
@@ -200,6 +278,11 @@ export async function connectWhatsApp(instanceId: string) {
           instanceStatus.set(instanceId, { ...current, status: 'disconnected' });
           await saveStatusToFirestore(instanceId, { wa_status: 'disconnected', wa_qr: null, status: 'disconnected' });
           clearAuthDir(instanceId);
+          try {
+            const { getAdminDb } = await import("./src/api/firebaseAdmin.js");
+            const db = getAdminDb();
+            await db.collection("whatsapp_sessions").doc(instanceId).delete();
+          } catch (e) {}
         }
       } else if (connection === 'open') {
         console.log(`[Instance ${instanceId}] Connected!`);
@@ -278,6 +361,16 @@ export async function disconnectWhatsApp(instanceId: string) {
   instanceStatus.set(instanceId, { ...cur, status: 'disconnected' });
   await saveStatusToFirestore(instanceId, { wa_status: 'disconnected', wa_qr: null, status: 'disconnected' });
   clearAuthDir(instanceId);
+
+  // Delete from Firestore sessions
+  try {
+    const { getAdminDb } = await import("./src/api/firebaseAdmin.js");
+    const db = getAdminDb();
+    await db.collection("whatsapp_sessions").doc(instanceId).delete();
+    console.log(`[WA-SERVICE] Deleted session from Firestore for instance ${instanceId}`);
+  } catch (e) {
+    console.error("[WA-SERVICE] Failed to delete session from Firestore:", e);
+  }
 }
 
 export async function loadExistingInstances() {
@@ -326,9 +419,43 @@ export async function sendMessage(instanceId: string, to: string, message: strin
     throw new Error(`Parâmetros de destino inválidos: instanceId=${instanceId}, to=${to}`);
   }
 
-  const sock = instances.get(instanceId);
+  let sock = instances.get(instanceId);
+  
+  // If not in memory, check if credentials exist and auto-reconnect
   if (!sock || typeof sock.sendMessage !== 'function') {
-    throw new Error('Instância de WhatsApp não conectada ou inválida. Por favor, acesse a página "Instâncias" para conectar seu WhatsApp.');
+    console.log(`[WA-SERVICE] Instance ${instanceId} not found in memory. Checking if credentials exist...`);
+    const { getAdminDb } = await import("./src/api/firebaseAdmin.js");
+    const db = getAdminDb();
+    const sessionDoc = await db.collection("whatsapp_sessions").doc(instanceId).get();
+    const localCredsExists = fs.existsSync(path.join(getAuthDir(instanceId), 'creds.json'));
+
+    if (sessionDoc.exists || localCredsExists) {
+      console.log(`[WA-SERVICE] Credentials exist. Initiating on-the-fly auto-reconnect for ${instanceId}...`);
+      await connectWhatsApp(instanceId);
+
+      // Poll until connected or error/qrcode
+      let attempts = 0;
+      const maxAttempts = 30; // 15 seconds
+      while (attempts < maxAttempts) {
+        const status = instanceStatus.get(instanceId);
+        if (status && status.status === 'connected') {
+          console.log(`[WA-SERVICE] Auto-reconnect succeeded for ${instanceId}`);
+          break;
+        }
+        if (status && (status.status === 'error' || status.status === 'qrcode' || status.status === 'disconnected')) {
+          throw new Error(`Instância de WhatsApp desconectada ou requer novo escaneamento (status: ${status.status}).`);
+        }
+        await new Promise(resolve => setTimeout(resolve, 500));
+        attempts++;
+      }
+
+      sock = instances.get(instanceId);
+      if (!sock || typeof sock.sendMessage !== 'function') {
+        throw new Error('Instância de WhatsApp não pôde ser conectada a tempo.');
+      }
+    } else {
+      throw new Error('Instância de WhatsApp não conectada ou inválida. Por favor, acesse a página "Instâncias" para conectar seu WhatsApp.');
+    }
   }
   
   // Basic check for Baileys internal state readiness

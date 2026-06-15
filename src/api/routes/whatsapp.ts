@@ -26,6 +26,34 @@ router.get("/status", async (req, res) => {
     return res.json(memStatus);
   }
 
+  // Fallback: Check if session credentials exist (either locally or in Firestore)
+  // to auto-reconnect in the background
+  try {
+    const db = getAdminDb();
+    const sessionSnap = await db.collection("whatsapp_sessions").doc(instanceId).get();
+    
+    // Check local creds
+    const fs = await import("fs");
+    const path = await import("path");
+    const authDir = process.env.VERCEL ? `/tmp/baileys_auth_info_${instanceId}` : `baileys_auth_info_${instanceId}`;
+    const localCredsExists = fs.existsSync(path.join(authDir, 'creds.json'));
+
+    if (sessionSnap.exists || localCredsExists) {
+      console.log(`[WA-ROUTE] Auto-reconnect triggered via /status for instance ${instanceId}`);
+      const { connectWhatsApp } = await import("../../../whatsappService.js");
+      connectWhatsApp(instanceId).catch(err => console.error(`[WA-ROUTE] Auto-reconnect failed for ${instanceId}:`, err));
+      
+      return res.json({
+        status: 'initializing',
+        qr: null,
+        groups: [],
+        contacts: []
+      });
+    }
+  } catch (e) {
+    console.error("[WA-ROUTE] Error in status auto-reconnect check:", e);
+  }
+
   // Fallback: read from Firestore (handles cold serverless starts)
   try {
     const db = getAdminDb();
@@ -35,11 +63,13 @@ router.get("/status", async (req, res) => {
       return res.json({
         status: data.wa_status || 'disconnected',
         qr: data.wa_qr || null,
+        groups: [],
+        contacts: []
       });
     }
   } catch (e) {}
 
-  return res.json({ status: 'disconnected' });
+  return res.json({ status: 'disconnected', groups: [], contacts: [] });
 });
 
 router.get("/sync", async (req, res) => {
