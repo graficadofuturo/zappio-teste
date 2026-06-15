@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { auth, db, GLOBAL_USER_ID } from '../lib/firebase.js';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { handleFirestoreError, OperationType } from '../lib/firestore-utils.js';
-import { Calendar, MousePointerClick, Users, ShoppingCart, Tag, AlertCircle, TrendingUp, HelpCircle, Smartphone, Send, CheckCircle2, XCircle, Loader2, Zap, MessageSquare, DollarSign } from 'lucide-react';
+import { Calendar, MousePointerClick, Users, ShoppingCart, Tag, AlertCircle, TrendingUp, HelpCircle, Smartphone, Send, CheckCircle2, XCircle, Loader2, Zap, MessageSquare, DollarSign, Info } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 export default function DashboardOverview() {
@@ -248,15 +248,27 @@ export default function DashboardOverview() {
         </div>
       </div>
 
+      {/* Informational Notice for External Affiliate Metrics */}
+      <div style={{
+        background: 'rgba(59, 130, 246, 0.05)', border: '1px solid rgba(59, 130, 246, 0.15)',
+        borderRadius: 12, padding: '12px 16px', marginBottom: 20,
+        display: 'flex', alignItems: 'center', gap: 12
+      }}>
+        <Info size={18} style={{ color: '#3b82f6', flexShrink: 0 }} />
+        <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: 0, lineHeight: '1.5' }}>
+          As métricas de <strong>Cliques</strong>, <strong>Compradores</strong> e <strong>Ganhos</strong> são contabilizadas e pagas diretamente dentro dos portais de afiliados (Mercado Livre e Shopee). Consulte o seu respectivo painel de parceiro para obter dados financeiros e de conversão consolidados.
+        </p>
+      </div>
+
       {/* Metrics Grid */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 16, marginBottom: 24 }}>
         {[
-          { label: 'Msgs Enviadas', value: metrics.messagesSent.toLocaleString('pt-BR'), delta: '+12%', icon: MessageSquare, bg: 'rgba(16, 185, 129, 0.08)', color: 'var(--green)' },
-          { label: 'Taxa de Entrega', value: metrics.successRate, delta: '+0.3%', icon: CheckCircle2, bg: 'rgba(16, 185, 129, 0.08)', color: 'var(--green)' },
-          { label: 'Cliques', value: metrics.clicks.toLocaleString('pt-BR'), delta: '+8%', icon: MousePointerClick, bg: 'rgba(59, 130, 246, 0.08)', color: '#3b82f6' },
-          { label: 'Compradores', value: metrics.buyers.toLocaleString('pt-BR'), delta: '+5%', icon: Users, bg: 'rgba(167, 139, 250, 0.08)', color: '#a78bfa' },
-          { label: 'Ganhos Est.', value: metrics.estimatedGain, delta: '+18%', icon: DollarSign, bg: 'rgba(234, 179, 8, 0.08)', color: 'var(--yellow)' },
-          { label: 'Falha/Bloqueio', value: metrics.errorRate, delta: '-0.2%', icon: AlertCircle, bg: 'rgba(239, 68, 68, 0.08)', color: '#f87171' },
+          { label: 'Msgs Enviadas', value: metrics.messagesSent.toLocaleString('pt-BR'), delta: null, icon: MessageSquare, bg: 'rgba(16, 185, 129, 0.08)', color: 'var(--green)' },
+          { label: 'Taxa de Entrega', value: metrics.successRate, delta: null, icon: CheckCircle2, bg: 'rgba(16, 185, 129, 0.08)', color: 'var(--green)' },
+          { label: 'Cliques', value: 'Ver no Painel', delta: null, icon: MousePointerClick, bg: 'rgba(59, 130, 246, 0.08)', color: '#3b82f6' },
+          { label: 'Compradores', value: 'Ver no Painel', delta: null, icon: Users, bg: 'rgba(167, 139, 250, 0.08)', color: '#a78bfa' },
+          { label: 'Ganhos Est.', value: 'Ver no Painel', delta: null, icon: DollarSign, bg: 'rgba(234, 179, 8, 0.08)', color: 'var(--yellow)' },
+          { label: 'Falha/Bloqueio', value: metrics.errorRate, delta: null, icon: AlertCircle, bg: 'rgba(239, 68, 68, 0.08)', color: '#f87171' },
         ].map((m) => {
           const IconComponent = m.icon;
           return (
@@ -269,14 +281,16 @@ export default function DashboardOverview() {
                 }}>
                   <IconComponent size={18} />
                 </div>
-                <span style={{
-                  fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 99,
-                  background: m.delta.startsWith('+') ? 'var(--green-glow)' : 'rgba(239,68,68,0.12)',
-                  color: m.delta.startsWith('+') ? 'var(--green)' : '#f87171',
-                  border: m.delta.startsWith('+') ? '1px solid var(--border-green)' : '1px solid rgba(239,68,68,0.25)'
-                }}>{m.delta}</span>
+                {m.delta && (
+                  <span style={{
+                    fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 99,
+                    background: m.delta.startsWith('+') ? 'var(--green-glow)' : 'rgba(239,68,68,0.12)',
+                    color: m.delta.startsWith('+') ? 'var(--green)' : '#f87171',
+                    border: m.delta.startsWith('+') ? '1px solid var(--border-green)' : '1px solid rgba(239,68,68,0.25)'
+                  }}>{m.delta}</span>
+                )}
               </div>
-              <div className="metric-value" style={{ fontSize: 24, fontWeight: 700, color: 'var(--text-primary)' }}>{m.value}</div>
+              <div className="metric-value" style={{ fontSize: 22, fontWeight: 700, color: 'var(--text-primary)' }}>{m.value}</div>
               <div className="metric-label">{m.label}</div>
             </div>
           );
