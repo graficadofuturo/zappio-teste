@@ -320,6 +320,12 @@ router.post("/trigger-tick", async (req, res) => {
 router.get("/debug-trigger", async (req, res) => {
   try {
     const db = getAdminDb();
+    
+    // Get Firebase app details
+    const { getFirebaseAdminApp } = await import("../firebaseAdmin.js");
+    const app = getFirebaseAdminApp();
+    const appOptions = app?.options || {};
+    
     const campaignsRef = db.collection('campaigns');
     const snapshot = await campaignsRef
       .where('trigger_type', 'in', ['scheduled', 'auto'])
@@ -371,6 +377,12 @@ router.get("/debug-trigger", async (req, res) => {
     
     res.json({
       ok: true,
+      firebaseConfig: {
+        projectId: appOptions.projectId || null,
+        hasServiceAccount: !!process.env.FIREBASE_SERVICE_ACCOUNT_KEY,
+        databaseId: process.env.FIRESTORE_DATABASE_ID || "(default)",
+        envKeys: Object.keys(process.env).filter(k => k.includes("FIREBASE") || k.includes("GOOGLE") || k.includes("FIRESTORE"))
+      },
       campaignsFound: snapshot.size,
       results
     });
